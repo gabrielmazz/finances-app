@@ -1,0 +1,21 @@
+{
+  "officialSource": "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk",
+  "version": "57.0.9",
+  "sdk": 57,
+  "bytes": 208916626,
+  "digest": "sha256:14c18828a3d04e43922245920bd941b978fd1c7a5aec88a0188032f0bb4972ce",
+  "officialDigestMatched": true,
+  "installed": true,
+  "installedVersion": "57.0.9",
+  "replacementAuthorized": true,
+  "expoGoLocalDataRemoved": true,
+  "publishedApplicationPackageUnchanged": true,
+  "installedAt": "2026-11-09T16:30:28.029Z",
+  "previousInPlaceAttempt": {
+    "attemptedAt": "2026-11-09T16:20:03.226Z",
+    "versionDowngradeRefused": true,
+    "incompatibleSignature": false,
+    "timeout": false,
+    "dataDeletionAttempted": false
+  }
+}

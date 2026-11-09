@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-11-09T11:37:34.342Z",
+  "implemented": true,
+  "validated": true,
+  "published": true,
+  "projectId": "finances-app-e8685",
+  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "ruleset": "projects/finances-app-e8685/rulesets/16a9d21b-64c9-4815-87c0-5e66b6b8b930",
+  "tests": {
+    "unit": 98,
+    "unitSuites": 19,
+    "integration": 114,
+    "styles": true,
+    "types": true,
+    "operatorPositiveAndNegativePassed": true,
+    "frontendBrowserPreviouslyValidated": {
+      "routes": 50,
+      "flows": 5
+    },
+    "webAndroidIosExportsPreviouslyPassed": true,
+    "nativeInstalledRuntime": false
+  },
+  "backup": {
+    "authorized": true,
+    "encrypted": true,
+    "documents": 987,
+    "restoredDocuments": 987,
+    "serializedDocumentBytes": 961887,
+    "hashesEqual": true,
+    "profilesParsed": 2,
+    "foreignProfileReadsDeniedInEmulator": 2,
+    "originalUIDPathsPreserved": true,
+    "isolatedNetwork": true,
+    "swapAndCoreDumpsBlocked": true,
+    "pointInTime": false,
+    "authAccountsIncluded": false,
+    "offsiteCopyVerified": false,
+    "wholeVolumeEncryptionVerified": false
+  },
+  "production": {
+    "rulesPublishedAndHashVerified": true,
+    "anonymousPrivateListStatus": 403,
+    "billingEnabled": false,
+    "freeTier": true,
+    "matchingProfileAndAuthUIDs": 2,
+    "financialDocumentWrites": 0,
+    "authAccountChanges": 0,
+    "hostingDeployments": 0,
+    "billingChanges": 0,
+    "financialWritesSuspended": true
+  },
+  "pending": [
+    "One-hour read-only monitoring scheduled; machine and user systemd must remain running",
+    "Auth account backup and off-host separation of encrypted copy/key",
+    "Installed mobile homologation and authorized production login/session test",
+    "New frontend distribution was not part of this authorization"
+  ],
+  "monitoring": {
+    "immediatePassed": true,
+    "fifteenMinutePassed": true,
+    "fifteenMinuteCheckedAt": "2026-11-09T11:36:13.576Z",
+    "oneHourStatus": "scheduled-not-yet-executed"
+  }
+}

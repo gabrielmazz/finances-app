@@ -1,0 +1,64 @@
+{
+  "scope": "production dependencies; no new dependency introduced in stage03",
+  "checkedAt": "2026-11-09T02:32:41.944Z",
+  "vulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 5,
+    "high": 0,
+    "critical": 0,
+    "total": 5
+  },
+  "details": [
+    {
+      "name": "@expo/fingerprint",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "glob",
+        "minimatch"
+      ]
+    },
+    {
+      "name": "babel-plugin-module-resolver",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "glob"
+      ]
+    },
+    {
+      "name": "expo",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@expo/fingerprint"
+      ]
+    },
+    {
+      "name": "glob",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "name": "glob",
+          "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
+          "url": "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4"
+        },
+        "minimatch"
+      ]
+    },
+    {
+      "name": "minimatch",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "name": "minimatch",
+          "title": "minimatch has potential denial of service via globparts amplification",
+          "url": "https://github.com/advisories/GHSA-g3hv-75wg-m249"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,458 @@
+[
+  {
+    "name": "encrypted recovery preserves UID, financial values, hierarchy and typed references interpreted by the app",
+    "passed": true
+  },
+  {
+    "name": "restore interruption is detected, cannot overwrite partial results and is never marked valid",
+    "passed": true
+  },
+  {
+    "name": "export budgets fail closed for bytes and metadata requests",
+    "passed": true
+  },
+  {
+    "name": "CLI restores and verifies encrypted version-1 backups including missing ancestors",
+    "passed": true
+  },
+  {
+    "name": "real emulator token + protected authorization governs access, not legacy profile/member roles",
+    "passed": true
+  },
+  {
+    "name": "revocation blocks shared documents immediately even while a valid old token remains cached",
+    "passed": true
+  },
+  {
+    "name": "token refresh propagates the new generation; stale grant cannot be reused",
+    "passed": true
+  },
+  {
+    "name": "real Auth emulator: login existing UID, profile compatibility, logout and observer",
+    "passed": true
+  },
+  {
+    "name": "registration creates a single bounded profile with same UID; retries preserve fields",
+    "passed": true
+  },
+  {
+    "name": "missing profile stays missing after login; explicit completion creates it",
+    "passed": true
+  },
+  {
+    "name": "incomplete legacy profile, protected group membership and name-only transaction",
+    "passed": true
+  },
+  {
+    "name": "concurrent profile transactions detect stale edits and preserve legacy permission fields",
+    "passed": true
+  },
+  {
+    "name": "bounded own-bank query reads legacy documents; no foreign records or financial mutation",
+    "passed": true
+  },
+  {
+    "name": "Auth invalid credentials and reset flow stay isolated and do not expose account existence",
+    "passed": true
+  },
+  {
+    "name": "offline reads fail explicitly, keep identity and preserve stored data",
+    "passed": true
+  },
+  {
+    "name": "interrupted registration keeps the Auth account and resumes by explicit profile completion",
+    "passed": true
+  },
+  {
+    "name": "Rules: unauthenticated access, foreign PII and unbounded user enumeration denied",
+    "passed": true
+  },
+  {
+    "name": "Rules: create schema, ownership, role, timestamps, PII and oversized payloads",
+    "passed": true
+  },
+  {
+    "name": "Rules: update validates names and forbids roles, relationships, ownership, deletion and group escalation",
+    "passed": true
+  },
+  {
+    "name": "Rules: queries enforce ownership and page limits; members cannot edit group or access foreign banks",
+    "passed": true
+  },
+  {
+    "name": "password recovery applies the emulator code, preserves UID and rejects the previous password",
+    "passed": true
+  },
+  {
+    "name": "security: emergency containment preserves own private reads and never reopens writes/sharing",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: banks.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: banks.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: banks.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: bankTransfers.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: bankTransfers.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: bankTransfers.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: cashRescues.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: cashRescues.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: cashRescues.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: expenses.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: expenses.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: expenses.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestmentSyncs.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestmentSyncs.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestmentSyncs.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestments.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestments.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: financeInvestments.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: gains.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: gains.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: gains.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: investmentCdiRates.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: investmentCdiRates.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: investmentCdiRates.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryExpenses.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryExpenses.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryExpenses.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryGains.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryGains.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: mandatoryGains.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: monthlyBalances.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: monthlyBalances.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: monthlyBalances.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: tags.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: tags.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: tags.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: guest",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: legacy.unbounded-banks",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: legacy.global-banks",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: query.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: query.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: query.mixed",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: query.shared",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: query.limit",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: history",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.enumeration",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.missing",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.create",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.legacy-create",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.foreign-create",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.incomplete",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.update",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.role",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.links",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.group",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.owner",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.email",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.created",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.long",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.type",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.missing",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.control",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.pollution",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.attack.time",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.foreign-update",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: profile.delete",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.create.owner",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.create.outsider",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.update.owner",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.update.outsider",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.delete.owner",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: finance.delete.outsider",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.verified",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.forged-members",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.self-join",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.create",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.history",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.foreign-history",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.orphan",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: group.unknown",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: authority.own",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: authority.no-claim",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: authority.stale-claim",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: authority.mutate",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: unknown",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: push.foreign",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: batch.allowed",
+    "passed": true
+  },
+  {
+    "name": "security/compatibility: batch.atomic-denial",
+    "passed": true
+  },
+  {
+    "name": "typed external snapshot: nested/orphan documents, checksum, create-only restore and round trip",
+    "passed": true
+  },
+  {
+    "name": "snapshot reserves a sibling page before recursively reading children",
+    "passed": true
+  }
+]

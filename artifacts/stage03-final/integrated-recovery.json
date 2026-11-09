@@ -1,0 +1,18 @@
+{
+  "synthetic": true,
+  "expectedDocuments": 7,
+  "restoredDocuments": 7,
+  "authUsersExpected": 4,
+  "authUsersRestored": 4,
+  "documentHashesEqual": true,
+  "uidPreserved": true,
+  "providersPreserved": true,
+  "disabledAccountDenied": true,
+  "relationshipsAndFinancialValuesPreserved": true,
+  "actualFrontendStarted": true,
+  "uiLoginAndProfilePassed": true,
+  "uiSessionReloadPassed": true,
+  "productionDataUsed": false,
+  "productionPasswordHashAlgorithmValidated": false,
+  "limitation": "Auth emulator uses fake hashes; this proves emulator identity/UI recovery, not Firebase SCRYPT password verification or external OAuth login."
+}

@@ -1,0 +1,8 @@
+{
+  "checkedAt": "2026-11-09T17:18:13.838Z",
+  "available": false,
+  "reason": "ADB transport unavailable during optional post-test settings read",
+  "settingsRead": false,
+  "deviceSettingsChangedByThisCheck": false,
+  "functionalReconnectionPreviouslyVerified": true
+}

@@ -22,7 +22,17 @@
     "emulators:seed": "tsx script/emulator-fixtures.ts",
     "test:integration": "node script/firebase-local.cjs test",
     "web:export:local": "node script/firebase-local.cjs export",
-    "test:browser": "node tests/browser/foundation.cjs"
+    "test:browser": "node tests/browser/foundation.cjs",
+    "production:audit": "node script/production-readiness.cjs audit",
+    "production:verify": "node script/production-readiness.cjs verify",
+    "security:evidence": "node script/security-evidence.cjs",
+    "test:recovery-protected": "node tests/recovery-protected.cjs",
+    "homologation:prepare": "node script/homologation.cjs prepare",
+    "homologation:web": "node script/homologation.cjs web",
+    "homologation:export": "node script/homologation.cjs export-web",
+    "homologation:serve": "node script/homologation.cjs serve-web",
+    "homologation:native": "node script/homologation.cjs native",
+    "backup:verify:local": "node script/verify-private-backups.cjs"
   },
   "engines": {
     "node": ">=22.13.0"

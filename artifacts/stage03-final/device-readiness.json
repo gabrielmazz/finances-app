@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-11-09T16:30:40.460Z",
+  "adbAvailable": true,
+  "deviceCount": 1,
+  "devices": [
+    {
+      "state": "device",
+      "model": "SM_S926B",
+      "physical": true,
+      "expoGoInstalled": true
+    }
+  ],
+  "physicalHomologationPerformed": false,
+  "launchRequested": true
+}

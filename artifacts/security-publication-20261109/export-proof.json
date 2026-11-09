@@ -1,0 +1,18 @@
+{
+  "complete": true,
+  "documentCount": 987,
+  "scannedDocuments": 987,
+  "serializedDocumentBytes": 961887,
+  "sha256": "c1ee1b628523a62bd70f8705ac7ddd4ae9b536fcff23800ff16264a4a9f0b82e",
+  "startedAt": "2026-11-09T11:13:36.189Z",
+  "exportedAt": "2026-11-09T11:17:40.214Z",
+  "pointInTime": false,
+  "encrypted": true,
+  "swapDisabled": true,
+  "coreDumpsDisabled": true,
+  "productionWrites": 0,
+  "authorized": true,
+  "scope": "Firestore only; Auth accounts excluded",
+  "keyStoredSeparately": true,
+  "wholeVolumeEncryptionVerified": false
+}

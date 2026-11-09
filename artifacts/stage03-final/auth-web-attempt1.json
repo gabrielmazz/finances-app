@@ -1,0 +1,24 @@
+{
+  "projectId": "finances-app-e8685",
+  "startedAt": "2026-11-09T12:29:47.233Z",
+  "status": "failed",
+  "steps": [
+    {
+      "name": "authorized-login-and-existing-profile-uid",
+      "passed": true
+    },
+    {
+      "name": "reload-preserves-session-without-another-signin",
+      "passed": true
+    },
+    {
+      "name": "browser-process-restart-preserves-uid-and-profile",
+      "passed": true
+    }
+  ],
+  "screenshotsTaken": false,
+  "rawIdentityRecorded": false,
+  "financialWrites": 0,
+  "failurePhase": "connection-loss",
+  "finishedAt": "2026-11-09T12:31:52.562Z"
+}

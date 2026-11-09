@@ -1,0 +1,50 @@
+{
+  "startedAt": "2026-11-09T16:58:51.796Z",
+  "platform": "android",
+  "model": "SM_S926B",
+  "physicalDeviceDetected": true,
+  "installedExpoGo": "57.0.9",
+  "projectSdk": 57,
+  "steps": [
+    {
+      "name": "native-workspace-rendered-existing-authorized-session",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:58:54.682Z"
+    },
+    {
+      "name": "existing-authorized-session-profile-and-uid",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:59:08.283Z"
+    },
+    {
+      "name": "existing-profile-name-email-and-legacy-date-loaded",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:59:20.166Z"
+    },
+    {
+      "name": "force-stop-and-reopen-preserves-session-and-uid",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:59:42.999Z"
+    },
+    {
+      "name": "connection-loss-reports-explicit-error",
+      "passed": true,
+      "checkedAt": "2026-11-09T17:00:07.308Z"
+    },
+    {
+      "name": "connection-restored-cold-profile-read-and-same-uid",
+      "passed": true,
+      "checkedAt": "2026-11-09T17:01:18.529Z"
+    }
+  ],
+  "applicationFlowsHomologated": false,
+  "credentialsEnteredByAutomation": false,
+  "manualLoginReportedByOwner": true,
+  "initialLoginTransitionCaptured": false,
+  "rawIdentityRecorded": false,
+  "screenshotsTaken": false,
+  "financialWrites": 0,
+  "productionAppReplaced": false,
+  "error": "Expected physical UI state was not observed",
+  "finishedAt": "2026-11-09T17:01:36.084Z"
+}

@@ -1,0 +1,21 @@
+rules_version = '2';
+// Emergency rollback: preserve private reads, suspend every client write/share.
+// Never restore the historically open Rules as a rollback.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{collection}/{id} {
+      allow get: if request.auth != null
+        && collection in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
+          'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains','monthlyBalances','tags']
+        && resource.data.personId == request.auth.uid;
+      allow list: if request.auth != null && request.query.limit <= 20
+        && collection in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
+          'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains','monthlyBalances','tags']
+        && resource.data.personId == request.auth.uid;
+    }
+    match /{path=**} { allow read, write: if false; }
+  }
+}

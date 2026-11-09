@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-09T12:24:41.901Z",
+  "authorizedBackupDirectory": "/programacao/finances-app-recovery-20261108/encrypted-data-20261109",
+  "encryptedFile": "/programacao/finances-app-recovery-20261108/encrypted-data-20261109/firestore-c1ee1b62.enc",
+  "readable": true,
+  "ciphertextChecksumMatches": true,
+  "permissions": 384,
+  "sameFilesystemAsSource": true,
+  "independentKeyDestinationVerified": false,
+  "keyCopiedToBackupDirectory": true,
+  "offHostCopyVerified": false,
+  "ownerExplicitlyAcceptedCoLocatedKey": true,
+  "keyStored": true,
+  "keyMode": 384,
+  "keyDirectoryMode": 448,
+  "keyAccessPrincipalIndependent": false,
+  "physicalIndependenceVerified": false
+}

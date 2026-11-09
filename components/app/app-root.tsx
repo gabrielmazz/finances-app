@@ -35,12 +35,12 @@ const PresentationStack = () => {
 	const pathname = usePathname();
 	const showWorkspace = pathname !== APP_ROUTE_PATHS.login && pathname !== '/';
 	const { isLoadingTheme } = useAppTheme();
-	const { initializing, user } = useSession();
+	const { initializing, user, error, contextError } = useSession();
 	const { isLoadingRouteVisibility, isRouteVisible } = useRouteVisibility();
 	if (isLoadingTheme || isLoadingRouteVisibility || initializing) return <AppBootstrapScreen />;
 	return (
 		<View className="flex-1">
-			{showWorkspace && <FeatureUnavailableNotice showWorkspace />}
+			{showWorkspace && <FeatureUnavailableNotice showWorkspace message={contextError || error || undefined} />}
 			<WebAppShell showWorkspace={showWorkspace}>
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Screen name="index" />

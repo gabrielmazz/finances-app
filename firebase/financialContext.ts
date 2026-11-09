@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import type { AccountClient } from './profiles';
 import { measureRead } from './diagnostics';
+import { loadAuthorization } from './authorization';
 
 export type FinancialContext =
 	{ kind: 'personal' } | { kind: 'group'; groupId: string; role: 'admin' | 'member' };
@@ -26,6 +27,9 @@ export async function loadFinancialContext(
 	if (groupId == null) return { kind: 'personal' };
 	if (typeof groupId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(groupId))
 		throw new Error('context/invalid-group');
+	const authorization = await loadAuthorization(client, uid);
+	const role = authorization?.groups[groupId];
+	if (role !== 'admin' && role !== 'member') throw new Error('context/access-denied');
 	const snapshot = await measureRead(
 		'context.get',
 		() => getDocFromServer(doc(client.db, 'financialGroups', groupId)),
@@ -33,8 +37,7 @@ export async function loadFinancialContext(
 	);
 	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
 	const data = snapshot.data();
-	const role = data?.members?.[uid];
-	if (data?.status !== 'active' || !['admin', 'member'].includes(role))
+	if (data?.status !== 'active')
 		throw new Error('context/access-denied');
 	return { kind: 'group', groupId, role };
 }

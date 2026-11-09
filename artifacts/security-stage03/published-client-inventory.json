@@ -1,0 +1,76 @@
+{
+  "checkedAt": "2026-11-08T21:12:30.254Z",
+  "origin": "https://finances-app-e8685.web.app",
+  "htmlBytes": 2597,
+  "scripts": [
+    {
+      "path": "/_expo/static/js/web/index-510fd41135d55920aa62bb9af1b06249.js",
+      "status": 200,
+      "bytes": 24752977,
+      "sha256": "5bb7e9a9b9705ebe6159aaeec82b5ff5a5d18fd5154e44c3a41662ce9610e0a0",
+      "markers": [
+        "sparkProtocol",
+        "financialGroupId",
+        "relatedIdUsers",
+        "valueInCents",
+        "getAllUsersFirebase",
+        "getBanksByPersonFirebase",
+        "SPARK_TRANSFER_PROOF_PROTOCOL",
+        "2.3.3"
+      ]
+    }
+  ],
+  "hostingRelease": {
+    "type": "DEPLOY",
+    "releaseTime": "2026-11-08T14:45:02.329Z",
+    "version": "sites/finances-app-e8685/versions/836231f2186f7f62"
+  },
+  "declaredVersionEvidence": "Published Expo configuration contains escaped version 2.3.3; Android/iOS installations remain unverified.",
+  "samples": [
+    {
+      "function": "getBanksByPersonFirebase",
+      "exportOffset": 14967551,
+      "excerpt": "getBanksByPersonFirebase=async function(t){try{const o=await(0,p.getSparkContextFirebase)(s.db,t);if(o)return{success:!0,data:await(0,h.readSparkBankSelectionFirebase)(s.db,t,o.groupId)};const c=(0,n.query)((0,n.collection)(s.db,'banks'),(0,n.where)('personId','==',t)),u=await(0,n.getDocs)(c);return{success:!0,data:u.docs.map(t=>({id:t.id,...t.data()})).filter(t=>!1!==t.isActive)}}catch(t){return console.error('Erro ao obter bancos por pessoa:',t),{success:!1,error:t}}},e.getBanksWithUsersByPersonFirebase=y,e.getCurrentMonthSummaryByBankFirebaseExpanses=async function(t){try{const c=new Date,u=new Date(c.getFullYear(),c.getMonth(),1),l=new Da"
+    },
+    {
+      "function": "getBanksWithUsersByPersonFirebase",
+      "exportOffset": -1,
+      "excerpt": null
+    },
+    {
+      "function": "getRelatedUsersFirebase",
+      "exportOffset": -1,
+      "excerpt": null
+    },
+    {
+      "function": "getUserProfileFirebase",
+      "exportOffset": 14958809,
+      "excerpt": "getUserProfileFirebase=async function(n){const o=f(n),u=await(0,t.getDocFromServer)((0,t.doc)(s.db,'users',n));if(f(n),!u.exists())throw new Error('profile/not-found');const c=u.data(),l=c.createdAt?.toDate?.();return{uid:n,name:'string'==typeof c.name?c.name:o.displayName??'',email:o.email??'',createdAt:l instanceof Date&&Number.isFinite(l.getTime())?l:null,adminUser:'admin'===c.financialGroupRole}},e.getUserProfileAccessSummaryFirebase=async function(t,s){if(f(t),s.uid!==t)throw new Error('profile/session-changed');const c=s.adminUser?await Promise.all([(0,n.getAllUsersFirebase)(),(0,o.getBanksWithUsersByPersonFirebase)(t),(0,u.getTagsWithU"
+    },
+    {
+      "function": "getSparkContextFirebase",
+      "exportOffset": 14212969,
+      "excerpt": "getSparkContextFirebase=async function(s,u){(0,c.assertSparkDocumentId)(u);const p=()=>{if((0,o.getAuth)(s.app).currentUser?.uid!==u)throw new Error('A sess\\xe3o autenticada mudou.')};p();let f=(await(0,n.getDocFromServer)((0,n.doc)(s,'users',u))).data();if(p(),f&&!f.financialGroupId&&!f.financialLegacyCutoverAt&&!0===f.sparkFirstUseRequested){const o=await(0,t.initializeSparkFirstUseFirebase)(s,u);if(p(),'awaiting-authorization'===o.status)throw new Error('A prepara\\xe7\\xe3o financeira desta conta ainda aguarda autoriza\\xe7\\xe3o.');if(f=(await(0,n.getDocFromServer)((0,n.doc)(s,'users',u))).data(),p(),!f?.financialGroupId)throw new Error('A p"
+    },
+    {
+      "function": "updateUserProfileFirebase",
+      "exportOffset": 14959736,
+      "excerpt": "updateUserProfileFirebase=async function(n,o,u){const l=f(n),w=c(o);if(w)throw new Error(w);const p=o.trim();if(u){if(u.isCurrent&&!u.isCurrent())throw new Error('A sess\\xe3o do assistente foi encerrada.');return(0,t.runTransaction)(s.db,async o=>{const c=(0,t.doc)(s.db,'users',n),w=await o.get(c);if(f(n),u.isCurrent&&!u.isCurrent())throw new Error('A sess\\xe3o do assistente foi encerrada.');if(!w.exists())throw new Error('profile/not-found');const y=w.data().name,h='string'==typeof y?y:l.displayName??'';if(h===p)return h;if(h!==u.expectedName)throw new Error('Seu nome mudou. Confira o perfil e confirme novamente.');return o.update(c,{name:p,"
+    }
+  ],
+  "archivedGitReferences": [
+    {
+      "ref": "7914001",
+      "appVersion": "2.2.1"
+    },
+    {
+      "ref": "11b2b04",
+      "appVersion": "2.3.2"
+    },
+    {
+      "ref": "ac801ca",
+      "appVersion": "2.3.3"
+    }
+  ],
+  "conclusion": "Actual public JS contains Spark and legacy fallback paths. Function queries are replayed with synthetic data. No production JS was executed."
+}

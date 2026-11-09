@@ -1,5 +1,5 @@
 import React from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 import { getFirebaseClient } from '../firebase/client';
 import { loadProfile } from '../firebase/profiles';
 import { loadFinancialContext, type FinancialContext } from '../firebase/financialContext';
@@ -70,7 +70,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 		try {
 			const client = getFirebaseClient();
 			const stopTracking = trackAuthObserver();
-			const unsubscribe = onAuthStateChanged(
+			const unsubscribe = onIdTokenChanged(
 				client.auth,
 				() => {
 					void reload();

@@ -1,0 +1,57 @@
+{
+  "startedAt": "2026-11-09T13:22:53.074Z",
+  "finishedAt": "2026-11-09T13:22:59.478Z",
+  "verifiedFromApprovedDestination": true,
+  "auth": {
+    "checkedAt": "2026-11-09T13:22:53.191Z",
+    "userCount": 3,
+    "passwordAccounts": 3,
+    "passwordHashesPresent": 3,
+    "passwordParametersPresent": true,
+    "providerRecordCount": 3,
+    "mfaRequiresSeparateReview": false,
+    "realPasswordRestoreHomologated": false,
+    "sha256": "f23b42a5a9b9dc2ec7abac4e6cfa8b65413cf570ace7850ca4630b308b059345",
+    "encrypted": true,
+    "integrityVerified": true,
+    "association": {
+      "profiles": 2,
+      "authUsersWithProfile": 2
+    },
+    "pointInTime": false,
+    "productionAccountWrites": 0,
+    "productionImportSupported": false,
+    "hashParametersLogged": false
+  },
+  "firestore": {
+    "equal": true,
+    "sourceCount": 987,
+    "restoredCount": 987,
+    "expectedHash": "88ad64957fa37d0f8401095c9ddc44beb648443d1bc29e0ccabfce76cc18b80e",
+    "restoredHash": "88ad64957fa37d0f8401095c9ddc44beb648443d1bc29e0ccabfce76cc18b80e",
+    "javaCoreDumpsDisabled": true,
+    "profilesInterpreted": 2,
+    "foreignProfilesDenied": 2,
+    "ownBankQueriesPassed": true,
+    "uidPathsPreserved": true,
+    "internalReferencesRemapped": true,
+    "sourceSHA256": "c1ee1b628523a62bd70f8705ac7ddd4ae9b536fcff23800ff16264a4a9f0b82e",
+    "encrypted": true,
+    "pointInTime": false,
+    "privateNetwork": true,
+    "swapDisabled": true,
+    "coreDumpsDisabled": true,
+    "productionWrites": 0,
+    "authAccountsIncluded": false,
+    "synthetic": false
+  },
+  "independentStorage": false,
+  "ownerAcceptedCoLocatedKey": true,
+  "productionWrites": 0,
+  "retention": {
+    "verification": "weekly, manual execution",
+    "review": "every 30 days",
+    "automaticDeletion": false,
+    "minimumCopies": "Keep this verified baseline until a newer archive is independently verified; no off-host copy has been verified."
+  }
+}

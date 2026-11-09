@@ -1,0 +1,11 @@
+{
+  "date": "2026-11-09",
+  "rulesPublicationAuthorized": true,
+  "approvedRulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "realFirestoreCopyAndIsolatedRecoveryAuthorized": true,
+  "financialOperationsSuspensionAccepted": true,
+  "installedMobileCompatibilityCertified": false,
+  "authOrFinancialDataWritesAuthorized": false,
+  "hostingDeploymentAuthorized": false,
+  "billingChangeAuthorized": false
+}

@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-11-09T11:26:43.828Z",
+  "projectId": "finances-app-e8685",
+  "database": {
+    "edition": "STANDARD",
+    "freeTier": true
+  },
+  "billingEnabled": false,
+  "publishedRules": {
+    "name": "projects/finances-app-e8685/rulesets/16a9d21b-64c9-4815-87c0-5e66b6b8b930",
+    "updatedAt": "2026-11-09T11:21:28.166436Z",
+    "sha256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+    "source": "rules_version = '2';\n// Stage 03 candidate, not published. Default deny; all financial writes remain denied.\n// users/{uid}: legacy fields retained; clients create a minimal own profile or edit\n// their own bounded name. Permission/relationship fields cannot be changed.\n// _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,\n// groups:map<=5}. Requires matching Auth custom claim lumusAccess, minted by IAM.\n// Legacy profile/group membership fields alone never establish authorization.\n// Financial documents: immutable legacy personId ownership, read only, pages <=20.\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isAuthenticated() { return request.auth != null; }\n    function isOwner(uid) { return isAuthenticated() && request.auth.uid == uid; }\n    function hasAuthorityClaim() {\n      return isAuthenticated() && request.auth.token.get('lumusAccess', '') is string\n        && request.auth.token.get('lumusAccess', '').matches('^[A-Za-z0-9_-]{16,64}$');\n    }\n    function authorization() {\n      return get(/databases/$(database)/documents/_authorizations/$(request.auth.uid)).data;\n    }\n    function validAuthorization(data) {\n      return data.generation == request.auth.token.lumusAccess && data.enabled == true\n        && data.readOwners is list && data.readOwners.size() <= 5\n        && data.groups is map && data.groups.size() <= 5;\n    }\n    function verifiedAuthorization() { return validAuthorization(authorization()); }\n    function mayReadOwner(owner) {\n      return isAuthenticated() && owner is string && (owner == request.auth.uid ||\n        (hasAuthorityClaim() && verifiedAuthorization() && owner in authorization().readOwners));\n    }\n    function hasGroupAccess(groupId) {\n      return hasAuthorityClaim() && verifiedAuthorization()\n        && authorization().groups.get(groupId, '') in ['admin', 'member'];\n    }\n    function legacyCollection(name) {\n      return name in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',\n        'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains',\n        'monthlyBalances','tags'];\n    }\n    function isValidName(data) {\n      return data.name is string && data.name.size() > 0 && data.name.size() <= 100\n        && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\\\x00-\\\\x1F\\\\x7F].*');\n    }\n    function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }\n    match /users/{uid} {\n      allow get: if isOwner(uid);\n      allow create: if isOwner(uid) && isValidUser(request.resource.data)\n        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'adminUser'])\n        && request.resource.data.keys().hasAll(['email', 'createdAt', 'adminUser'])\n        && request.resource.data.email is string && request.resource.data.email.size() <= 254\n        && request.resource.data.email == request.auth.token.email\n        && request.resource.data.adminUser == false\n        && request.resource.data.createdAt == request.time;\n      // Unknown legacy fields stay unchanged, including fields of incomplete profiles.\n      allow update: if isOwner(uid) && isValidUser(request.resource.data)\n        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])\n        && request.resource.data.updatedAt == request.time;\n    }\n    match /financialGroups/{groupId} {\n      allow get: if hasGroupAccess(groupId) && resource.data.status == 'active';\n      match /{collection}/{id} {\n        allow get: if collection in ['accounts','movements','monthlyBalances','tags']\n          && hasGroupAccess(groupId)\n          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';\n        allow list: if request.query.limit <= 20\n          && collection in ['accounts','movements','monthlyBalances','tags'] && hasGroupAccess(groupId)\n          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';\n      }\n    }\n    match /_authorizations/{uid} {\n      allow get: if isOwner(uid) && hasAuthorityClaim() && validAuthorization(resource.data);\n    }\n    match /{collection}/{id} {\n      allow get: if legacyCollection(collection) && mayReadOwner(resource.data.personId);\n      allow list: if legacyCollection(collection) && request.query.limit <= 20\n        && mayReadOwner(resource.data.personId);\n    }\n    match /{document=**} { allow read, write: if false; }\n  }\n}\n"
+  },
+  "auth": {
+    "subtype": "FIREBASE_AUTH",
+    "emailPasswordEnabled": true
+  },
+  "sdk": {
+    "projectMatches": true,
+    "appId": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+    "authDomain": "finances-app-e8685.firebaseapp.com",
+    "apiKeyPresent": true
+  },
+  "productionWrites": 0,
+  "counts": {
+    "bankTransfers": 15,
+    "banks": 3,
+    "cashRescues": 2,
+    "expenses": 590,
+    "financeInvestmentSyncs": 39,
+    "financeInvestments": 2,
+    "gains": 246,
+    "investmentCdiRates": 1,
+    "mandatoryExpenses": 16,
+    "mandatoryGains": 1,
+    "monthlyBalances": 34,
+    "tags": 35,
+    "users": 2
+  },
+  "authCompatibility": {
+    "complete": true,
+    "profilesChecked": 2,
+    "matchingUids": 2,
+    "passwordProviders": 2,
+    "disabledAccounts": 0
+  }
+}

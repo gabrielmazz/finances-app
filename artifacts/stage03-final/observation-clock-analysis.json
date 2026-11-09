@@ -1,0 +1,9 @@
+{
+  "wallClockSeconds": 3397.056,
+  "monotonicSeconds": 3608.018616484,
+  "wallClockAdjustmentSeconds": -210.96261648400014,
+  "samples": 61,
+  "passing": 61,
+  "elapsedTimeSource": "process.hrtime.bigint, monotonic kernel clock",
+  "wallTimeNotUsedForDuration": true
+}

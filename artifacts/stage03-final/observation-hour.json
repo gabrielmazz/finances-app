@@ -1,0 +1,13 @@
+{
+  "projectId": "finances-app-e8685",
+  "startedAt": "2026-11-09T12:14:17.276Z",
+  "endedAt": "2026-11-09T13:10:54.332Z",
+  "expectedHash": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "elapsedSeconds": 3608.018616484,
+  "attempts": 61,
+  "maxGapSeconds": 62.656721856999866,
+  "continuousHour": true,
+  "financialWrites": 0,
+  "probesAreExpectedDenials": true,
+  "authenticatedUserFlowsObserved": false
+}

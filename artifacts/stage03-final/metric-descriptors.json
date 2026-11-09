@@ -1,0 +1,1403 @@
+[
+  {
+    "type": "firestore.googleapis.com/api/billable_read_units",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of billable read units. These metrics are only available for Firestore databases with Enterprise Edition.",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "api_method",
+        "description": "The API method called, for example, \"RunQuery\" or \"MongoDBCompatible.Find\"."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/api/billable_realtime_read_units",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of billable real-time read units. This metric is only available for Firestore databases with Enterprise Edition.",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "api_method",
+        "description": "The API method called, for example, \"RunQuery\" or \"MongoDBCompatible.Find\"."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/api/billable_write_units",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of billable write units. This metric is only available for Firestore databases with Enterprise Edition.",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "api_method",
+        "description": "The API method called, for example, \"RunQuery\" or \"MongoDBCompatible.Find\"."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/api/request_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of Firestore API calls.",
+    "labels": [
+      {
+        "key": "api_method",
+        "description": "The API method called (for example: BeginTransaction or Commit)."
+      },
+      {
+        "key": "response_code",
+        "description": "Operation response code string, derived as a string representation of a HTTP status code (e.g. success, not_found, unavailable)."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/api/request_latencies",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Non-streaming Firestore v1, Datastore v1 and Datastore v3 request latencies from the frontend.",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\", \"datastore-private.googleapis.com\"]."
+      },
+      {
+        "key": "api_method",
+        "description": "The API method called, for example, \"BeginTransaction\", \"Commit\" or \"MongoDBCompatible.Find\"."
+      },
+      {
+        "key": "response_code",
+        "description": "Operation response code string, derived as a string representation of a HTTP status code, for example, \"OK\", \"DEADLINE_EXCEEDED\", \"ABORTED\", \"PERMISSION_DENIED\", \"INVALID_ARGUMENT\"."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/composite_indexes_per_database",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Current number of composite indexes per database.",
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "120s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/billable_managed_delete_write_units",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of billable managed delete write units. This metric is only available for Firestore databases with Enterprise Edition.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/delete_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document deletes.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/delete_ops_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document deletes.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/read_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document reads from queries or lookups.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      },
+      {
+        "key": "type",
+        "description": "The type of the read (e.g. 'LOOKUP', 'QUERY')."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/read_ops_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document reads from queries or lookups.",
+    "labels": [
+      {
+        "key": "type",
+        "description": "The type of the read, one of [LOOKUP, QUERY]."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/ttl_deletion_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Total count of documents deleted by TTL services.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/ttl_expiration_to_deletion_delays",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Time elapsed between when a document with a TTL expired, and when it was actually deleted.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/write_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document writes.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      },
+      {
+        "key": "op",
+        "description": "The operation name for the write (e.g. 'CREATE', 'UPDATE')."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/document/write_ops_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful document writes.",
+    "labels": [
+      {
+        "key": "op",
+        "description": "The operation name for the write, one of [CREATE, UPDATE]."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/field_configurations_per_database",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Current number of field configurations per database.",
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "120s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/mcp/request_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of Firestore MCP calls.",
+    "labels": [
+      {
+        "key": "tool_name",
+        "description": "The name of the MCP tool making the MCP call."
+      },
+      {
+        "key": "response_code",
+        "description": "Operation response code string, derived as a string representation of a HTTP status code (e.g. success, not_found, unavailable)."
+      }
+    ],
+    "metadata": {
+      "launchStage": "BETA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/mcp/request_latencies",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of latencies for Firestore MCP calls.",
+    "labels": [
+      {
+        "key": "tool_name",
+        "description": "The name of the MCP tool making the MCP call."
+      },
+      {
+        "key": "response_code",
+        "description": "Operation response code string, derived as a string representation of a HTTP status code (e.g. success, not_found, unavailable)."
+      }
+    ],
+    "metadata": {
+      "launchStage": "BETA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/network/active_connections",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The number of active connections. Each mobile client will have one connection. Each listener in admin SDK will be one connection.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/network/active_ignite_connections",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The number of active ignite connections.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/network/snapshot_listeners",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The number of snapshot listeners currently registered across all connected clients.",
+    "labels": [
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/query_stat/per_query/result_counts",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of number of results yielded per query. Real-time queries are excluded. Note. This metric is for performance observability. It is not relevant to billing calculations. To understand how read operations contribute to your bill, use  \"firestore.googleapis.com/document/read_ops_count\".",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "method",
+        "description": "The API method called, for example, \"RunQuery\" or \"RunAggregationQuery\"."
+      }
+    ],
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/query_stat/per_query/scanned_documents_counts",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of number of documents scanned per query. Real-time queries are excluded. Note. This metric is for performance observability. It is not relevant to billing calculations. To understand how read operations contribute to your bill, use  \"firestore.googleapis.com/document/read_ops_count\".",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "method",
+        "description": "The API method called, for example, \"RunQuery\" or \"RunAggregationQuery\"."
+      }
+    ],
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/query_stat/per_query/scanned_index_entries_counts",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of number of scanned index entries per query. Real-time queries are excluded. Note. This metric is for performance observability. It is not relevant to billing calculations. To understand how read operations contribute to your bill, use  \"firestore.googleapis.com/document/read_ops_count\".",
+    "labels": [
+      {
+        "key": "service",
+        "description": "The API service called, one of [\"firestore.googleapis.com\", \"datastore.googleapis.com\"]."
+      },
+      {
+        "key": "method",
+        "description": "The API method called, for example, \"RunQuery\" or \"RunAggregationQuery\"."
+      }
+    ],
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/quota/composite_indexes_per_database/exceeded",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Number of attempts to exceed the limit on quota metric firestore.googleapis.com/composite_indexes_per_database.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The limit name."
+      }
+    ],
+    "metadata": {
+      "ingestDelay": "150s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/quota/composite_indexes_per_database/limit",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Current limit on quota metric firestore.googleapis.com/composite_indexes_per_database.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The limit name."
+      }
+    ],
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "150s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/quota/composite_indexes_per_database/usage",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Current usage on quota metric firestore.googleapis.com/composite_indexes_per_database.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The limit name."
+      }
+    ],
+    "metadata": {
+      "ingestDelay": "150s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/rules/evaluation_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of Cloud Firestore Security Rule evaluations performed in response to write (create, update, delete) or read (get, list) requests.",
+    "labels": [
+      {
+        "key": "request_method",
+        "description": "The permission type of the request."
+      },
+      {
+        "key": "ruleset_label",
+        "description": "The ruleset label indicating whether it is the current production release."
+      },
+      {
+        "key": "version",
+        "description": "The version name."
+      },
+      {
+        "key": "module",
+        "description": "The service/module name."
+      },
+      {
+        "key": "result",
+        "description": "The evaluation result: ALLOW, DENY, or ERROR."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/storage/backups_storage_bytes",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Per database total backup storage size(in bytes).",
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/storage/data_and_index_storage_bytes",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Per database data and index storage size(in bytes).",
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firestore.googleapis.com/storage/pitr_storage_bytes",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "Per database point in time recovery storage size(in bytes).",
+    "metadata": {
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/mfa/totp/enrollment_attempt_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of MFA TOTP enrollment attempts.",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider for the first-factor, e.g. password, Google, Facebook, etc."
+      },
+      {
+        "key": "response_code",
+        "description": "The HTTP status code."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/mfa/totp/sign_in_challenge_attempt_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of MFA TOTP sign in challenge attempts.",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider for the first-factor, e.g. password, Google, Facebook, etc."
+      },
+      {
+        "key": "response_code",
+        "description": "The HTTP status code."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/password_policy/weak_password_sign_in_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of successful sign-ins with weak password.",
+    "labels": [
+      {
+        "key": "client_type",
+        "description": "Client platform, one of [web, android, ios]."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/quota/free_daily_signin/exceeded",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of sign-ins that have exceeded the free daily new sign-in quota.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the identity provider used to sign in."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/recaptcha/risk_scores",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of reCAPTCHA bot scores. Scores range from 0 (high risk) to 1 (low risk).",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider, one of [passwordProvider, phoneProvider]."
+      },
+      {
+        "key": "api_name",
+        "description": "The reCAPTCHA supported API name, one of [signUpPassword, signInWithPassword, getOobCode, sendVerificationCode, mfaSmsEnrollment, mfaSmsSignIn]."
+      },
+      {
+        "key": "client_type",
+        "description": "Client platform, one of [web, android, ios]."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/recaptcha/sms_tf_risk_scores",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of reCAPTCHA sms toll fraud detection scores. Scores range from 0 (low risk) to 1 (high risk).",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider, one of [phoneProvider]."
+      },
+      {
+        "key": "api_name",
+        "description": "The reCAPTCHA supported API name, one of [sendVerificationCode, mfaSmsEnrollment, mfaSmsSignIn]."
+      },
+      {
+        "key": "client_type",
+        "description": "Client platform, one of [web, android, ios]."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/recaptcha/token_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of reCAPTCHA tokens in different states.",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider, one of [passwordProvider, phoneProvider]."
+      },
+      {
+        "key": "api_name",
+        "description": "The reCAPTCHA supported API name, one of [signUpPassword, signInWithPassword, getOobCode, sendVerificationCode, mfaSmsEnrollment, mfaSmsSignIn]."
+      },
+      {
+        "key": "client_type",
+        "description": "Client platform, one of [web, android, ios]."
+      },
+      {
+        "key": "token_state",
+        "description": "The state of a token, one of [expired, duplicate, missing, invalid, valid]."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/recaptcha/verdict_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Count of evaluation results based on the reCAPTCHA configuration.",
+    "labels": [
+      {
+        "key": "provider",
+        "description": "The identity provider, one of [passwordProvider, phoneProvider]."
+      },
+      {
+        "key": "api_name",
+        "description": "The reCAPTCHA supported API name, one of [signUpPassword, signInWithPassword, getOobCode, sendVerificationCode, mfaSmsEnrollment, mfaSmsSignIn]."
+      },
+      {
+        "key": "client_type",
+        "description": "Client platform, one of [web, android, ios]."
+      },
+      {
+        "key": "verdict_state",
+        "description": "The state of a verdict, one of [passed, failed_in_audit, failed_in_enforce]."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/usage/blocked_sms_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of SMS-based verification codes that were blocked from being sent.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the country where the SMS is sent."
+      },
+      {
+        "key": "country_calling_code",
+        "description": "The country calling code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "region_code",
+        "description": "The two-letter region code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "sms_purpose",
+        "description": "The purpose of the SMS-based verification code (i.e. phone auth, MFA)."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/usage/daily_new_signin_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of new daily active users. A sign-in or token refresh is counted as a new daily active user if the user has not previously signed in that day.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the identity provider used to sign in."
+      },
+      {
+        "key": "is_anon",
+        "description": "Whether or not the sign-in is an anonymous auth sign-in."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/usage/monthly_new_signin_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of new monthly active users. A sign-in or token refresh is counted as a new monthly active user if the user has not previously signed in that month.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the identity provider used to sign in."
+      },
+      {
+        "key": "is_anon",
+        "description": "Whether or not the sign-in is an anonymous auth sign-in."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/usage/sent_sms_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of SMS-based verification codes sent.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the country where the SMS is sent."
+      },
+      {
+        "key": "country_calling_code",
+        "description": "The country calling code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "region_code",
+        "description": "The two-letter region code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "sms_purpose",
+        "description": "The purpose of the SMS-based verification code (i.e. phone auth, MFA)."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "identitytoolkit.googleapis.com/usage/verification_sms_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of successful SMS-based verifications.",
+    "labels": [
+      {
+        "key": "pricing_tier",
+        "description": "The pricing tier of the country where the SMS is sent."
+      },
+      {
+        "key": "country_calling_code",
+        "description": "The country calling code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "region_code",
+        "description": "The two-letter region code of the phone number where the SMS is sent."
+      },
+      {
+        "key": "sms_purpose",
+        "description": "The purpose of the SMS-based verification code (i.e. phone auth, MFA)."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "firebaseauth.googleapis.com/phone_auth/phone_verification_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "Detailed count of phone verification.",
+    "labels": [
+      {
+        "key": "tier_name",
+        "description": "Tier name for verified phone number."
+      },
+      {
+        "key": "country_code",
+        "description": "Country code for verified phone number."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/request_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The count of completed requests.",
+    "labels": [
+      {
+        "key": "protocol",
+        "description": "The protocol of the request, e.g. \"http\", \"grpc\""
+      },
+      {
+        "key": "response_code",
+        "description": "The HTTP response code for HTTP requests, or HTTP equivalent code for gRPC requests. See code mapping in https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto."
+      },
+      {
+        "key": "response_code_class",
+        "description": "The response code class for HTTP requests, or HTTP equivalent class for gRPC requests, e.g. \"2xx\", \"4xx\""
+      },
+      {
+        "key": "grpc_status_code",
+        "description": "The numeric gRPC response code for gRPC requests, or gRPC equivalent code for HTTP requests. See code mapping in https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/request_latencies",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of latencies in seconds for non-streaming requests.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/request_latencies_backend",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of backend latencies in seconds for non-streaming requests.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/request_latencies_overhead",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of request latencies in seconds for non-streaming requests excluding the backend.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/request_sizes",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of request sizes in bytes recorded at request completion.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/api/response_sizes",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "Distribution of response sizes in bytes recorded at request completion.",
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/mcp/request_count",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The count of MCP requests.",
+    "labels": [
+      {
+        "key": "response_code",
+        "description": "The HTTP response code for HTTP requests, or HTTP equivalent code for MCP requests."
+      },
+      {
+        "key": "response_code_class",
+        "description": "The response code class for HTTP requests, or HTTP equivalent class for gRPC requests, e.g. '2xx', '4xx'."
+      }
+    ],
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/mcp/request_durations",
+    "kind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "description": "The duration of the MCP request from the time it was sent until the response or ack is received.",
+    "metadata": {
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/allocation/usage",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The total consumed allocation quota. Values reported more than 1/min are dropped. If no changes are received in quota usage, the last value is repeated at least every 24 hours.",
+    "labels": [
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/concurrent/exceeded",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of times exceeding the concurrent quota was attempted.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "time_window",
+        "description": "The window size for concurrent operation limits."
+      }
+    ],
+    "metadata": {
+      "launchStage": "ALPHA",
+      "samplePeriod": "86400s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "FOLDER",
+        "ORGANIZATION"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/concurrent/limit",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The concurrent limit for the quota.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "time_window",
+        "description": "The window size for concurrent operation limits."
+      }
+    ],
+    "metadata": {
+      "launchStage": "ALPHA",
+      "samplePeriod": "86400s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/concurrent/usage",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The concurrent usage of the quota.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "time_window",
+        "description": "The window size for concurrent operation limits."
+      }
+    ],
+    "metadata": {
+      "launchStage": "ALPHA",
+      "samplePeriod": "60s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/exceeded",
+    "kind": "GAUGE",
+    "valueType": "BOOL",
+    "description": "The error happened when the quota limit was exceeded.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "FOLDER",
+        "ORGANIZATION"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/limit",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The limit for the quota.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "86400s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/rate/net_usage",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The total consumed rate quota.",
+    "labels": [
+      {
+        "key": "method",
+        "description": "The API method name, such as \"disks.list\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      }
+    ],
+    "metadata": {
+      "launchStage": "GA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/ratev2/exceeded",
+    "kind": "DELTA",
+    "valueType": "INT64",
+    "description": "The number of times exceeding the windowed rate quota was attempted.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "window_size",
+        "description": "The window size for rate operation limits."
+      }
+    ],
+    "metadata": {
+      "launchStage": "BETA",
+      "samplePeriod": "86400s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "FOLDER",
+        "ORGANIZATION"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/ratev2/limit",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The windowed rate limit for the quota.",
+    "labels": [
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"Requests per day\" or \"In-use IP addresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "window_size",
+        "description": "The window size for rate operation limits."
+      }
+    ],
+    "metadata": {
+      "launchStage": "BETA",
+      "samplePeriod": "86400s",
+      "ingestDelay": "180s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  },
+  {
+    "type": "serviceruntime.googleapis.com/quota/ratev2/net_usage",
+    "kind": "GAUGE",
+    "valueType": "INT64",
+    "description": "The windowed rate usage of the quota.",
+    "labels": [
+      {
+        "key": "method",
+        "description": "The API method name, such as \"disks.list\"."
+      },
+      {
+        "key": "limit_name",
+        "description": "The quota limit name, such as \"RequestsPerDay\" or \"InUseIpAddresses\"."
+      },
+      {
+        "key": "quota_metric",
+        "description": "The name of quota metric or quota group."
+      },
+      {
+        "key": "window_size",
+        "description": "The window size for rate operation limits."
+      },
+      {
+        "key": "window_start_time",
+        "description": "The start time of the window."
+      }
+    ],
+    "metadata": {
+      "launchStage": "BETA",
+      "samplePeriod": "60s",
+      "ingestDelay": "240s",
+      "timeSeriesResourceHierarchyLevel": [
+        "PROJECT",
+        "ORGANIZATION",
+        "FOLDER"
+      ]
+    }
+  }
+]
