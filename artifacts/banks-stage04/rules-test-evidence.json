@@ -1,0 +1,8 @@
+{
+  "rulesSHA256": "9460c47335d8abff130f45a381b4ef67c07c64ac5d7fc2d090aed2ff90b3b841",
+  "containmentSHA256": "4a8e4d4118b77304fa0df2303fabddad901607f0653298bc8ca6604df8082251",
+  "tested": 90,
+  "failed": 0,
+  "containmentPassed": true,
+  "checkedAt": "2026-11-10T02:19:06.028Z"
+}

@@ -1,0 +1,79 @@
+rules_version = '2';
+// Stage 03 candidate, not published. Default deny; all financial writes remain denied.
+// users/{uid}: legacy fields retained; clients create a minimal own profile or edit
+// their own bounded name. Permission/relationship fields cannot be changed.
+// _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,
+// groups:map<=5}. Requires matching Auth custom claim lumusAccess, minted by IAM.
+// Legacy profile/group membership fields alone never establish authorization.
+// Financial documents: immutable legacy personId ownership, read only, pages <=20.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(uid) { return isAuthenticated() && request.auth.uid == uid; }
+    function hasAuthorityClaim() {
+      return isAuthenticated() && request.auth.token.get('lumusAccess', '') is string
+        && request.auth.token.get('lumusAccess', '').matches('^[A-Za-z0-9_-]{16,64}$');
+    }
+    function authorization() {
+      return get(/databases/$(database)/documents/_authorizations/$(request.auth.uid)).data;
+    }
+    function validAuthorization(data) {
+      return data.generation == request.auth.token.lumusAccess && data.enabled == true
+        && data.readOwners is list && data.readOwners.size() <= 5
+        && data.groups is map && data.groups.size() <= 5;
+    }
+    function verifiedAuthorization() { return validAuthorization(authorization()); }
+    function mayReadOwner(owner) {
+      return isAuthenticated() && owner is string && (owner == request.auth.uid ||
+        (hasAuthorityClaim() && verifiedAuthorization() && owner in authorization().readOwners));
+    }
+    function hasGroupAccess(groupId) {
+      return hasAuthorityClaim() && verifiedAuthorization()
+        && authorization().groups.get(groupId, '') in ['admin', 'member'];
+    }
+    function legacyCollection(name) {
+      return name in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
+        'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains',
+        'monthlyBalances','tags'];
+    }
+    function isValidName(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\x00-\\x1F\\x7F].*');
+    }
+    function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUser(request.resource.data)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'adminUser'])
+        && request.resource.data.keys().hasAll(['email', 'createdAt', 'adminUser'])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.adminUser == false
+        && request.resource.data.createdAt == request.time;
+      // Unknown legacy fields stay unchanged, including fields of incomplete profiles.
+      allow update: if isOwner(uid) && isValidUser(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /financialGroups/{groupId} {
+      allow get: if hasGroupAccess(groupId) && resource.data.status == 'active';
+      match /{collection}/{id} {
+        allow get: if collection in ['accounts','movements','monthlyBalances','tags']
+          && hasGroupAccess(groupId)
+          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';
+        allow list: if request.query.limit <= 20
+          && collection in ['accounts','movements','monthlyBalances','tags'] && hasGroupAccess(groupId)
+          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';
+      }
+    }
+    match /_authorizations/{uid} {
+      allow get: if isOwner(uid) && hasAuthorityClaim() && validAuthorization(resource.data);
+    }
+    match /{collection}/{id} {
+      allow get: if legacyCollection(collection) && mayReadOwner(resource.data.personId);
+      allow list: if legacyCollection(collection) && request.query.limit <= 20
+        && mayReadOwner(resource.data.personId);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

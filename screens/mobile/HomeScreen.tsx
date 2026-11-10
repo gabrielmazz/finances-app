@@ -1,3 +1,5 @@
+import { formatCents } from '@/domain/money';
+import BankAccountsPanel from '@/components/uiverse/banks/bank-accounts-panel';
 import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
 import React from 'react';
 import {
@@ -310,7 +312,7 @@ export default function HomeScreen() {
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
 	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
 	const [currentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
-	const homeReadError = overview.error || movements.error || investments.error;
+	const homeReadError = overview.error;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [selectedInvestmentPopoverTarget, setSelectedInvestmentPopoverTarget] = React.useState<{
@@ -327,11 +329,7 @@ export default function HomeScreen() {
 				return HIDDEN_VALUE_PLACEHOLDER;
 			}
 
-			return new Intl.NumberFormat('pt-BR', {
-				style: 'currency',
-				currency: 'BRL',
-				minimumFractionDigits: 2,
-			}).format(valueInCents / 100);
+			return formatCents(valueInCents);
 		},
 		[shouldHideValues],
 	);
@@ -417,6 +415,7 @@ export default function HomeScreen() {
 
 		navigateToRoute(APP_ROUTE_PATHS.bankMovements, {
 			bankId: item.id,
+			bankSource: item.source,
 			bankName: encodeURIComponent(item.name),
 		});
 	}, []);
@@ -524,7 +523,8 @@ export default function HomeScreen() {
 			return;
 		}
 
-		setIsMonthlyBalanceModalOpen(true);
+		// Legacy ambiguity is explained inline; never prompt another opening.
+		setIsMonthlyBalanceModalOpen(false);
 	}, [
 		dismissedMonthlyBalancePromptKey,
 		monthlyBalancePromptKey,
@@ -546,7 +546,7 @@ export default function HomeScreen() {
 		}
 
 		setIsMonthlyBalanceModalOpen(false);
-		navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance);
+		navigateToRoute(APP_ROUTE_PATHS.bankMovements);
 	}, [monthlyBalancePromptKey]);
 
 	const selectedInvestmentPopoverColor = React.useMemo(() => {
@@ -783,7 +783,8 @@ export default function HomeScreen() {
 									</HStack>
 								</VStack>
 
-								{overview.loading && bankCarouselItems.length === 0 ? (
+								<BankAccountsPanel/>
+{overview.loading && bankCarouselItems.length === 0 ? (
 									<HomeBankOverviewSkeleton
 										bankCarouselWidth={bankCarouselWidth}
 										bankCarouselHeight={bankCarouselHeight}
@@ -876,7 +877,7 @@ export default function HomeScreen() {
 																				className="font-semibold"
 																				style={{ color: cardPalette.expenseColor }}
 																			>
-																				{formatCurrencyBRL(monthlyExpenseInCents)}
+																				Indisponível
 																			</Text>
 																		</VStack>
 
@@ -891,7 +892,7 @@ export default function HomeScreen() {
 																				className="font-semibold"
 																				style={{ color: cardPalette.gainColor }}
 																			>
-																				{formatCurrencyBRL(monthlyGainInCents)}
+																				Indisponível
 																			</Text>
 																		</VStack>
 																	</HStack>
@@ -1251,7 +1252,7 @@ export default function HomeScreen() {
 						<ModalBackdrop />
 						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
 							<ModalHeader>
-								<ModalTitle>Saldo mensal pendente</ModalTitle>
+								<ModalTitle>Contas antigas em conciliação</ModalTitle>
 								<ModalCloseButton onPress={handleCloseMonthlyBalanceModal} />
 							</ModalHeader>
 
@@ -1269,7 +1270,7 @@ export default function HomeScreen() {
 
 										<VStack className="flex-1 gap-1">
 											<Text className={`${bodyText} text-sm leading-5`}>
-												Registre o saldo mensal de {currentMonthReferenceLabel} para manter o
+												Revise as contas antigas: {currentMonthReferenceLabel} para manter o
 												resumo dos bancos correto.
 											</Text>
 											<Text className={`${helperText} text-xs leading-4`}>

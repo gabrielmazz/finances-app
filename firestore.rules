@@ -1,5 +1,11 @@
 rules_version = '2';
-// Stage 03 candidate, not published. Default deny; all financial writes remain denied.
+// Stage 04 local candidate; NOT published. Stage03 source: security/stage03-published.rules.
+// financialContexts/{personal:uid|group:gid}/bankAccounts/{operationId}: schemaVersion=1,
+// bounded name/institutionKey/institutionName/type/color, scopeKind/scopeId, integer
+// initialBalanceCents (+/-9e12), openingDate, status, revision and server audit fields.
+// accountOpenings/{same operationId}: immutable opening, amount/date/context matching
+// the account, reason<=500, type='opening'. Both documents MUST be created atomically.
+// No balance updates, movement writes or deletes. Zero-balance active accounts can archive.
 // users/{uid}: legacy fields retained; clients create a minimal own profile or edit
 // their own bounded name. Permission/relationship fields cannot be changed.
 // _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,
@@ -41,6 +47,96 @@ service cloud.firestore {
         && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\x00-\\x1F\\x7F].*');
     }
     function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }
+    function boundedText(value, max) {
+      return value is string && value.size() > 0 && value.size() <= max
+        && value.matches('.*[^ ].*') && !value.matches('.*[\\x00-\\x1F\\x7F].*');
+    }
+    function validBankMetadata(data) {
+      return isValidName(data) && boundedText(data.institutionName,100)
+        && data.institutionKey is string && data.institutionKey.matches('^[a-z0-9-]{1,64}$')
+        && data.accountType in ['checking','savings','payment','cash']
+        && (data.colorHex == null || (data.colorHex is string && data.colorHex.matches('^#[a-fA-F0-9]{6}$')));
+    }
+    function contextId(key) { return key.split(':')[1]; }
+    function validContext(key) { return key.matches('^(personal|group):[A-Za-z0-9_-]{1,128}$'); }
+    function activeGroup(id) {
+      return get(/databases/$(database)/documents/financialGroups/$(id)).data.status == 'active';
+    }
+    function mayReadContext(key) {
+      return isAuthenticated() && validContext(key) &&
+        ((key.split(':')[0] == 'personal' && isOwner(contextId(key))) ||
+         (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))));
+    }
+    function mayWriteContext(key) {
+      return isAuthenticated() && validContext(key) &&
+        ((key.split(':')[0] == 'personal' && isOwner(contextId(key))) ||
+         (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))
+          && authorization().groups.get(contextId(key),'') == 'admin'));
+    }
+    function validAmount(value) { return value is int && value >= -9000000000000 && value <= 9000000000000; }
+    function validAccount(data,key) {
+      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.scopeKind in ['personal','group']
+        && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
+        && validBankMetadata(data) && validAmount(data.initialBalanceCents)
+        && data.openingDate is timestamp && data.openingDate >= timestamp.date(1900,1,1) && data.openingDate <= request.time
+        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
+        && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
+        && data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() <= 128
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function validOpening(data,key,id) {
+      return data.keys().hasOnly(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt'])
+        && data.keys().hasAll(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.accountId == id && data.type == 'opening'
+        && data.scopeKind in ['personal','group'] && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
+        && validAmount(data.amountCents) && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time
+        && data.reason is string && data.reason.size() <= 500 && !data.reason.matches('.*[\\x00-\\x1F\\x7F].*')
+        && ((data.amountCents >= 0 && data.reason == '') || (data.amountCents < 0 && boundedText(data.reason,500) && data.reason.size() >= 3))
+        && data.createdBy == request.auth.uid && data.createdAt == request.time;
+    }
+    function legacyMetadataUpdate() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['name','bankIconKey','institutionName','accountType','colorHex','metadataRevision','updatedBy','updatedAt'])
+        && validBankMetadata({'name':data.name,'institutionKey':data.bankIconKey,'institutionName':data.institutionName,'accountType':data.accountType,'colorHex':data.colorHex})
+        && data.metadataRevision is int && data.metadataRevision == resource.data.get('metadataRevision',0) + 1
+        && data.metadataRevision <= 1000000000 && data.updatedBy == request.auth.uid && data.updatedAt == request.time
+        && data.diff(resource.data).affectedKeys().hasOnly(['name','bankIconKey','institutionName','accountType','colorHex','metadataRevision','updatedBy','updatedAt'])
+        && data.diff(resource.data).affectedKeys().hasAny(['name','bankIconKey','institutionName','accountType','colorHex']);
+    }
+    match /financialContexts/{key}/bankAccounts/{id} {
+      // Namespace authority comes from the path; missing-document reads are scoped too.
+      allow get: if mayReadContext(key);
+      allow list: if mayReadContext(key) && request.query.limit <= 20;
+      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$')
+        && validAccount(request.resource.data,key) && request.resource.data.status == 'active' && request.resource.data.revision == 0
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && !exists(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id))
+        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.accountId == id
+        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.amountCents == request.resource.data.initialBalanceCents
+        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.date == request.resource.data.openingDate;
+      allow update: if mayWriteContext(key) && validAccount(request.resource.data,key)
+        && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
+        && ((request.resource.data.status == 'active'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','institutionKey','institutionName','accountType','colorHex','revision','updatedBy','updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasAny(['name','institutionKey','institutionName','accountType','colorHex']))
+        || (request.resource.data.status == 'archived' && resource.data.initialBalanceCents == 0
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])));
+    }
+    match /financialContexts/{key}/accountOpenings/{id} {
+      allow get: if mayReadContext(key);
+      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validOpening(request.resource.data,key,id)
+        && !exists(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id))
+        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.initialBalanceCents == request.resource.data.amountCents
+        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.openingDate == request.resource.data.date;
+    }
+    match /banks/{id} { allow update: if isOwner(resource.data.personId) && legacyMetadataUpdate(); }
+    match /financialGroups/{groupId}/accounts/{id} {
+      allow update: if mayWriteContext('group:'+groupId) && legacyMetadataUpdate();
+    }
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) && isValidUser(request.resource.data)

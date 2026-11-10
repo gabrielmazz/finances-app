@@ -1,0 +1,160 @@
+{
+  "rulesSHA256": "9460c47335d8abff130f45a381b4ef67c07c64ac5d7fc2d090aed2ff90b3b841",
+  "tests": [
+    {
+      "name": "creates positive opening atomically and never a gain",
+      "passed": true
+    },
+    {
+      "name": "zero and justified negative openings preserve integer precision",
+      "passed": true
+    },
+    {
+      "name": "parallel retries with the same operation produce one account and one opening",
+      "passed": true
+    },
+    {
+      "name": "new SDK process/session reads the same persisted account",
+      "passed": true
+    },
+    {
+      "name": "metadata edits preserve opening and historical identifiers",
+      "passed": true
+    },
+    {
+      "name": "competing metadata edits reject a stale revision without losing the winner",
+      "passed": true
+    },
+    {
+      "name": "archives only zero balances and replay does not increment again",
+      "passed": true
+    },
+    {
+      "name": "legacy reads and metadata-only edit never create another opening or change snapshots",
+      "passed": true
+    },
+    {
+      "name": "pagination is scoped and separates active/archived without full history reads",
+      "passed": true
+    },
+    {
+      "name": "group admins write, members read, outsiders and self-assigned roles cannot write",
+      "passed": true
+    },
+    {
+      "name": "anonymous and foreign users cannot read or create in another context",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: fractional cents",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: overflow",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: wrong context",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: wrong creator",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: extra permission field",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: unknown account type",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: oversized name",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: oversized institution",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: bad color",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: future date",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: forged opening kind",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: mismatched opening amount",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: oversized reason",
+      "passed": true
+    },
+    {
+      "name": "direct forged creation denied: mismatched account id",
+      "passed": true
+    },
+    {
+      "name": "missing opening or account rejects the entire write",
+      "passed": true
+    },
+    {
+      "name": "balance, ownership, context, opening and audit cannot be changed or deleted",
+      "passed": true
+    },
+    {
+      "name": "unknown result is recovered by the same id and an outage creates no partial pair",
+      "passed": true
+    },
+    {
+      "name": "concurrent distinct intents create exactly two independent pairs",
+      "passed": true
+    },
+    {
+      "name": "one cent and maximum allowed integer opening survive round trips",
+      "passed": true
+    },
+    {
+      "name": "negative opening without justification and noninteger revisions are denied directly",
+      "passed": true
+    },
+    {
+      "name": "a batch containing one invalid pair commits neither pair",
+      "passed": true
+    },
+    {
+      "name": "two group pairs fit rule access budgets in one atomic batch",
+      "passed": true
+    },
+    {
+      "name": "revoked authorization and inactive groups immediately lose account access",
+      "passed": true
+    },
+    {
+      "name": "legacy incomplete and ambiguous records are explicitly blocked without writes",
+      "passed": true
+    },
+    {
+      "name": "legacy shared-owner grant cannot read a new personal namespace",
+      "passed": true
+    },
+    {
+      "name": "compatibility matrix compares the actual Stage03 source with Stage04 locally",
+      "passed": true
+    },
+    {
+      "name": "production financial endpoints and changed sessions fail before any I/O",
+      "passed": true
+    }
+  ],
+  "failed": 0,
+  "synthetic": true,
+  "productionWrites": 0
+}

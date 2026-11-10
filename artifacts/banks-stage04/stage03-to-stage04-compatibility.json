@@ -1,0 +1,29 @@
+{
+  "synthetic": true,
+  "stage03SHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "stage04SHA256": "9460c47335d8abff130f45a381b4ef67c07c64ac5d7fc2d090aed2ff90b3b841",
+  "matrix": [
+    {
+      "flow": "legacy own read / foreign read",
+      "stage03": "allow own; deny foreign",
+      "stage04": "allow own; deny foreign"
+    },
+    {
+      "flow": "new scoped account read/create",
+      "stage03": "deny (unsupported)",
+      "stage04": "allow owner with atomic opening"
+    },
+    {
+      "flow": "legacy metadata edit",
+      "stage03": "deny",
+      "stage04": "allow owner with revision; history immutable"
+    },
+    {
+      "flow": "legacy financial writes",
+      "stage03": "deny",
+      "stage04": "deny; old clients remain read-only"
+    }
+  ],
+  "productionRulesReadDuringThisTest": false,
+  "installedOldBinariesCertified": false
+}

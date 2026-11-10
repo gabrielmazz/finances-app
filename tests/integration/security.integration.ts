@@ -83,8 +83,8 @@ before(async()=>{
 	for(const [name,rules] of Object.entries({published:oldRules,proposed:readFileSync('firestore.rules','utf8')}))environments[name]=await initializeTestEnvironment({projectId:`demo-lumus-security-${name}`,firestore:{host:'127.0.0.1',port:8089,rules}});
 });
 after(async()=>{
-	mkdirSync('artifacts/security-stage03',{recursive:true});writeFileSync('artifacts/security-stage03/compatibility-matrix.json',JSON.stringify(matrix,null,2)+'\n');
-	writeFileSync('artifacts/security-stage03/rules-test-evidence.json',JSON.stringify({rulesSHA256:createHash('sha256').update(readFileSync('firestore.rules')).digest('hex'),containmentSHA256:createHash('sha256').update(readFileSync('security/containment.rules')).digest('hex'),tested:matrix.length,failed:matrix.filter(row=>!row.verified).length+(containmentPassed?0:1),containmentPassed,checkedAt:new Date().toISOString()},null,2)+'\n');
+	const evidenceDirectory='artifacts/banks-stage04';mkdirSync(evidenceDirectory,{recursive:true});writeFileSync(evidenceDirectory+'/compatibility-matrix.json',JSON.stringify(matrix,null,2)+'\n');
+	writeFileSync(evidenceDirectory+'/rules-test-evidence.json',JSON.stringify({rulesSHA256:createHash('sha256').update(readFileSync('firestore.rules')).digest('hex'),containmentSHA256:createHash('sha256').update(readFileSync('security/containment.rules')).digest('hex'),tested:matrix.length,failed:matrix.filter(row=>!row.verified).length+(containmentPassed?0:1),containmentPassed,checkedAt:new Date().toISOString()},null,2)+'\n');
 	for(const environment of Object.values(environments))await environment.cleanup();
 });
 test('security: emergency containment preserves own private reads and never reopens writes/sharing',async()=>{

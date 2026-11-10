@@ -36,3 +36,7 @@ O frontend preservado em [[Remoção do Backend]] recebeu a [[Fundação Firebas
 
 ## Estrutura e apresentação
 [[Organização do Código]], [[Navegação]], [[Componentes UI]], [[Componentes por Sistema]], [[Sistema de Temas]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Visibilidade de Rotas]], [[Comportamento Pós-Registro]], [[Versão Web]], [[Processo de Release]] e [[Auditoria de Design]].
+
+## Etapa04
+
+[[Gerenciamento de Bancos]] e [[Dashboard Home]] recebem contas/abertura reais no emulador, sem migração ou publicação. Evidências, limites e ativação controlada em `docs/stage-04-report.md`. Outros módulos financeiros permanecem indisponíveis.

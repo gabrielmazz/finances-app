@@ -2,10 +2,10 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{execFileSync}=require('node:child_process');
 function nodeBounds(node){const values=node.bounds?.match(/-?\d+/g)?.map(Number);return values?.length===4&&values[0]>=0&&values[1]>=0&&values[2]>values[0]&&values[3]>values[1]?values:null;}
 const matchesLabel=(node,label)=>!!nodeBounds(node)&&[node.text,node['content-desc']].some(value=>typeof value==='string'&&value.trim().replace(/^[^\p{L}\p{N}]+/u,'').toLocaleLowerCase('pt-BR')===label.toLocaleLowerCase('pt-BR'));
-function deviceContext(){
+function deviceContext(expectedAccount){
  const config=JSON.parse(fs.readFileSync(path.join(os.homedir(),'.config/lumus-homologation/devices.json'),'utf8'));
  const devices=config.devices.filter(device=>device.physical&&device.state==='device');if(devices.length!==1)throw Error('One authorized physical device required');
- const account=JSON.parse(fs.readFileSync(path.join(os.homedir(),'.config/lumus-homologation/authorized-account.json'),'utf8'));
+ const account=expectedAccount||JSON.parse(fs.readFileSync(path.join(os.homedir(),'.config/lumus-homologation/authorized-account.json'),'utf8'));
  const run=args=>{try{return execFileSync(config.adb,[...(config.port?['-P',String(config.port)]:[]),'-s',devices[0].serial,...args],{encoding:'utf8',timeout:25000,stdio:['ignore','pipe','pipe']});}catch{throw Error('Native test transport unavailable');}};
  const shell=command=>run(['shell',command]);
  function probe(){

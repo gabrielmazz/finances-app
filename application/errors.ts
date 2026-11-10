@@ -5,6 +5,28 @@ export function errorMessage(error: unknown): string {
 			: error instanceof Error
 				? error.message
 				: '';
+	const bankErrors: Record<string, string> = {
+		'banks/not-released': 'Bancos e saldo inicial ainda estão em homologação. Use o ambiente de testes.',
+		'banks/invalid-context': 'Não foi possível identificar um contexto financeiro autorizado.',
+		'banks/not-found': 'Esta conta não foi encontrada. Atualize a lista e tente novamente.',
+		'banks/invalid-name': 'Informe um nome de conta com até 100 caracteres.',
+		'banks/invalid-institution': 'Informe a instituição financeira, com até 100 caracteres.',
+		'banks/invalid-type': 'Selecione o tipo da conta.',
+		'banks/invalid-color': 'Selecione uma cor válida para a conta.',
+		'banks/invalid-money': 'Informe um saldo válido em reais. Exemplo: 1.500,00.',
+		'banks/money-limit': 'O valor excede o limite monetário permitido.',
+		'banks/invalid-date': 'Informe uma data válida, até hoje, no formato dia/mês/ano.',
+		'banks/invalid-reason': 'Para saldo negativo, informe um motivo de 3 a 500 caracteres.',
+		'banks/invalid-operation': 'O identificador do cadastro não pôde ser recuperado. Não refaça a operação em outra tela.',
+		'banks/operation-conflict': 'Este cadastro já foi enviado com outros dados. Consulte a conta salva antes de iniciar outro.',
+		'banks/conflict': 'Esta conta mudou em outro acesso. Atualize os dados antes de salvar.',
+		'banks/incompatible': 'Os dados desta conta precisam de revisão. O saldo não foi estimado e nenhum registro foi alterado.',
+		'banks/reconciliation-required': 'Esta conta antiga precisa de conciliação antes de uma operação financeira.',
+		'banks/nonzero-archive': 'Só é possível arquivar uma conta com saldo zero. O saldo não foi alterado.',
+		'banks/archived': 'Esta conta está arquivada e não permite alterações.',
+		'banks/intent-storage-unavailable': 'Não foi possível guardar o identificador do cadastro neste navegador. Use um navegador atualizado e permita o armazenamento local.',
+	};
+	if(bankErrors[code])return bankErrors[code];
 	if (code.startsWith('config/'))
 		return 'Não foi possível iniciar o serviço. Entre em contato com o responsável pelo aplicativo.';
 	if (
@@ -21,7 +43,10 @@ export function errorMessage(error: unknown): string {
 	if (code === 'auth/invalid-email') return 'Informe um email válido.';
 	if (code === 'auth/weak-password' || code === 'auth/password-does-not-meet-requirements')
 		return 'Escolha uma senha que atenda aos requisitos da conta.';
-	if (code === 'auth/too-many-requests' || code === 'resource-exhausted')
+	if (code === 'resource-exhausted') return 'A cota de operações do serviço foi atingida. Aguarde a liberação antes de tentar novamente.';
+	if (code === 'aborted') return 'A operação encontrou acessos simultâneos. Atualize os dados e tente novamente com o mesmo cadastro.';
+	if (code === 'failed-precondition') return 'O serviço recusou a operação nas condições atuais. Atualize os dados; se persistir, informe o responsável pelo aplicativo.';
+	if (code === 'auth/too-many-requests')
 		return 'Limite de tentativas atingido. Aguarde e tente novamente.';
 	if (code === 'auth/user-disabled')
 		return 'Esta conta está desativada. Entre em contato com o responsável pelo aplicativo.';

@@ -1,0 +1,117 @@
+{
+  "synthetic": true,
+  "projectId": "demo-lumus-foundation",
+  "model": "SM_S926B",
+  "productionWrites": 0,
+  "assistedLogin": true,
+  "assistedAccountCreation": true,
+  "checks": [
+    {
+      "action": "created",
+      "checkedAt": "2026-11-10T02:07:56.504Z",
+      "ui150000": true,
+      "uiWorkspace": true,
+      "server": [
+        {
+          "id": "SUo4bMZGNeg52LGFihZ8",
+          "name": "Conta Android 1500",
+          "status": "active",
+          "cents": 150000,
+          "revision": 0,
+          "openingCents": 150000
+        }
+      ]
+    },
+    {
+      "action": "reopened",
+      "checkedAt": "2026-11-10T02:10:25.616Z",
+      "ui150000": true,
+      "uiWorkspace": true,
+      "server": [
+        {
+          "id": "SUo4bMZGNeg52LGFihZ8",
+          "name": "Conta Android 1500",
+          "status": "active",
+          "cents": 150000,
+          "revision": 0,
+          "openingCents": 150000
+        }
+      ]
+    },
+    {
+      "action": "final",
+      "checkedAt": "2026-11-10T02:16:26.333Z",
+      "ui150000": true,
+      "uiWorkspace": true,
+      "server": [
+        {
+          "id": "9Yq5tR8mFwZLGmZbmjWA",
+          "name": "Outra conta",
+          "status": "archived",
+          "cents": 0,
+          "revision": 1,
+          "openingCents": 0
+        },
+        {
+          "id": "SUo4bMZGNeg52LGFihZ8",
+          "name": "Conta Android 1500 editafa",
+          "status": "active",
+          "cents": 150000,
+          "revision": 1,
+          "openingCents": 150000
+        }
+      ]
+    },
+    {
+      "action": "archived",
+      "checkedAt": "2026-11-10T02:17:12.320Z",
+      "ui150000": true,
+      "uiWorkspace": true,
+      "server": [
+        {
+          "id": "9Yq5tR8mFwZLGmZbmjWA",
+          "name": "Outra conta",
+          "status": "archived",
+          "cents": 0,
+          "revision": 1,
+          "openingCents": 0
+        },
+        {
+          "id": "SUo4bMZGNeg52LGFihZ8",
+          "name": "Conta Android 1500 editafa",
+          "status": "active",
+          "cents": 150000,
+          "revision": 1,
+          "openingCents": 150000
+        }
+      ]
+    },
+    {
+      "action": "final",
+      "checkedAt": "2026-11-10T02:23:54.537Z",
+      "ui150000": true,
+      "uiWorkspace": true,
+      "server": [
+        {
+          "id": "9Yq5tR8mFwZLGmZbmjWA",
+          "name": "Outra conta",
+          "status": "archived",
+          "cents": 0,
+          "revision": 1,
+          "openingCents": 0
+        },
+        {
+          "id": "SUo4bMZGNeg52LGFihZ8",
+          "name": "Conta Android 1500 editafa",
+          "status": "active",
+          "cents": 150000,
+          "revision": 1,
+          "openingCents": 150000
+        }
+      ]
+    }
+  ],
+  "uidSHA256": "f647c0e370bcd47f3fbe6440ad6e9e6c27f54b51600dc982d7c77fd3ba1cb5a0",
+  "accountId": "SUo4bMZGNeg52LGFihZ8",
+  "restartRequested": true
+}

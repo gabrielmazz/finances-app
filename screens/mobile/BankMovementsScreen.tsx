@@ -1,3 +1,4 @@
+import BankAccountDetails from '@/components/uiverse/banks/bank-account-details';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
@@ -2726,7 +2727,8 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 								/>
 							}
 						>
-							<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
+							<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}><BankAccountDetails/>
+
 
 								<VStack className="mb-4">
 									<View>

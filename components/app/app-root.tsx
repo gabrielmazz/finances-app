@@ -17,6 +17,7 @@ import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVis
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { SessionProvider } from '@/contexts/SessionContext';
+import { BankAccountsProvider } from '@/contexts/BankAccountsContext';
 import { useSession } from '@/hooks/useSession';
 
 import { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } from '@/utils/appRouteGuards';
@@ -40,7 +41,11 @@ const PresentationStack = () => {
 	if (isLoadingTheme || isLoadingRouteVisibility || initializing) return <AppBootstrapScreen />;
 	return (
 		<View className="flex-1">
-			{showWorkspace && <FeatureUnavailableNotice showWorkspace message={contextError || error || undefined} />}
+			{showWorkspace && (
+                <SafeAreaView edges={['top']} className="bg-background-0">
+                    <FeatureUnavailableNotice showWorkspace message={contextError || error || (process.env.EXPO_PUBLIC_FIREBASE_MODE==='emulator'?'Bancos e saldo inicial disponíveis em testes. Os demais módulos financeiros continuam em reconstrução.':undefined)} />
+                </SafeAreaView>
+            )}
 			<WebAppShell showWorkspace={showWorkspace}>
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Screen name="index" />
@@ -84,7 +89,11 @@ export default function AppRoot() {
 			<ValueVisibilityProvider>
 				<PostSubmitBehaviorProvider>
 					<RouteVisibilityProvider>
-						<SessionProvider><LayoutWithTheme /></SessionProvider>
+								<SessionProvider>
+                                <BankAccountsProvider>
+                                    <LayoutWithTheme />
+                                </BankAccountsProvider>
+                            </SessionProvider>
 					</RouteVisibilityProvider>
 				</PostSubmitBehaviorProvider>
 			</ValueVisibilityProvider>

@@ -1,0 +1,45 @@
+{
+  "implemented": true,
+  "syntheticOnly": true,
+  "productionPublished": false,
+  "productionFinancialWrites": 0,
+  "checks": {
+    "styles": true,
+    "types": true,
+    "unitTests": {
+      "passed": 133,
+      "suites": 25
+    },
+    "integrationTests": {
+      "passed": 153,
+      "failed": 0,
+      "freshEmulators": true
+    },
+    "bankScenarios": 38,
+    "webExport": true,
+    "androidHermesExport": true,
+    "webViewports": [
+      1440,
+      390
+    ],
+    "physicalAndroid": "SM_S926B Expo Go 57"
+  },
+  "rulesSHA256": "9460c47335d8abff130f45a381b4ef67c07c64ac5d7fc2d090aed2ff90b3b841",
+  "previousPublishedSourceSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "limitations": [
+    "No production publication/activation",
+    "Legacy balances require reconciliation",
+    "No standalone or iOS certification",
+    "Future opening corrections and movements not implemented by design",
+    "Inherited Stage03 recovery/key-location limits remain"
+  ],
+  "receipts": {
+    "integration": "4cfc7c996d9dbb0abecdc31306f092943e1c4fd9d22f3e61246a8322785654a6",
+    "security": "b55fc4dc2c966ae27e7a889bc0afd6a64adbd999696fe537b82c13d1d76aac3a",
+    "browser": "61fcb960d99e2412d0629b081ec95e2626910edcbff1a32592730b346c320787",
+    "android": "8bde5b774de7ec2ffc271708685a81fcc80ef3d2e5575236f7af8d1d94198eaa"
+  },
+  "nativeSafeAreaVisuallyChecked": true,
+  "deviceSettingsRestored": true,
+  "checkedAt": "2026-11-10T02:24:56.121Z"
+}

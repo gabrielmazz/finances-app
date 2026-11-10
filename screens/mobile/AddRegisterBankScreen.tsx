@@ -1,5 +1,6 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+import { useBankAccountForm } from '@/hooks/useBankAccountForm';
+import BankAccountFields from '@/components/uiverse/banks/bank-account-fields';
+import BankFormFeedback from '@/components/uiverse/banks/bank-form-feedback';
 import React from 'react';
 import {
 KeyboardAvoidingView,
@@ -48,7 +49,6 @@ import { BANK_ICON_OPTIONS,BankIcon } from '@/hooks/useBankIcons';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { navigateToHomeDashboard } from '@/utils/navigation';
-import { useLocalSearchParams } from 'expo-router';
 
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 
@@ -79,122 +79,23 @@ export default function AddRegisterBankScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 
-    const [nameBank, setNameBank] = React.useState('');
-    const [isSubmitting] = React.useState(false);
-    const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
-    const [selectedBankIconKey, setSelectedBankIconKey] = React.useState<string | null>('outro-banco');
-    const [isBankIconSheetOpen, setIsBankIconSheetOpen] = React.useState(false);
-    const bankNameInputRef = React.useRef<TextInput | null>(null);
-    const keyboardScrollOffset = React.useCallback(
-        (_key: FocusableInputKey) => 140,
-        [],
-    );
-
-    const params = useLocalSearchParams<{
-        bankId?: string | string[];
-        bankName?: string | string[];
-        colorHex?: string | string[];
-        bankIconKey?: string | string[];
-    }>();
-
-    const editingBankId = React.useMemo(() => {
-        const value = Array.isArray(params.bankId) ? params.bankId[0] : params.bankId;
-        return value && value.trim().length > 0 ? value : null;
-    }, [params.bankId]);
-
-    const initialBankName = React.useMemo(() => {
-        const value = Array.isArray(params.bankName) ? params.bankName[0] : params.bankName;
-        if (!value) {
-            return '';
-        }
-        try {
-            return decodeURIComponent(value);
-        } catch {
-            return value;
-        }
-    }, [params.bankName]);
-
-    const initialColorHex = React.useMemo(() => {
-        const value = Array.isArray(params.colorHex) ? params.colorHex[0] : params.colorHex;
-        if (!value) {
-            return null;
-        }
-
-        try {
-            const decoded = decodeURIComponent(value);
-            return decoded ?? null;
-        } catch {
-            return value;
-        }
-    }, [params.colorHex]);
-
-    const initialBankIconKey = React.useMemo(() => {
-        const value = Array.isArray(params.bankIconKey) ? params.bankIconKey[0] : params.bankIconKey;
-        if (!value) {
-            return 'outro-banco';
-        }
-
-        try {
-            return decodeURIComponent(value);
-        } catch {
-            return value;
-        }
-    }, [params.bankIconKey]);
-
-    const colorOptions = React.useMemo(() => {
-        const options: Array<{ label: string; value: string }> = LUMUS_BANK_COLOR_PRESETS.map(option => ({
-            label: option.label,
-            value: option.value,
-        }));
-
-        if (initialColorHex && !LUMUS_BANK_COLOR_PRESETS.some(option => option.value === initialColorHex)) {
-            options.push({
-                label: 'Cor atual',
-                value: initialColorHex,
-            });
-        }
-
+    const form = useBankAccountForm();
+    const {nameBank,setNameBank,isSubmitting,selectedColor,setSelectedColor,selectedBankIconKey,setSelectedBankIconKey,editingBankId,isEditing,loadedBankId,bankLoadError,isLoadingBank,retryBankLoad,openingBalanceInCents,setOpeningBalanceInCents,overdraftReason,setOverdraftReason,registerBank,nameValidationError,setNameValidationError}=form;
+    const [isBankIconSheetOpen,setIsBankIconSheetOpen]=React.useState(false);
+    const bankNameInputRef=React.useRef<TextInput|null>(null);
+    const keyboardScrollOffset=React.useCallback((_key:FocusableInputKey)=>140,[]);
+    const initialColorHex=selectedColor;
+    const colorOptions=React.useMemo(()=>{
+        const options:Array<{label:string;value:string}>=LUMUS_BANK_COLOR_PRESETS.map(option=>({label:option.label,value:option.value}));
+        if(selectedColor&&!options.some(option=>option.value===selectedColor))options.push({label:'Cor atual',value:selectedColor});
         return options;
-    }, [initialColorHex]);
-
-    const isEditing = Boolean(editingBankId);
-
-    const [loadedBankId] = React.useState<string | null>(null);
-    const [bankLoadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
-
-    const [isLoadingBank] = React.useState(false);
-    const [, retryBankLoad] = React.useReducer(value => value + 1, 0);
-    const [openingBalanceInCents, setOpeningBalanceInCents] = React.useState(0);
-    const [overdraftReason, setOverdraftReason] = React.useState('');
-
-    const handleBackToHome = React.useCallback(() => {
-        navigateToHomeDashboard();
-        return true;
-    }, []);
-
-    React.useEffect(() => {
-        if (isEditing) {
-            setNameBank(initialBankName);
-            setSelectedColor(initialColorHex);
-            setSelectedBankIconKey(initialBankIconKey);
-        }
-    }, [initialBankIconKey, initialBankName, initialColorHex, isEditing]);
-
-    const selectedBankIcon = React.useMemo(
-        () =>
-            BANK_ICON_OPTIONS.find(option => option.key === selectedBankIconKey) ??
-            BANK_ICON_OPTIONS.find(option => option.key === 'outro-banco') ??
-            BANK_ICON_OPTIONS[0],
-        [selectedBankIconKey],
-    );
-    const handleBankIconSelect = React.useCallback((iconKey: string) => {
-        if (iconKey !== selectedBankIconKey && iconKey !== 'outro-banco') {
-            setSelectedColor(null);
-        }
+    },[selectedColor]);
+    const handleBackToHome=React.useCallback(()=>{navigateToHomeDashboard();return true;},[]);
+    const selectedBankIcon=React.useMemo(()=>BANK_ICON_OPTIONS.find(option=>option.key===selectedBankIconKey)??BANK_ICON_OPTIONS.find(option=>option.key==='outro-banco')!,[selectedBankIconKey]);
+    const handleBankIconSelect=React.useCallback((iconKey:string)=>{
+        if(iconKey!==selectedBankIconKey){setSelectedColor(null);form.setInstitutionName(iconKey==='outro-banco'?'':BANK_ICON_OPTIONS.find(option=>option.key===iconKey)?.label??'');}
         setSelectedBankIconKey(iconKey);
-    }, [selectedBankIconKey]);
-
-    const registerBank = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+    },[selectedBankIconKey,form.setInstitutionName]);
 
     const getInputRef = React.useCallback(
         (key: FocusableInputKey) => {
@@ -269,13 +170,14 @@ export default function AddRegisterBankScreen() {
                             scrollEventThrottle={scrollEventThrottle}
                         >
                             <VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
-                                {bankLoadError ? <Text className={LUMUS_CLASS_NAMES.errorText}>{bankLoadError} Volte e abra o cadastro novamente.</Text> : isEditing && loadedBankId !== editingBankId ? <Text className={LUMUS_CLASS_NAMES.helper}>Carregando cadastro atual...</Text> : null}
+                                {bankLoadError ? <Text className={LUMUS_CLASS_NAMES.errorText}>{bankLoadError} Confira o cadastro antes de enviar.</Text> : isEditing && loadedBankId !== editingBankId ? <Text className={LUMUS_CLASS_NAMES.helper}>Carregando cadastro atual...</Text> : null}
                                 <VStack className="mb-4">
-                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome do banco</Text>
-                                    <Input className={fieldContainerClassName}>
+                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome da conta</Text>
+                                    <Input isDisabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} className={fieldContainerClassName}>
                                         <InputField
                                             ref={bankNameInputRef as any}
-                                            placeholder="Ex: Banco do Brasil, Caixa Econômica, Itaú..."
+                                            accessibilityLabel="Nome da conta"
+                                            placeholder="Ex: Conta principal"
                                             value={nameBank}
                                             onChangeText={setNameBank}
                                             className={inputField}
@@ -285,9 +187,10 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <VStack className="mb-4">
-                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Ícone do banco</Text>
+                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Instituição financeira</Text>
                                     <Pressable
                                         onPress={() => setIsBankIconSheetOpen(true)}
+                                        disabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)}
                                         accessibilityRole="button"
                                         accessibilityLabel="Escolher ícone do banco"
                                         className={`${fieldBankContainerClassName} px-4 py-3`}
@@ -359,24 +262,18 @@ export default function AddRegisterBankScreen() {
                                         </Button>
                                     </VStack>
                                 ) : null}
-                                {!isEditing && true ? (
+                                <BankAccountFields institutionName={form.institutionName} onInstitutionName={form.setInstitutionName} accountType={form.accountType} onAccountType={form.setAccountType} date={form.openingDate} onDate={form.setOpeningDate} isEditing={isEditing} customInstitution={selectedBankIconKey==='outro-banco'} disabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} />
+                                {!isEditing && !form.saved ? (
                                     <BankOpeningBalanceFields valueInCents={openingBalanceInCents} onValueChange={setOpeningBalanceInCents}
-                                        reason={overdraftReason} onReasonChange={setOverdraftReason} disabled={isSubmitting} />
+                                        reason={overdraftReason} onReasonChange={setOverdraftReason} disabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} />
                                 ) : null}
-                                {isEditing && true ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
+                                {isEditing ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
 
+                                <BankFormFeedback error={form.error} saved={form.saved} isEditing={isEditing} busy={isSubmitting} onAnother={form.startAnother} canWrite={form.canWrite}/>
                                 <Button
                                     className={`${submitButtonClassName} web:mt-2 web:h-12`}
                                     onPress={registerBank}
-                                    isDisabled={
-                                        isSubmitting || isLoadingBank || Boolean(bankLoadError) ||
-                                        nameBank.trim().length === 0 ||
-                                        (isEditing && loadedBankId !== editingBankId && !bankLoadError) ||
-                                        (isEditing && false &&
-                                            nameBank.trim() === initialBankName &&
-                                            selectedColor === initialColorHex &&
-                                            selectedBankIconKey === initialBankIconKey)
-                                    }
+                                    isDisabled={isSubmitting||isLoadingBank||!form.canWrite||!!bankLoadError||(!isEditing&&!!form.saved)||(isEditing&&loadedBankId!==editingBankId)}
                                 >
                                     {isSubmitting ? (
                                         <ButtonSpinner />

@@ -11,6 +11,8 @@ export type HomeBankBalanceCard = {
 	name: string;
 	balanceInCents: number | null;
 	colorHex: string | null;
+	source?: 'new'|'legacy'|'group-legacy';
+	institutionKey?: string;
 };
 
 export type HomeCashSummary = {
