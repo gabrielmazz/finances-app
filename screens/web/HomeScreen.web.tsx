@@ -1,3 +1,5 @@
+import { formatCents } from '@/domain/money';
+import BankAccountsPanel from '@/components/uiverse/banks/bank-accounts-panel';
 import HomeActivityHeatmap from "@/components/uiverse/dashboard/home-activity-heatmap";
 import HomeExpenseChart from "@/components/uiverse/dashboard/home-expense-chart";
 import HomeExpenseLineChart from "@/components/uiverse/dashboard/home-expense-line-chart";
@@ -77,11 +79,7 @@ const INVESTMENT_COLORS = [...LUMUS_CHART_COLORS];
 
 const formatCurrency = (valueInCents: number, hidden: boolean) => {
 	if (hidden) return HIDDEN_VALUE_PLACEHOLDER;
-	return new Intl.NumberFormat("pt-BR", {
-		style: "currency",
-		currency: "BRL",
-		minimumFractionDigits: 2,
-	}).format(valueInCents / 100);
+	return formatCents(valueInCents);
 };
 
 const firstName = (name: string | null | undefined) =>
@@ -269,7 +267,7 @@ const BankCard = ({
 					APP_ROUTE_PATHS.bankMovements,
 					item.kind === "cash"
 						? { cashView: "true" }
-						: { bankId: item.id, bankName: encodeURIComponent(item.name) },
+						: { bankId: item.id, bankSource: item.source, bankName: encodeURIComponent(item.name) },
 				)
 			}
 			accessibilityRole="button"
@@ -302,7 +300,7 @@ const BankCard = ({
 								Gastos
 							</Text>
 							<Text className={webStyles.bankFooterValue} style={{ color: palette.expenseColor }}>
-								{formatCurrency(monthlyExpenses, hidden)}
+								Indisponível
 							</Text>
 						</View>
 						<View className={webStyles.bankFooterRight}>
@@ -310,7 +308,7 @@ const BankCard = ({
 								Ganhos
 							</Text>
 							<Text className={webStyles.bankFooterValue} style={{ color: palette.gainColor }}>
-								{formatCurrency(monthlyGains, hidden)}
+								Indisponível
 							</Text>
 						</View>
 					</View>
@@ -340,7 +338,7 @@ export default function HomeScreen() {
 
 	const { overview, movements, investments, reload } =
 		useHomeScreenData(currentUserId);
-	const homeReadError = overview.error || movements.error || investments.error;
+	const homeReadError = overview.error;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 
@@ -443,7 +441,7 @@ export default function HomeScreen() {
 			promptKey &&
 			dismissedPrompt !== promptKey
 		)
-			setIsMonthlyBalanceModalOpen(true);
+			setIsMonthlyBalanceModalOpen(false);
 	}, [dismissedPrompt, overview.error, overview.loading, promptKey]);
 
 	const handleRefresh = React.useCallback(async () => {
@@ -582,7 +580,8 @@ export default function HomeScreen() {
 											);
 										}}
 									>
-										<View className={webStyles.sectionHeading}>
+										<BankAccountsPanel/>
+<View className={webStyles.sectionHeading}>
 											<Text
 												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 											>
@@ -711,7 +710,7 @@ export default function HomeScreen() {
 													Total ganho
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
-													{overview.loading ? 'Carregando…' : overview.error ? 'Indisponível' : formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
+													Indisponível
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -742,7 +741,7 @@ export default function HomeScreen() {
 													Total gasto
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
-													{overview.loading ? 'Carregando…' : overview.error ? 'Indisponível' : formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
+													Indisponível
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -910,14 +909,13 @@ export default function HomeScreen() {
 				<ModalBackdrop />
 				<ModalContent>
 					<ModalHeader>
-						<ModalTitle>Saldo mensal pendente</ModalTitle>
+						<ModalTitle>Contas antigas em conciliação</ModalTitle>
 						<ModalCloseButton onPress={closeMonthlyBalance} />
 					</ModalHeader>
 					<ModalBody>
 						<Text style={{ color: webDashboardPalette.primaryText }}>
-							Registre o saldo mensal de{" "}
-							{missingBanks.map((bank) => bank.name).join(", ")} para manter o
-							resumo confiável.
+							Revise as contas antigas:{" "}
+							{missingBanks.map((bank) => bank.name).join(", ")} O saldo não será estimado nem substituído por uma nova abertura.
 						</Text>
 					</ModalBody>
 					<ModalFooter>
@@ -927,10 +925,10 @@ export default function HomeScreen() {
 						<Button
 							onPress={() => {
 								closeMonthlyBalance();
-								navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance);
+								navigateToRoute(APP_ROUTE_PATHS.bankMovements);
 							}}
 						>
-							<ButtonText>Registrar saldo</ButtonText>
+							<ButtonText>Ver contas</ButtonText>
 						</Button>
 					</ModalFooter>
 				</ModalContent>

@@ -1,0 +1,40 @@
+{
+  "synthetic": true,
+  "productionWrites": 0,
+  "flows": [
+    {
+      "viewport": "desktop",
+      "login": true,
+      "create150000": true,
+      "doubleClickOnePair": true,
+      "parallelTabsOnePair": true,
+      "staleTabRotationPreserved": true,
+      "reload": true,
+      "reopen": true,
+      "editPreservedOpening": true,
+      "archiveZero": true,
+      "positiveArchiveBlocked": true,
+      "homeTotal150000": true,
+      "accounts": 2,
+      "openings": 2
+    },
+    {
+      "viewport": "narrow",
+      "login": true,
+      "create150000": true,
+      "doubleClickOnePair": true,
+      "parallelTabsOnePair": false,
+      "staleTabRotationPreserved": true,
+      "reload": true,
+      "reopen": true,
+      "editPreservedOpening": true,
+      "archiveZero": true,
+      "positiveArchiveBlocked": true,
+      "homeTotal150000": true,
+      "accounts": 2,
+      "openings": 2
+    }
+  ],
+  "errors": [],
+  "externalOrigins": []
+}

@@ -3,7 +3,7 @@ const path = require('node:path');
 const mode = process.argv[2];
 if (!['start', 'test', 'web', 'native', 'export'].includes(mode))
 	throw Error('Use start, test, web, native or export');
-const env = { ...process.env, EXPO_PUBLIC_FIREBASE_MODE: 'emulator' };
+const env = { ...process.env, EXPO_NO_DOTENV: '1', EXPO_PUBLIC_FIREBASE_MODE: 'emulator' };
 const cli = path.resolve('node_modules/firebase-tools/lib/bin/firebase.js');
 const common = [
 	'--project',
@@ -14,7 +14,7 @@ const common = [
 	'auth,firestore',
 ];
 let args;
-if (mode === 'start') args = [cli, 'emulators:start', ...common];
+if (mode === 'start') args = [cli, 'emulators:start', ...common, ...process.argv.slice(3)];
 if (mode === 'test')
 	args = [cli, 'emulators:exec', ...common, 'node --require ./script/integration-network.cjs --import tsx --test --test-concurrency=1 tests/integration/*.integration.ts'];
 if (mode === 'web' || mode === 'native')

@@ -54,6 +54,6 @@ describe('isolated Firebase foundation', () => {
 		expect(validateProfileName(' Pessoa ')).toBeNull();
 		expect(errorMessage({ code: 'permission-denied', message: 'sensitive data' })).not.toContain('sensitive');
 		expect(errorMessage({ code: 'unavailable' })).toContain('conexão');
-		expect(errorMessage({ code: 'resource-exhausted' })).toContain('Limite');
+		expect(errorMessage({ code: 'resource-exhausted' })).toContain('cota');
 	});
 });

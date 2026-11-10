@@ -1,0 +1,26 @@
+{
+  "score": 5,
+  "summary": "Auditoria local limitada ao módulo de bancos: tentativas indevidas negadas no emulador; não é certificação de produção.",
+  "rulesSHA256": "9460c47335d8abff130f45a381b4ef67c07c64ac5d7fc2d090aed2ff90b3b841",
+  "findings": [],
+  "checks": {
+    "createUpdateSchema": "strict required keys, bounded strings, integer cents, immutable origin/ownership",
+    "authority": "personal path owner; group protected claims+authorization+active group, not editable membership",
+    "financialConsistency": "two-document creation required by getAfter; immutable opening; no balance mutation or delete",
+    "concurrency": "revision checks and one opening per account operation ID",
+    "defaultDeny": "unknown collections/subcollections and other financial writes denied",
+    "queryBounds": "20 per scoped page; no listeners",
+    "limitations": [
+      "No server-enforced per-user rate limit on Spark: an authorized user can exhaust shared quotas with repeated legitimate requests.",
+      "Different operation IDs can represent different accounts with equal names; bank name is not a unique account identity.",
+      "Future movements/corrections require their own atomic model and Rules; this stage permits openings only."
+    ]
+  },
+  "published": false,
+  "reviewFixes": [
+    "Post-commit refresh cannot reuse an earlier page",
+    "Intent rotation serialized and compared to expected ID across tabs",
+    "Form input waits for context and pending result lookup",
+    "New personal namespace only readable by its owner"
+  ]
+}

@@ -32,7 +32,9 @@
     "homologation:export": "node script/homologation.cjs export-web",
     "homologation:serve": "node script/homologation.cjs serve-web",
     "homologation:native": "node script/homologation.cjs native",
-    "backup:verify:local": "node script/verify-private-backups.cjs"
+    "backup:verify:local": "node script/verify-private-backups.cjs",
+    "test:banks:browser": "node tests/browser/banks.cjs",
+    "emulators:seed:banks": "node --require ./script/integration-network.cjs --import tsx script/stage04-seed.ts"
   },
   "engines": {
     "node": ">=22.13.0"

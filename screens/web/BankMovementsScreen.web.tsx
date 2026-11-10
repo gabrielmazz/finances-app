@@ -1,3 +1,4 @@
+import BankAccountDetails from '@/components/uiverse/banks/bank-account-details';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
@@ -2687,7 +2688,8 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									style={{ marginTop: 0 }}
 								>
 
-									<VStack className="w-full mb-4">
+									<BankAccountDetails/>
+<VStack className="w-full mb-4">
 										<VStack className="gap-2">
 											{!isCashView ? (
 												<VStack>
