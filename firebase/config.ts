@@ -1,4 +1,5 @@
 export const LOCAL_PROJECT_ID = 'demo-lumus-foundation';
+export const OFFICIAL_PROJECT_ID = 'finances-app-e8685';
 import productionReadiness from './production-readiness.json';
 type ProductionReadiness = {status:string;projectId:string;appId:string;authDomain:string;rulesSHA256:string;verifiedAt:string|null};
 

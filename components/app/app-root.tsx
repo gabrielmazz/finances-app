@@ -41,9 +41,9 @@ const PresentationStack = () => {
 	if (isLoadingTheme || isLoadingRouteVisibility || initializing) return <AppBootstrapScreen />;
 	return (
 		<View className="flex-1">
-			{showWorkspace && (
+			{showWorkspace && (contextError || error) && (
                 <SafeAreaView edges={['top']} className="bg-background-0">
-                    <FeatureUnavailableNotice showWorkspace message={contextError || error || (process.env.EXPO_PUBLIC_FIREBASE_MODE==='emulator'?'Bancos e saldo inicial disponíveis em testes. Os demais módulos financeiros continuam em reconstrução.':undefined)} />
+                    <FeatureUnavailableNotice showWorkspace message={contextError || error || undefined} />
                 </SafeAreaView>
             )}
 			<WebAppShell showWorkspace={showWorkspace}>

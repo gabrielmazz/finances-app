@@ -131,8 +131,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		[balanceDisplay, balanceValueInCents],
 	);
 
-	const monthReferenceInputRef = React.useRef<TextInput | null>(null);
-	const balanceInputRef = React.useRef<TextInput | null>(null);
+	const monthReferenceInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const balanceInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'balance' ? 140 : 120),
@@ -220,8 +220,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				style={{ backgroundColor: surfaceBackground }}
 			>
 				<StatusBar
-					translucent
-					backgroundColor="transparent"
 					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 				/>
 

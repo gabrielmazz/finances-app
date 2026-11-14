@@ -82,7 +82,7 @@ export default function AddRegisterBankScreen() {
     const form = useBankAccountForm();
     const {nameBank,setNameBank,isSubmitting,selectedColor,setSelectedColor,selectedBankIconKey,setSelectedBankIconKey,editingBankId,isEditing,loadedBankId,bankLoadError,isLoadingBank,retryBankLoad,openingBalanceInCents,setOpeningBalanceInCents,overdraftReason,setOverdraftReason,registerBank,nameValidationError,setNameValidationError}=form;
     const [isBankIconSheetOpen,setIsBankIconSheetOpen]=React.useState(false);
-    const bankNameInputRef=React.useRef<TextInput|null>(null);
+    const bankNameInputRef=React.useRef<import('react').ComponentRef<typeof TextInput>|null>(null);
     const keyboardScrollOffset=React.useCallback((_key:FocusableInputKey)=>140,[]);
     const initialColorHex=selectedColor;
     const colorOptions=React.useMemo(()=>{
@@ -129,8 +129,6 @@ export default function AddRegisterBankScreen() {
             style={{ backgroundColor: surfaceBackground }}
         >
 			<StatusBar
-                translucent
-                backgroundColor="transparent"
                 barStyle={isDarkMode ? 'light-content' : 'dark-content'}
             />
 			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>

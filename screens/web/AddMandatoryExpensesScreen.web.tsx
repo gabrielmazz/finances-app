@@ -212,11 +212,11 @@ export default function AddMandatoryExpensesScreen() {
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? selectedTagName ?? null;
 	}, [selectedTagId, selectedTagName, tagOptions]);
 
-	const expenseNameInputRef = React.useRef<TextInput | null>(null);
-	const expenseValueInputRef = React.useRef<TextInput | null>(null);
-	const dueDayInputRef = React.useRef<TextInput | null>(null);
-	const installmentsInputRef = React.useRef<TextInput | null>(null);
-	const descriptionInputRef = React.useRef<TextInput | null>(null);
+	const expenseNameInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const expenseValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const dueDayInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const installmentsInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const descriptionInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => {
 			if (key === 'description') {
@@ -608,7 +608,7 @@ setLastPaymentCycle(null);
 				style={{ backgroundColor: surfaceBackground }}
 				edges={['left', 'right', 'bottom']}
 			>
-				<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+				<StatusBar barStyle="light-content" />
 				<KeyboardAvoidingView className={webDashboardClassNames.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 					<ScrollView
 						ref={scrollViewRef}

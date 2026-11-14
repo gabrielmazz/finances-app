@@ -34,7 +34,7 @@ export default function PerfilPersonScreen() {
 	const { isRouteVisible } = useRouteVisibility();
 	const state = useUserProfile();
 	const { beginRequest: beginFeedback } = useBankMovementsRequest('profile-feedback');
-	const nameRef = React.useRef<TextInput>(null);
+	const nameRef = React.useRef<import('react').ComponentRef<typeof TextInput>>(null);
 	const getInputRef = React.useCallback(() => nameRef, []);
 	const keyboard = useKeyboardAwareScroll<'name'>({ getInputRef });
 	const profile = state.profile;

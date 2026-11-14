@@ -6,5 +6,7 @@ export type RecentMovementsProps = {
 	banks: HomeBankBalanceCard[];
 	loading: boolean;
 	error: string | null;
+	cashIncomplete?: boolean;
+	incomplete?: boolean;
 	reload: () => Promise<void>;
 };

@@ -4,7 +4,7 @@ Leia este guia antes de alterar o projeto. O vault `Arquitetura/` descreve a bas
 
 ## Estado atual
 
-Frontend Expo 57 / React Native 0.86 / React 19.2 / TypeScript 6. Fundação Firebase Spark reconstruída com SDK oficial: Auth, perfis, contexto de acesso e Rules locais testadas. Etapa 03 acrescenta autorização verificada, isolamento, exportação criptografada e recuperação isolada. A Etapa04 acrescenta Bancos e Saldo Inicial somente no emulador; não há outros módulos financeiros executáveis, sincronização ou executor de chat. Ver [[Fundação Firebase Spark]] e [[Segurança e Preparação para Produção]].
+Frontend Expo 58 / React Native 0.88 / React 19.3 / TypeScript 6. Fundação Firebase Spark reconstruída com SDK oficial: Auth, perfis, contexto de acesso e Rules locais testadas. Etapa 03 acrescenta autorização verificada, isolamento, exportação criptografada e recuperação isolada. Bancos, Saldo Inicial, Categorias e operações bancárias de receitas e despesas têm implementação local para o emulador; o extrato inclui o histórico legado cujo contexto e tipo possam ser comprovados; os demais formatos, a conciliação antiga e a homologação física permanecem pendentes. Ver [[Fundação Firebase Spark]] e [[Segurança e Preparação para Produção]].
 
 A entrada mantém os formulários existentes, agora integrados ao Auth emulator. Workspace exige sessão real no ambiente isolado. Fixtures sintéticas existem somente no emulador, por seed explícito; não criar identidade fictícia no frontend ou confirmar operações indisponíveis. Em 09/11, as Rules restritivas foram publicadas com autorização e o hash exato foi verificado. O cliente permite configuração produtiva explícita do mesmo projeto/app, sem fallback automático; o novo frontend não foi distribuído. Uma cópia real criptografada de 987 documentos Firestore foi restaurada em rede isolada com hashes iguais. Contas Auth têm agora cópia cifrada separada autorizada (três contas), com integridade verificada. Web real homologada com identidade autorizada; observação contínua das Rules comprovada. Estado atual e limites em [[Homologação e Recuperação da Etapa 03]].
 
@@ -29,12 +29,14 @@ Os antigos diretórios `backend`, `functions`, `services` e `repositories` foram
 ## Regras de preservação
 
 - Manter todas as rotas, telas, variantes, assets e identidade visual.
+- Preservar o frontend original nas próximas etapas: recuperar seletivamente pelo histórico quando necessário e adaptar o backend aos componentes, formulários e navegação existentes. Não introduzir controles, informações ou painéis sem necessidade funcional comprovada.
 - Manter NativeWind 4.2.1, Tailwind 3.4.18 e Gluestack 3.0.12.
 - Usar tokens/classes de `design-system/`; não introduzir estilos visuais inline ou novas exceções sem necessidade de plataforma.
 - Preservar acessibilidade, foco, labels e responsividade. Campos e rascunhos não podem ser apagados por uma falsa confirmação.
 - Valores recebidos pelos modelos visuais continuam em centavos inteiros; máscaras de entrada e conversão de exibição não constituem cálculo de saldo ou transação.
 - Preservar UIDs, documentos e campos legados. Inspeção remota somente leitura, sem copiar PII para o repositório. Testes/fixtures apenas em projeto demo dos emuladores.
 - Ações remotas exigem autorização específica: a publicação de Rules de 09/11 foi autorizada e concluída. Nenhuma autorização para migrar, excluir ou alterar dados financeiros/contas/infraestrutura paga está implícita.
+- Diretriz permanente: usar exclusivamente recursos disponíveis no Firebase Spark gratuito, sem Blaze, faturamento, Cloud Functions ou Cloud Run. Minimizar consultas, gravações, listeners e carregamentos integrais; preservar dados e IDs. Testar no emulador antes de publicação e consultar a documentação oficial em caso de dúvida sobre custos ou cotas. Não criar dependência de recursos pagos; propor alternativa gratuita se uma funcionalidade segura não for viável no Spark.
 
 ## Verificação e documentação
 
@@ -43,6 +45,30 @@ Executar `npm run lint:styles` em mudanças de UI, tipos e os testes pertinentes
 Atualizar o documento do módulo e este Active Context quando comportamento/arquitetura mudar. Usar `[[wiki-links]]` e nomes de arquivo com espaços no vault. Preservar alterações do usuário e criar recuperação antes de remoções amplas.
 
 ## Active Context
+
+- 2026-11-14: por autorização específica, somente o índice `cashRescues` `CICAgJiHgokK` foi criado em produção e está `READY`. Os 26 índices anteriores, as Rules e o faturamento desativado foram verificados sem mudanças. A consulta descendente com a sessão oficial respondeu sem fallback; a página estava sem saques. O usuário relatou saque em conta vinculada, mas a sessão não apresentou autorização protegida verificável para outro titular ou grupo. Paginação com 45 saques permanece comprovada no emulador. Ver [[Dashboard Home]] e `docs/stage-07-indice-saques.md`.
+
+- 2026-11-14: paginação de 45 saques e Rules exercitadas no emulador; o índice descendente ainda não existe no projeto oficial. Procedimento de criação isolada preparado em `docs/stage-07-indice-saques.md`, sem publicação ou escrita em produção. O emulador não valida existência de índices compostos.
+
+- 2026-11-14: Home e extrato compartilham o leitor e o componente de movimentações; na conta oficial o usuário confirmou bancos, histórico e apresentação equivalente. Transferências com direção válida, saques verificáveis e referências explícitas aos últimos movimentos obrigatórios são identificados sem escrita. Uma página completa de saques exige período menor; saldos antigos seguem não conciliados. Ver [[Dashboard Home]].
+
+- 2026-11-13: por autorização expressa do usuário, a homologação pessoal somente leitura mostra registros legados do UID autenticado mesmo quando os campos de grupo estão ausentes. Essa ausência não comprova que o registro seja pessoal; associações de grupo explícitas continuam excluídas. Não há alteração de saldo nem escrita em produção. Ver [[Fundação Firebase Spark]].
+
+- 2026-11-13: a Home sinaliza, sem expor IDs ou consultar contas de terceiros, se uma autorização protegida verificada contém acesso compartilhado ou vínculos de grupo enquanto o perfil está no contexto pessoal. Uma autorização não verificável não concede acesso nem bloqueia a consulta pessoal. A leitura dos bancos compartilhados continua pendente; nenhuma alteração em produção foi realizada. Ver [[Fundação Firebase Spark]].
+
+- 2026-11-13, SDK 58: dependências Expo alinhadas, referências nativas adaptadas à API TypeScript estrita e APIs removidas da barra de status substituídas pelo comportamento disponível na plataforma. O Expo Doctor e as verificações locais passaram; login sintético e Home no emulador foram exercitados em desktop e largura de celular. A sessão oficial do usuário não foi inspecionada nesta execução. A Home sinaliza origens bancárias incompletas e categorias sinalizam registros não verificados; documentos legados sem associação comprovável continuam protegidos. Nenhuma alteração de produção foi feita. Ver [[Versão Web]] e [[Fundação Firebase Spark]].
+
+- 2026-11-13: homologação pessoal local com o projeto Firebase existente em modo de consulta. Escritas de perfil, cadastro Auth e operações financeiras são recusadas na camada de dados fora do projeto demo; login e logout continuam disponíveis. As Rules publicadas ainda não permitem as coleções financeiras novas; apenas origens legadas com associação comprovável podem aparecer. Saldos antigos não são presumidos. Sem deploy, migração ou escrita real. Ver [[Fundação Firebase Spark]].
+
+- 2026-11-12, continuação da etapa 06: o extrato combina páginas de movimentos novos e legados autorizados, sem gravar ou recalcular saldos históricos. As Rules locais exigem contexto pessoal explícito ou participação atual no caminho protegido do grupo. Ações de bancos foram reconectadas ao acordeão original de Configurações e o painel adicional saiu do extrato. Sem prova de completude, contas antigas seguem sem saldo calculado e bloqueadas para novas operações. Não houve deploy nem migração. Ver [[Transações de Receitas]], [[Transações de Despesas]] e [[Gerenciamento de Bancos]].
+
+- 2026-11-12, etapa 06 em andamento: lançamentos bancários `posted`/cancelados no emulador, centavos e saldo da conta atualizados em transação e verificados pelas Rules. Formulários e extrato existentes conectados, sem deploy. Dados antigos não são migrados nem aplicados automaticamente ao saldo; a leitura pontual pessoal legada existe, mas o extrato legado e a conciliação ainda não estão integrados. Datas futuras, dinheiro físico e módulos posteriores permanecem indisponíveis. Ver [[Transações de Receitas]], [[Transações de Despesas]] e [[Gerenciamento de Bancos]].
+
+- 2026-11-11, etapa 05: simplificação das categorias no emulador, sem reservas de nomes nem preparação administrativa para novos cadastros; permissões de contexto e dados históricos permanecem protegidos. Sem deploy ou alteração de dados reais. Ver [[Gerenciamento de Tags]].
+
+- 2026-11-10, etapa 05 em andamento: categorias integradas aos componentes originais no emulador, com preservação de IDs e arquivamento. A candidata permanece sem publicação e não está homologada para produção: há limitações de autoridade e concorrência em tags legadas de grupo. Ver [[Gerenciamento de Tags]].
+
+- 2026-11-10: início da etapa 05. O painel adicional de contas foi removido da Home, preservando o carrossel existente. Rotas de módulos ainda não reconstruídos permanecem bloqueadas, independentemente da preferência local; categorias ainda não foram reconstruídas. Ver [[Visibilidade de Rotas]] e [[Gerenciamento de Tags]].
 
 - 2026-11-08: remoção local integral da arquitetura anterior e desacoplamento do frontend. Recuperação em `recovery/backend-removal-20261108` (`594f2d2`) e bundle independente. Todas as telas/rotas preservadas. Sem novo backend, deploy ou alteração remota. Resultados e limites: [[Remoção do Backend]].
 - 2026-11-08, etapa 02: fundação Firebase Spark local implementada. Recuperação anterior em `recovery/firebase-foundation-20261108` (`ea9e261`). Produção inspecionada somente leitura: faturamento desativado, Standard gratuito, Rules permissivas críticas ainda publicadas. Cliente restrito ao emulador; sem migração/deploy. Escopo, evidências e limites em [[Fundação Firebase Spark]].

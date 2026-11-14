@@ -1,4 +1,8 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { errorMessage } from '@/application/errors';
+import { useCategoryMutations } from '@/hooks/useCategoryMutations';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import type { CategorySource } from '@/domain/categories';
 import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
@@ -107,9 +111,13 @@ export default function AddRegisterTagScreen() {
 		heroHeight,
 		insets,
 	} = useScreenStyles();
-	const { iconOptions, defaultTagIcon, resolveTagIcon } = useTagIcons();
+	const { iconOptions, defaultTagIcon, resolveTagIcon, serializeTagIcon } = useTagIcons();
+	const { scope, create, update } = useCategoryMutations();
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterTag');
+	const submissionLock = React.useRef(false);
 	const params = useLocalSearchParams<{
 		tagId?: string | string[];
+		tagSource?: string | string[];
 		placement?: string | string[];
 		availabilityPreset?: string | string[];
 		usageType?: string | string[];
@@ -153,21 +161,24 @@ export default function AddRegisterTagScreen() {
 
 	const [tagName, setTagName] = React.useState('');
 	const [selectedTagIcon, setSelectedTagIcon] = React.useState(defaultTagIcon);
+	const [iconChanged, setIconChanged] = React.useState(false);
 	const [selectedCreationPreset, setSelectedCreationPreset] =
 		React.useState<CategoryAvailabilityPreset | null>(null);
 	const [selectedAvailabilityPreset, setSelectedAvailabilityPreset] =
 		React.useState<CategoryAvailabilityPreset | null>(null);
 	const [savedAvailability, setSavedAvailability] = React.useState<CategoryAvailabilityFields | null>(null);
-	const { record: existingTag, isLoading: isLoadingExisting, error: categoryLoadError, reload: reloadCategory } = useCategoryFormRecord(editingTagId);
+	const rawSource = getFirstParam(params.tagSource);
+	const source: CategorySource = rawSource === 'new' || rawSource === 'group-legacy' || rawSource === 'group-root' ? rawSource : 'legacy';
+	const { record: existingTag, isLoading: isLoadingExisting, error: categoryLoadError, reload: reloadCategory } = useCategoryFormRecord(editingTagId, source);
 	const isExistingTagAvailable = !editingTagId || Boolean(existingTag && !isLoadingExisting && !categoryLoadError);
-	const [isSubmitting] = React.useState(false);
+	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPlacementSelectorOpen, setIsPlacementSelectorOpen] = React.useState(false);
 	const [isPresetSelectorOpen, setIsPresetSelectorOpen] = React.useState(false);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const [tagIconSearch, setTagIconSearch] = React.useState('');
 	const intentRef = React.useRef<{ signature: string; id: string } | null>(null);
-	const tagNameInputRef = React.useRef<TextInput | null>(null);
-	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
+	const tagNameInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const tagIconSearchInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	React.useEffect(() => {
@@ -181,6 +192,7 @@ export default function AddRegisterTagScreen() {
 		const tag = existingTag;
 		intentRef.current = null;
 		setTagName(typeof tag.name === 'string' ? tag.name : '');
+		setIconChanged(false);
 		setSelectedTagIcon(
 			resolveTagIcon({
 				iconFamily: typeof tag.iconFamily === 'string' ? tag.iconFamily as any : null,
@@ -251,6 +263,7 @@ export default function AddRegisterTagScreen() {
 	}, []);
 	const selectIcon = React.useCallback((icon: (typeof iconOptions)[number]) => {
 		setSelectedTagIcon(icon);
+		setIconChanged(true);
 		closeIconSheet();
 	}, [closeIconSheet]);
 	const navigateBackToInlineSource = React.useCallback(() => {
@@ -283,7 +296,45 @@ export default function AddRegisterTagScreen() {
 		setIsPresetSelectorOpen(false);
 	}, []);
 
-	const saveCategory = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const saveCategory = React.useCallback(async () => {
+		if (submissionLock.current || !scope) return;
+		const availability = isEditing
+			? selectedAvailabilityPreset ? getCategoryAvailabilityFields(selectedAvailabilityPreset) : savedAvailability
+			: creationFields;
+		if (!isEditing && !availability) return;
+		const icon = serializeTagIcon(selectedTagIcon);
+		const fields = {
+			name: tagName, usageType: availability?.usageType ?? null,
+			isMandatoryExpense: availability?.isMandatoryExpense ?? existingTag?.isMandatoryExpense ?? false,
+			isMandatoryGain: availability?.isMandatoryGain ?? existingTag?.isMandatoryGain ?? false,
+			showInBothLists: availability?.showInBothLists ?? existingTag?.showInBothLists ?? false,
+			iconFamily: isEditing && !iconChanged ? existingTag?.iconFamily ?? null : icon.iconFamily ?? null,
+			iconName: isEditing && !iconChanged ? existingTag?.iconName ?? null : icon.iconName ?? null,
+			iconStyle: isEditing && !iconChanged ? existingTag?.iconStyle ?? null : icon.iconStyle ?? null,
+		};
+		submissionLock.current = true;
+		setIsSubmitting(true);
+		try {
+			if (isEditing) {
+				if (!existingTag) throw Error('categories/not-found');
+				await update(existingTag, fields);
+				reloadCategory();
+			} else {
+				if (!fields.usageType) throw Error('categories/invalid-type');
+				const pending = await create({ ...fields, usageType: fields.usageType }, intentRef.current);
+				intentRef.current = pending.operation;
+				await pending.run();
+			}
+			showNotifierAlert({ type: 'success', description: isEditing ? 'Categoria atualizada.' : 'Categoria cadastrada.' });
+			if (shouldReturnAfterCreate) navigateBackToInlineSource();
+			else applyPostSubmitBehavior({ isEditing, resetForm: () => { setTagName(''); setSelectedTagIcon(defaultTagIcon); intentRef.current = null; } });
+		} catch (error) {
+			showNotifierAlert({ type: 'error', description: errorMessage(error) });
+		} finally {
+			submissionLock.current = false;
+			setIsSubmitting(false);
+		}
+	}, [scope, isEditing, selectedAvailabilityPreset, savedAvailability, creationFields, serializeTagIcon, selectedTagIcon, iconChanged, tagName, existingTag, shouldReturnAfterCreate, navigateBackToInlineSource, applyPostSubmitBehavior, defaultTagIcon, reloadCategory, create, update]);
 
 	const screenTitle = isEditing
 		? 'Editar categoria'
@@ -304,8 +355,6 @@ export default function AddRegisterTagScreen() {
 		<ScreenDismissKeyboard>
 			<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 				<StatusBar
-					translucent
-					backgroundColor="transparent"
 					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 				/>
 

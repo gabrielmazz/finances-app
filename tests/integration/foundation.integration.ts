@@ -80,7 +80,7 @@ test('real Auth emulator: login existing UID, profile compatibility, logout and 
 		assert.equal(result?.profile.name, 'Pessoa Legada');
 		assert.equal(result?.profile.createdAt?.toISOString(), '2025-01-01T00:00:00.000Z');
 		assert.equal(result?.profile.adminUser, false);
-		assert.deepEqual(await loadFinancialContext(c, users.legacy, result?.groupId), { kind: 'personal' });
+		assert.deepEqual(await loadFinancialContext(c, users.legacy, result?.groupId), { kind: 'personal', sharedReadStatus: 'group-listed' });
 		await logout(c);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		assert.equal(observed, null);

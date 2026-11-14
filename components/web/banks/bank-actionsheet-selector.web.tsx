@@ -44,6 +44,8 @@ type BankActionsheetSelectorProps = {
 	triggerHint?: string;
 	disabledHint?: string;
 	accessibilityLabel: string;
+	onOpen?: () => void;
+	onEndReached?: () => void;
 };
 
 const sheetSnapPoints = [72];
@@ -65,6 +67,8 @@ export default function BankActionsheetSelector({
 	triggerHint = 'Toque para escolher um banco.',
 	disabledHint = 'Banco indisponível no momento.',
 	accessibilityLabel,
+	onOpen,
+	onEndReached,
 }: BankActionsheetSelectorProps) {
 	const [isOpen, setIsOpen] = React.useState(false);
 	const insets = useSafeAreaInsets();
@@ -115,7 +119,8 @@ export default function BankActionsheetSelector({
 		}
 
 		setIsOpen(true);
-	}, [isDisabled]);
+		onOpen?.();
+	}, [isDisabled, onOpen]);
 
 	const handleSelect = React.useCallback(
 		(bank: BankActionsheetOption) => {
@@ -194,6 +199,10 @@ export default function BankActionsheetSelector({
 					</VStack>
 
 					<ActionsheetScrollView
+						onScroll={(event: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+							const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+							if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 48) onEndReached?.();
+						}}
 						className="w-full flex-1"
 						keyboardShouldPersistTaps="handled"
 						contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-	Platform,
 	StatusBar,
 	Text,
 	View,
@@ -82,9 +81,6 @@ const DEFAULT_TITLES: Record<NotifierAlertType, string> = {
 
 export const restoreNotifierAlertStatusBar = (isDarkMode = false) => {
 	StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
-	if (Platform.OS === 'android') {
-		StatusBar.setBackgroundColor('transparent', true);
-	}
 };
 
 export const NotifierAlert: React.FC<NotifierAlertProps> = ({
@@ -138,7 +134,6 @@ export const showNotifierAlert = ({
 	descriptionStyle,
 }: ShowNotifierAlertParams) => {
 	const variant = ALERT_VARIANTS[type];
-	const resolvedStatusBarColor = statusBarColor ?? backgroundColor ?? variant.statusBarColor;
 
 	Notifier.showNotification<typeof NotifierAlert>({
 		title: title ?? DEFAULT_TITLES[type],
@@ -147,9 +142,6 @@ export const showNotifierAlert = ({
 		queueMode,
 		onShown: () => {
 			StatusBar.setBarStyle('light-content', true);
-			if (Platform.OS === 'android') {
-				StatusBar.setBackgroundColor(resolvedStatusBarColor, true);
-			}
 		},
 		onHidden: () => restoreNotifierAlertStatusBar(isDarkMode),
 		containerStyle: NATIVE_LIBRARY_STYLES.notifierContainer,

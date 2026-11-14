@@ -111,6 +111,7 @@ export function parseBank(
 			data.scopeKind !== scope.kind ||
 			data.scopeId !== scope.id ||
 			!validCents(data.initialBalanceCents) ||
+			(data.balanceCents !== undefined && !validCents(data.balanceCents)) ||
 			!['active', 'archived'].includes(data.status) ||
 			!Number.isSafeInteger(data.revision) ||
 			data.revision < 0 ||
@@ -126,7 +127,7 @@ export function parseBank(
 			source,
 			scope,
 			...validateMetadata(data as BankMetadata),
-			balanceInCents: data.initialBalanceCents,
+			balanceInCents: data.balanceCents ?? data.initialBalanceCents,
 			openingDate: data.openingDate.toDate().toISOString().slice(0, 10),
 			status: data.status,
 			revision: data.revision,
@@ -134,13 +135,18 @@ export function parseBank(
 		};
 	}
 	if (
-		(source === 'legacy' && (scope.kind !== 'personal' || data.personId !== scope.id)) ||
-		(source === 'group-legacy' && scope.kind !== 'group') ||
+		(source === 'legacy' && (scope.kind !== 'personal' || data.personId !== scope.id || data.groupId != null || data.financialGroupId != null || data.ledgerGroupId != null)) ||
+		(source === 'group-legacy' && (scope.kind !== 'group' || (data.groupId != null && data.groupId !== scope.id) || (data.financialGroupId != null && data.financialGroupId !== scope.id))) ||
 		typeof data.name !== 'string' ||
 		!data.name.trim() ||
 		data.name.length > 100
 	)
 		throw Error('banks/incompatible');
+	const invalidState = (data.isActive != null && typeof data.isActive !== 'boolean') ||
+		(data.archived != null && typeof data.archived !== 'boolean') ||
+		(data.status != null && !['active', 'archived'].includes(data.status));
+	const archived = data.archived === true || data.status === 'archived';
+	const inactive = data.isActive === false;
 	return {
 		id,
 		source,
@@ -161,8 +167,9 @@ export function parseBank(
 			typeof data.colorHex === 'string' && /^#[a-fA-F0-9]{6}$/.test(data.colorHex) ? data.colorHex : null,
 		balanceInCents: null,
 		openingDate: null,
-		status: 'active',
+		status: archived ? 'archived' : 'active',
 		revision: Number.isSafeInteger(data.metadataRevision) ? data.metadataRevision : 0,
-		issue: 'Conta antiga: saldo e origem aguardam conciliação. O histórico foi preservado.',
+		blocked: invalidState || inactive,
+		issue: invalidState ? 'A situação desta conta antiga precisa de revisão.' : inactive ? 'Conta antiga inativa; saldo e origem aguardam conciliação.' : 'Conta antiga: saldo e origem aguardam conciliação. O histórico foi preservado.',
 	};
 }

@@ -19,15 +19,16 @@ function scenario(value: Scenario) { scenarios.push(value); }
 for (const collection of collections) {
 	scenario({id:`${collection}.own`,flow:'Documento legado próprio',collection,permission:'get own personId',actor:'owner',allowed:true,operation:db=>db.doc(`${collection}/own`).get()});
 	scenario({id:`${collection}.foreign`,flow:'Tentativa de leitura de terceiro',collection,permission:'get foreign personId',actor:'outsider',allowed:false,operation:db=>db.doc(`${collection}/own`).get()});
-	scenario({id:`${collection}.shared`,flow:'Compartilhamento verificado',collection,permission:'get shared owner',actor:'reader',claim:generation,allowed:true,operation:db=>db.doc(`${collection}/own`).get()});
+	scenario({id:`${collection}.shared`,flow:'Compartilhamento verificado',collection,permission:'get shared owner',actor:'reader',claim:generation,allowed:collection !== 'tags',operation:db=>db.doc(`${collection}/own`).get()});
 }
 scenario({id:'guest',flow:'Não autenticado',collection:'banks',permission:'get',allowed:false,operation:db=>db.doc('banks/own').get()});
 scenario({id:'legacy.unbounded-banks',flow:'Web publicada 2.3.3 getBanksByPersonFirebase',collection:'banks',permission:'list personId == uid, sem limit',actor:'owner',allowed:false,operation:db=>db.collection('banks').where('personId','==','owner').get(),adjustment:'Cliente precisa acrescentar paginação/limit; não liberar consulta ilimitada.'});
 scenario({id:'legacy.global-banks',flow:'Cliente legado com enumeração global',collection:'banks',permission:'list all',actor:'owner',allowed:false,operation:db=>db.collection('banks').get(),adjustment:'Remover enumeração global; owner/adminUser não autoriza terceiros.'});
-scenario({id:'query.own',flow:'Fundação atual',collection:'banks',permission:'list personId==uid limit20',actor:'owner',allowed:true,operation:db=>db.collection('banks').where('personId','==','owner').limit(20).get()});
+scenario({id:'query.own',flow:'Fundação atual',collection:'banks',permission:'list personId==uid limit20',actor:'owner',allowed:true,operation:db=>db.collection('banks').where('personId','==','owner').where('groupId','==',null).where('financialGroupId','==',null).where('ledgerGroupId','==',null).limit(20).get()});
 scenario({id:'query.foreign',flow:'Consulta de terceiro',collection:'banks',permission:'list foreign limit20',actor:'outsider',allowed:false,operation:db=>db.collection('banks').where('personId','==','owner').limit(20).get()});
 scenario({id:'query.mixed',flow:'Consulta mista não autorizada',collection:'banks',permission:'personId in own+foreign',actor:'outsider',allowed:false,operation:db=>db.collection('banks').where('personId','in',['outsider','owner']).limit(20).get()});
-scenario({id:'query.shared',flow:'Consulta compartilhada verificada',collection:'expenses',permission:'personId in authorized owners, date, limit',actor:'reader',claim:generation,allowed:true,operation:db=>db.collection('expenses').where('personId','in',['owner','reader']).where('date','>=',date).limit(20).get()});
+scenario({id:'query.shared',flow:'Consulta sem prova de contexto',collection:'expenses',permission:'personId in authorized owners, date, limit',actor:'reader',claim:generation,allowed:false,operation:db=>db.collection('expenses').where('personId','in',['owner','reader']).where('date','>=',date).limit(20).get(),adjustment:'Consulta ampla negada; é preciso comprovar ausência de vínculo de grupo.'});
+scenario({id:'query.shared.personal',flow:'Consulta pessoal com contexto explícito',collection:'expenses',permission:'personId in authorized owners, no group, limit',actor:'reader',claim:generation,allowed:true,operation:db=>db.collection('expenses').where('personId','in',['owner','reader']).where('groupId','==',null).where('financialGroupId','==',null).where('ledgerGroupId','==',null).limit(20).get()});
 scenario({id:'query.limit',flow:'Acima do limite',collection:'banks',permission:'limit21',actor:'owner',allowed:false,operation:db=>db.collection('banks').where('personId','==','owner').limit(21).get()});
 scenario({id:'history',flow:'Histórico próprio legado',collection:'monthlyBalances',permission:'year/month filters',actor:'owner',allowed:true,operation:db=>db.collection('monthlyBalances').where('personId','==','owner').where('year','==',2025).where('month','==',1).limit(20).get()});
 scenario({id:'profile.own',flow:'Perfil antigo',collection:'users',permission:'get own uid',actor:'owner',allowed:true,operation:db=>db.doc('users/owner').get()});
@@ -67,7 +68,8 @@ async function seed(environment: RulesTestEnvironment) {
 		const db=context.firestore();const batch=db.batch();
 		for(const uid of ['owner','reader','outsider'])batch.set(db.doc(`users/${uid}`),{name:'Pessoa',email:`${uid}@lumus.test`,adminUser:uid==='outsider',relatedIdUsers:['owner'],financialGroupId:'group',createdAt:date});
 		batch.set(db.doc('users/incomplete'),{createdAt:'2024-01-01',legacyUntouched:true});
-		for(const name of collections)batch.set(db.doc(`${name}/own`),{personId:'owner',name:'Histórico sintético',valueInCents:12345,date,year:2025,month:1,bankId:'own'});
+		for(const name of collections)batch.set(db.doc(`${name}/own`),{personId:'owner',name:'Histórico sintético',valueInCents:12345,date,year:2025,month:1,bankId:'own',...(['banks','gains','expenses'].includes(name)?{groupId:null,financialGroupId:null,ledgerGroupId:null}:{})});
+		batch.set(db.doc('_categoryScopes/own'),{scopeKind:'personal',scopeId:'owner'});
 		for(const uid of ['owner','reader','outsider'])batch.set(db.doc(`_authorizations/${uid}`),{generation,enabled:true,readOwners:uid==='owner'?[]:['owner'],groups:{group:uid==='owner'?'admin':'member'}});
 		batch.set(db.doc('financialGroups/group'),{status:'active',members:{owner:'admin',reader:'member',outsider:'admin'}});
 		batch.set(db.doc('financialGroups/group/movements/history'),{valueInCents:12345});

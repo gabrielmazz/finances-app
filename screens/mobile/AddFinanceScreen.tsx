@@ -164,9 +164,9 @@ export default function AddFinanceScreen() {
 	const { personId, cancelRequest: cancelSubmit } = useBankMovementsRequest('investment-create');
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 
-	const investmentNameInputRef = React.useRef<TextInput | null>(null);
-	const initialValueInputRef = React.useRef<TextInput | null>(null);
-	const cdiInputRef = React.useRef<TextInput | null>(null);
+	const investmentNameInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const initialValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const cdiInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'cdi' ? 140 : 120),
 		[],
@@ -371,7 +371,7 @@ setSubmitError(null);
 
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : undefined}

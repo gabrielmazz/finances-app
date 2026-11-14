@@ -32,8 +32,8 @@ export default function BankBalanceAdjustmentScreen() {
 			LUMUS_LAYOUT_TOKENS.heroMinimumHeight,
 			height * LUMUS_LAYOUT_TOKENS.heroViewportRatio,
 		) + insets.top;
-	const valueRef = React.useRef<TextInput | null>(null);
-	const descriptionRef = React.useRef<TextInput | null>(null);
+	const valueRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const descriptionRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const getInputRef = React.useCallback(
 		(key: 'value' | 'description') =>
 			key === 'value' ? valueRef : descriptionRef,
@@ -61,8 +61,6 @@ export default function BankBalanceAdjustmentScreen() {
 		>
 			<StatusBar
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-				backgroundColor="transparent"
-				translucent
 			/>
 			<KeyboardAvoidingView
 				className="flex-1"

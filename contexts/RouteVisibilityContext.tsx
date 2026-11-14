@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 
 import { POST_SUBMIT_SCREEN_OPTIONS,type PostSubmitScreenKey } from '@/contexts/PostSubmitBehaviorContext';
+import { isRebuiltRoute } from '@/utils/availableRoutes';
 
 export type RouteVisibilityKey = PostSubmitScreenKey | 'lumusAssistant' | 'annotations'
 	| 'homeDashboard' | 'bankMovements' | 'categoryAnalysis' | 'financialForecast' | 'bankBalanceAdjustment' | 'profile';
@@ -97,7 +98,7 @@ export const RouteVisibilityProvider: React.FC<React.PropsWithChildren> = ({ chi
 	}, []);
 
 	const isRouteVisible = React.useCallback(
-		(routeKey: RouteVisibilityKey) => visibilityByRoute[routeKey] !== false,
+		(routeKey: RouteVisibilityKey) => isRebuiltRoute(routeKey) && visibilityByRoute[routeKey] !== false,
 		[visibilityByRoute],
 	);
 

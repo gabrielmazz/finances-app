@@ -1,5 +1,4 @@
 import { formatCents } from '@/domain/money';
-import BankAccountsPanel from '@/components/uiverse/banks/bank-accounts-panel';
 import HomeActivityHeatmap from "@/components/uiverse/dashboard/home-activity-heatmap";
 import HomeExpenseChart from "@/components/uiverse/dashboard/home-expense-chart";
 import HomeExpenseLineChart from "@/components/uiverse/dashboard/home-expense-line-chart";
@@ -338,7 +337,7 @@ export default function HomeScreen() {
 
 	const { overview, movements, investments, reload } =
 		useHomeScreenData(currentUserId);
-	const homeReadError = overview.error;
+	const homeReadError = overview.error || overview.warning;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 
@@ -580,8 +579,7 @@ export default function HomeScreen() {
 											);
 										}}
 									>
-										<BankAccountsPanel/>
-<View className={webStyles.sectionHeading}>
+										<View className={webStyles.sectionHeading}>
 											<Text
 												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 											>
@@ -781,8 +779,8 @@ export default function HomeScreen() {
 											baseColor={skeletonBaseColor}
 											highlightColor={skeletonHighlightColor}
 										/>
-									) : overview.error ? (
-										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
+									) : overview.error || overview.historyError ? (
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error || overview.historyError}</Text>
 									) : !hasExpenseHistory ? (
 										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>Nenhum gasto registrado nos últimos três meses.</Text>
 									) : (
@@ -814,7 +812,7 @@ export default function HomeScreen() {
 										</View>
 									</View>
 									<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
-										{overview.error ? 'Atividade indisponível' : `${activityHeatmap.totalActions} ações registradas em ${new Date().getFullYear()}`}
+										{overview.error || overview.historyError ? 'Atividade indisponível' : `${activityHeatmap.totalActions} ações registradas em ${new Date().getFullYear()}`}
 									</Text>
 									{overview.loading && activityHeatmap.totalActions === 0 ? (
 										<Skeleton
@@ -822,8 +820,8 @@ export default function HomeScreen() {
 											baseColor={skeletonBaseColor}
 											highlightColor={skeletonHighlightColor}
 										/>
-									) : overview.error ? (
-										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
+									) : overview.error || overview.historyError ? (
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error || overview.historyError}</Text>
 									) : (
 										<HomeActivityHeatmap
 											data={activityHeatmap.dailyActionCounts}
@@ -868,9 +866,9 @@ export default function HomeScreen() {
 												highlightColor={skeletonHighlightColor}
 											/>
 										</View>
-									) : overview.error ? (
+									) : overview.error || overview.historyError ? (
 										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-											{overview.error}
+												{overview.error || overview.historyError}
 										</Text>
 									) : (
 										<View className={`${webStyles.mandatoryColumns} ${compact ? webStyles.mandatoryColumnsCompact : ''}`}>
@@ -896,6 +894,8 @@ export default function HomeScreen() {
 										banks: overview.data.bankBalances,
 										loading: movements.loading,
 										error: movements.error,
+										cashIncomplete: movements.cashIncomplete,
+										incomplete: movements.incomplete,
 										reload,
 									}}
 								/>

@@ -201,11 +201,11 @@ export default function AddMandatoryGainsScreen() {
 		[selectedTagId, selectedTagName, tagOptions],
 	);
 
-	const gainNameInputRef = React.useRef<TextInput | null>(null);
-	const gainValueInputRef = React.useRef<TextInput | null>(null);
-	const dueDayInputRef = React.useRef<TextInput | null>(null);
-	const installmentsInputRef = React.useRef<TextInput | null>(null);
-	const descriptionInputRef = React.useRef<TextInput | null>(null);
+	const gainNameInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const gainValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const dueDayInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const installmentsInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const descriptionInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const keyboardScrollOffset = React.useCallback((key: FocusableInputKey) => (key === 'description' ? 180 : 120), []);
 
 	const handleValueChange = React.useCallback((input: string) => {
@@ -565,7 +565,7 @@ setLastReceiptCycle(null);
 				style={{ backgroundColor: surfaceBackground }}
 				edges={['left', 'right', 'bottom']}
 			>
-				<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+				<StatusBar barStyle="light-content" />
 				<KeyboardAvoidingView
 					className={webDashboardClassNames.fill}
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

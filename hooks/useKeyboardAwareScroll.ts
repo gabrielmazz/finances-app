@@ -10,7 +10,7 @@ type NativeScrollEvent,
 type NativeSyntheticEvent,
 } from 'react-native';
 
-type InputRef = React.RefObject<TextInput | null> | React.RefObject<any>;
+type InputRef = React.RefObject<import('react').ComponentRef<typeof TextInput> | null> | React.RefObject<any>;
 
 type UseKeyboardAwareScrollOptions<InputKey extends string> = {
 	getInputRef: (key: InputKey) => InputRef | null;
@@ -34,7 +34,7 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 	keyboardRetryDelays = defaultKeyboardRetryDelays,
 }: UseKeyboardAwareScrollOptions<InputKey>) {
 	const { height: windowHeight } = useWindowDimensions();
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const scrollViewRef = React.useRef<import('react').ComponentRef<typeof ScrollView> | null>(null);
 	const lastFocusedInputKey = React.useRef<InputKey | null>(null);
 	const scrollYRef = React.useRef(0);
 	const keyboardHeightRef = React.useRef(0);

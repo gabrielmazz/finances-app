@@ -8,6 +8,10 @@ versao: 3.0.0
 
 # Auditoria de Design
 
+## Início da etapa 05 — 2026-11-10
+
+Na comparação de `6cdf312` com `7eff3db`, o painel adicional de contas na Home foi identificado como divergência do frontend anterior e retirado das variantes Web e mobile; o carrossel permanece. O aviso permanente no topo também foi retirado, preservando a apresentação de erros reais de sessão/contexto. No navegador, a Home foi aberta em 1440×900 e 390×900 com dados sintéticos; o banco apareceu no carrossel e o painel e o aviso permanente não apareceram. Link direto para categoria indisponível retornou à Home. A comparação não homologa os formulários ou a tela de categorias, que permanecem pendentes. A Home ainda mostra seções e estados de módulos não reconstruídos, e o cadastro/consulta de bancos conserva adições da etapa 04 que ainda exigem recuperação visual seletiva. Nenhuma validação Android foi realizada nesta alteração.
+
 ## Fase de remoção do backend — 2026-11-08
 
 Inventário preservado: 51 arquivos de tela e 82 entradas de rota, listados em `docs/backend-removal-manifest.json`. A limpeza mantém componentes, assets, cores, tokens, estilos, navegação e variantes de plataforma.
@@ -29,3 +33,8 @@ O lint mantém as mesmas métricas da etapa 01. Validação Web em 1440×1000 e 
 Preservados AddRegisterBank, Home e BankMovements nas duas plataformas, rotas, hero, seletores, cores e tokens. Novos campos de instituição/tipo/data, estados de carga/erro/sucesso e ações de consulta/arquivo usam as primitivas existentes. Nenhuma dependência ou exceção visual adicionada. Gravidade P2 corrigida: resposta de carga não pode apagar entrada em edição; formulário aguarda carregamento. Gravidade P2 corrigida: listagem pós-save não reaproveita snapshot anterior ao commit. Saldo de legado/total incompleto usa indisponibilidade explícita; indicadores de ganhos/gastos não fingem atividade zero. Capturas sintéticas e resultados por viewport em `artifacts/banks-stage04/`, limites de aparelho no relatório da Etapa 04.
 
 Na conferência física da Etapa 04, o aviso global sobrepunha a barra de status. O contêiner do aviso passa a respeitar a safe area superior, mantendo o conteúdo e os estilos; telas já excluem a borda superior de sua própria safe area. Rótulo nativo “Nome da conta” explícito. Hierarquias de navegação retidas pelo Expo Go podem conter controles repetidos; o driver de homologação usa o controle mais recente, sem alterar a navegação do aplicativo.
+
+
+### Etapa 06 — extrato e controles originais
+
+O painel adicional Dados da conta foi removido das variantes Web e mobile do extrato. As ações de edição e arquivamento utilizam a tabela e o modal já existentes no acordeão Bancos de Configurações. Fluxos com dados sintéticos foram verificados no navegador em 1440 e 390 pixels. A validação física Android não ocorreu; histórico sem autoridade verificável e conciliação antiga permanecem limitados.

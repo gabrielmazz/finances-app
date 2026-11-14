@@ -201,7 +201,7 @@ setHasSavedOnce(false);
 
 	return (
 		<SafeAreaView className={WEB_DASHBOARD_CLASS_NAMES.screen} style={{ backgroundColor: surfaceBackground }} edges={['left', 'right', 'bottom']}>
-			<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+			<StatusBar barStyle="light-content" />
 			<KeyboardAvoidingView className={WEB_DASHBOARD_CLASS_NAMES.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 				<ScrollView
 					ref={scrollViewRef}

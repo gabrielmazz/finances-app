@@ -1,5 +1,4 @@
 import { formatCents } from '@/domain/money';
-import BankAccountsPanel from '@/components/uiverse/banks/bank-accounts-panel';
 import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
 import React from 'react';
 import {
@@ -312,7 +311,7 @@ export default function HomeScreen() {
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
 	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
 	const [currentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
-	const homeReadError = overview.error;
+	const homeReadError = overview.error || overview.warning;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [selectedInvestmentPopoverTarget, setSelectedInvestmentPopoverTarget] = React.useState<{
@@ -663,8 +662,6 @@ export default function HomeScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 
@@ -783,8 +780,7 @@ export default function HomeScreen() {
 									</HStack>
 								</VStack>
 
-								<BankAccountsPanel/>
-{overview.loading && bankCarouselItems.length === 0 ? (
+								{overview.loading && bankCarouselItems.length === 0 ? (
 									<HomeBankOverviewSkeleton
 										bankCarouselWidth={bankCarouselWidth}
 										bankCarouselHeight={bankCarouselHeight}
@@ -1233,6 +1229,8 @@ export default function HomeScreen() {
 									banks: overview.data.bankBalances,
 									loading: movements.loading,
 									error: movements.error,
+									cashIncomplete: movements.cashIncomplete,
+									incomplete: movements.incomplete,
 									reload,
 								}}
 							/>

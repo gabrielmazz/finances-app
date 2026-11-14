@@ -65,7 +65,7 @@ export default function AddRegisterBankScreenWeb() {
 	const { iconOptions, defaultBankIcon } = useBankIcons();
     const form=useBankAccountForm();
     const {nameBank,setNameBank,isSubmitting,selectedColor,setSelectedColor,selectedBankIconKey,setSelectedBankIconKey,editingBankId,isEditing,loadedBankId,bankLoadError,isLoadingBank,retryBankLoad,openingBalanceInCents,setOpeningBalanceInCents,overdraftReason,setOverdraftReason,registerBank,nameValidationError,setNameValidationError}=form;
-    const bankNameInputRef=React.useRef<TextInput|null>(null);
+    const bankNameInputRef=React.useRef<import('react').ComponentRef<typeof TextInput>|null>(null);
     const colorOptions=React.useMemo(()=>{
         const options:Array<{label:string;value:string}>=LUMUS_BANK_COLOR_PRESETS.map(option=>({label:option.label,value:option.value}));
         if(selectedColor&&!options.some(option=>option.value===selectedColor))options.push({label:'Cor atual',value:selectedColor});
@@ -94,7 +94,7 @@ export default function AddRegisterBankScreenWeb() {
 	return (
 		<ScreenDismissKeyboard>
 			<SafeAreaView className={`${LUMUS_CLASS_NAMES.screen} web:w-screen`} edges={['left', 'right', 'bottom']}>
-				<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+				<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 				<View className={`${LUMUS_CLASS_NAMES.screen} web:w-screen`}>
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

@@ -27,10 +27,10 @@ test('encrypted recovery preserves UID, financial values, hierarchy and typed re
 	const personId={stringValue:uid};
 	const records=[
 		{path:`users/${uid}`,fields:{name:{stringValue:'Pessoa restaurada'},email:{stringValue:'restored@lumus.test'},adminUser:{booleanValue:true},createdAt:{stringValue:'2020-01-01T00:00:00Z'},relatedIdUsers:{arrayValue:{values:[{stringValue:'related-uid'}]}}}},
-		{path:'expenses/history',fields:{personId,valueInCents:{integerValue:'12345'},bankId:{stringValue:'bank00'},bankReference:{referenceValue:root(source)+'/banks/bank00'},date:{timestampValue:'2025-01-01T00:00:00.123456Z'}}},
+		{path:'expenses/history',fields:{personId,groupId:{nullValue:null},financialGroupId:{nullValue:null},ledgerGroupId:{nullValue:null},valueInCents:{integerValue:'12345'},bankId:{stringValue:'bank00'},bankReference:{referenceValue:root(source)+'/banks/bank00'},date:{timestampValue:'2025-01-01T00:00:00.123456Z'}}},
 		{path:'monthlyBalances/snapshot',fields:{personId,valueInCents:{integerValue:'9007199254740991'},month:{integerValue:'1'},year:{integerValue:'2025'}}},
 		{path:'users/missing-parent/notes/orphan',fields:{null:{nullValue:null},bytes:{bytesValue:'AQID'},location:{geoPointValue:{latitude:1,longitude:2}}}},
-		...Array.from({length:22},(_,index)=>({path:`banks/bank${String(index).padStart(2,'0')}`,fields:{personId,name:{stringValue:`Banco ${index}`}}})),
+		...Array.from({length:22},(_,index)=>({path:`banks/bank${String(index).padStart(2,'0')}`,fields:{personId,groupId:{nullValue:null},financialGroupId:{nullValue:null},ledgerGroupId:{nullValue:null},name:{stringValue:`Banco ${index}`}}})),
 	];
 	await commit(source,records);
 	const snapshot=await exportSnapshot({projectId:source,local:true,maxDocuments:100});

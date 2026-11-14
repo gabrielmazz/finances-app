@@ -113,8 +113,8 @@ export default function AddRescueScreen() {
 		currentBankBalanceInCents, isLoadingBankBalance, error: rescueDataError, needsBank, reload: reloadRescueData } = useRescueFormData(selectedBankId);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-	const rescueValueInputRef = React.useRef<TextInput | null>(null);
-	const rescueDescriptionInputRef = React.useRef<TextInput | null>(null);
+	const rescueValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const rescueDescriptionInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'rescue-description' ? 180 : 120),
@@ -230,8 +230,6 @@ setRescueDescription(null);
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 

@@ -5,6 +5,7 @@ export function errorMessage(error: unknown): string {
 			: error instanceof Error
 				? error.message
 				: '';
+	if (code === 'read-only/operation') return 'Esta versão permite apenas consultas. Nenhuma alteração foi realizada.';
 	const bankErrors: Record<string, string> = {
 		'banks/not-released': 'Bancos e saldo inicial ainda estão em homologação. Use o ambiente de testes.',
 		'banks/invalid-context': 'Não foi possível identificar um contexto financeiro autorizado.',
@@ -27,6 +28,30 @@ export function errorMessage(error: unknown): string {
 		'banks/intent-storage-unavailable': 'Não foi possível guardar o identificador do cadastro neste navegador. Use um navegador atualizado e permita o armazenamento local.',
 	};
 	if(bankErrors[code])return bankErrors[code];
+	const categoryErrors: Record<string, string> = {
+		'categories/not-released': 'Categorias ainda estão em validação. Use o ambiente de testes.',
+		'categories/invalid-name': 'Informe um nome de categoria com até 100 caracteres.',
+		'categories/invalid-type': 'Selecione onde a categoria será utilizada.',
+		'categories/conflict': 'Esta categoria mudou em outro acesso. Atualize os dados e tente novamente.',
+		'categories/operation-conflict': 'Este cadastro já foi enviado com outros dados. Consulte a lista antes de tentar novamente.',
+		'categories/ambiguous': 'Algumas categorias precisam de revisão antes desta alteração.',
+		'categories/legacy-usage': 'O uso desta categoria antiga não pode ser alterado com segurança.',
+		'categories/not-found': 'Categoria não encontrada. Atualize a lista e tente novamente.',
+		'categories/archived': 'Esta categoria foi removida e não pode ser alterada.',
+	};
+	if (categoryErrors[code]) return categoryErrors[code];
+	const movementErrors: Record<string, string> = {
+		'movements/invalid-name': 'Informe o nome do lançamento com até 100 caracteres.',
+		'movements/invalid-amount': 'Informe um valor maior que zero.',
+		'movements/amount-limit': 'O valor excede o limite permitido para a conta.',
+		'movements/invalid-date': 'Informe uma data válida até hoje.',
+		'movements/invalid-account': 'Selecione uma conta ativa com saldo disponível.',
+		'movements/invalid-category': 'Selecione uma categoria ativa compatível com o lançamento.',
+		'movements/conflict': 'O lançamento foi alterado em outro acesso. Atualize e tente novamente.',
+		'movements/operation-conflict': 'Este cadastro já foi enviado com outros dados. Confira o extrato antes de tentar novamente.',
+		'movements/invalid-explanation': 'Informe uma observação com até 500 caracteres.',
+	};
+	if (movementErrors[code]) return movementErrors[code];
 	if (code.startsWith('config/'))
 		return 'Não foi possível iniciar o serviço. Entre em contato com o responsável pelo aplicativo.';
 	if (

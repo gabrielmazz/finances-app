@@ -202,7 +202,7 @@ export default function FinancialForecastScreenWeb() {
 
 	return (
 		<SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['left', 'right', 'bottom']}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
 			<View className="flex-1 bg-slate-50 dark:bg-slate-950">
 				<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>

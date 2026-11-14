@@ -26,7 +26,7 @@ const output=path.join(os.homedir(),'.cache/lumus-homologation/web');
 		require('./serve_web.cjs').createWebServer(output).listen(4174,'127.0.0.1',()=>console.log('Homologation UI: http://127.0.0.1:4174/web (real Firebase; no Hosting deployment)'));return;
 	}
 	const cli=path.join(repo,'node_modules/expo/bin/cli');
-	const args=action==='export-web'?['export','--platform','web','--output-dir',output]:action==='native'?['start','--go','--localhost','--port','8088']:action==='web'?['start','--web','--host','localhost','--port','8088']:null;
+	const args=action==='export-web'?['export','--platform','web','--output-dir',output]:action==='native'?['start','--go','--lan','--port','8088']:action==='web'?['start','--web','--host','localhost','--port','8088']:null;
 	if(!args)throw Error('Use prepare, web, export-web, serve-web or native');
 	const child=spawn(process.execPath,[cli,...args],{cwd:repo,env,stdio:'inherit'});for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>child.kill(signal));child.on('exit',code=>{process.exitCode=code??1;});
 })().catch(()=>{console.error('Homologation preparation/launch failed; check local configuration and verified Rules.');process.exitCode=1;});
