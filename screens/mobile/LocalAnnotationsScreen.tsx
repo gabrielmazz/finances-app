@@ -119,7 +119,6 @@ export default function LocalAnnotationsScreen() {
 		return (
 			<SafeAreaView className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<StatusBar
-					backgroundColor={surfaceBackground}
 					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 				/>
 				<Box className={`flex-1 px-5 pb-5 pt-3 ${cardBackground}`}>
@@ -211,8 +210,6 @@ export default function LocalAnnotationsScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>

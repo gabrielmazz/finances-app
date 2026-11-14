@@ -715,7 +715,7 @@ setPendingAction(null);
 
 	return (
 		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 					<View

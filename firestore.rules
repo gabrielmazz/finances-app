@@ -1,11 +1,11 @@
 rules_version = '2';
-// Stage 04 local candidate; NOT published. Stage03 source: security/stage03-published.rules.
+// Local candidate; NOT published. Stage03 source: security/stage03-published.rules.
 // financialContexts/{personal:uid|group:gid}/bankAccounts/{operationId}: schemaVersion=1,
 // bounded name/institutionKey/institutionName/type/color, scopeKind/scopeId, integer
 // initialBalanceCents (+/-9e12), openingDate, status, revision and server audit fields.
 // accountOpenings/{same operationId}: immutable opening, amount/date/context matching
 // the account, reason<=500, type='opening'. Both documents MUST be created atomically.
-// No balance updates, movement writes or deletes. Zero-balance active accounts can archive.
+// Movement transactions update account balances atomically; zero-balance accounts can archive.
 // users/{uid}: legacy fields retained; clients create a minimal own profile or edit
 // their own bounded name. Permission/relationship fields cannot be changed.
 // _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,
@@ -38,9 +38,14 @@ service cloud.firestore {
         && authorization().groups.get(groupId, '') in ['admin', 'member'];
     }
     function legacyCollection(name) {
-      return name in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
-        'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains',
-        'monthlyBalances','tags'];
+      return name in ['bankTransfers','cashRescues','financeInvestmentSyncs',
+        'financeInvestments','investmentCdiRates','mandatoryExpenses','mandatoryGains',
+        'monthlyBalances'];
+    }
+    function legacyMovementRead(data) {
+      let group = data.get('groupId',null);
+      return data.keys().hasAll(['groupId','financialGroupId','ledgerGroupId']) && group == null
+          && data.financialGroupId == null && data.ledgerGroupId == null && mayReadOwner(data.personId);
     }
     function isValidName(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() <= 100
@@ -73,13 +78,29 @@ service cloud.firestore {
          (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))
           && authorization().groups.get(contextId(key),'') == 'admin'));
     }
+    function verifiedCategoryScope(id) {
+      return get(/databases/$(database)/documents/_categoryScopes/$(id)).data;
+    }
+    function validLegacyCategoryScope(data, binding) {
+      return binding.keys().hasOnly(['scopeKind','scopeId'])
+        && binding.scopeKind in ['personal','group'] && binding.scopeId is string
+        && validContext(binding.scopeKind + ':' + binding.scopeId)
+        && ((binding.scopeKind == 'personal' && data.personId == binding.scopeId
+          && data.get('groupId',null) == null && data.get('financialGroupId',null) == null)
+        || (binding.scopeKind == 'group' && data.get('groupId',null) == binding.scopeId
+          && data.get('financialGroupId',null) in [null,binding.scopeId]));
+    }
     function validAmount(value) { return value is int && value >= -9000000000000 && value <= 9000000000000; }
     function validAccount(data,key) {
-      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt','balanceCents','balanceRevision','lastMovementId'])
         && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
         && data.schemaVersion is int && data.schemaVersion == 1 && data.scopeKind in ['personal','group']
         && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
         && validBankMetadata(data) && validAmount(data.initialBalanceCents)
+        && ((!data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])) ||
+          (data.keys().hasAll(['balanceCents','balanceRevision','lastMovementId']) && validAmount(data.balanceCents)
+            && data.balanceRevision is int && data.balanceRevision > 0 && data.balanceRevision <= 1000000000
+            && data.lastMovementId is string && data.lastMovementId.matches('^[A-Za-z0-9]{20}$')))
         && data.openingDate is timestamp && data.openingDate >= timestamp.date(1900,1,1) && data.openingDate <= request.time
         && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
         && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
@@ -105,26 +126,162 @@ service cloud.firestore {
         && data.diff(resource.data).affectedKeys().hasOnly(['name','bankIconKey','institutionName','accountType','colorHex','metadataRevision','updatedBy','updatedAt'])
         && data.diff(resource.data).affectedKeys().hasAny(['name','bankIconKey','institutionName','accountType','colorHex']);
     }
+    function validLegacyCategoryState(data) {
+      return data.get('deleted',false) is bool
+        && data.get('isMandatoryExpense',false) is bool && data.get('isMandatoryGain',false) is bool
+        && data.get('showInBothLists',false) is bool
+        && data.get('usageType',null) in [null,'expense','gain','both']
+        && data.get('status','active') in ['active','archived']
+        && (data.get('usageType',null) != 'expense' || !data.get('isMandatoryGain',false))
+        && (data.get('usageType',null) != 'gain' || !data.get('isMandatoryExpense',false));
+    }
+    function legacyCategoryUpdate() {
+      let data = request.resource.data;
+      return validLegacyCategoryState(resource.data) && validLegacyCategoryState(data)
+        && resource.data.get('deleted', false) != true && resource.data.get('status','active') == 'active'
+        && data.updatedBy == request.auth.uid && data.updatedAt == request.time
+        && ((data.diff(resource.data).affectedKeys().hasOnly(['name','iconFamily','iconName','iconStyle','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','updatedBy','updatedAt'])
+          && isValidName(data)
+          && (data.get('iconFamily',null) == null || boundedText(data.iconFamily,100))
+          && (data.get('iconName',null) == null || boundedText(data.iconName,100))
+          && (data.get('iconStyle',null) == null || boundedText(data.iconStyle,100))
+          && (!data.diff(resource.data).affectedKeys().hasAny(['usageType','isMandatoryExpense','isMandatoryGain','showInBothLists'])
+            || (data.usageType in ['expense','gain','both'] && data.isMandatoryExpense is bool
+              && data.isMandatoryGain is bool && data.showInBothLists is bool
+              && (data.usageType != 'expense' || !data.isMandatoryGain)
+              && (data.usageType != 'gain' || !data.isMandatoryExpense))))
+        || (data.diff(resource.data).affectedKeys().hasOnly(['deleted','updatedBy','updatedAt']) && data.deleted == true));
+    }
+    function validCategory(data, key) {
+      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','nameKey','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
+        && isValidName(data) && data.usageType in ['expense','gain','both']
+        && data.isMandatoryExpense is bool && data.isMandatoryGain is bool && data.showInBothLists is bool
+        && (data.usageType != 'expense' || !data.isMandatoryGain)
+        && (data.usageType != 'gain' || !data.isMandatoryExpense)
+        && (data.iconFamily == null || boundedText(data.iconFamily,100))
+        && (data.iconName == null || boundedText(data.iconName,100))
+        && (data.iconStyle == null || boundedText(data.iconStyle,100))
+        && (!data.keys().hasAny(['nameKey']) || (data.nameKey is string && data.nameKey.size() <= 1300))
+        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
+        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    match /financialContexts/{key}/categories/{id} {
+      allow get: if mayReadContext(key);
+      allow list: if mayReadContext(key) && request.query.limit <= 20;
+      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validCategory(request.resource.data,key)
+        && !request.resource.data.keys().hasAny(['nameKey'])
+        && request.resource.data.status == 'active' && request.resource.data.revision == 0
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if mayWriteContext(key) && validCategory(request.resource.data,key)
+        && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','updatedBy','updatedAt'])
+        && (request.resource.data.status == 'active' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']));
+    }
+    match /financialContexts/{key}/legacyCategoryIndex/{id} {
+      allow get: if mayReadContext(key);
+      allow list: if mayReadContext(key) && request.query.limit <= 20;
+    }
+    function validMovement(data,key) {
+      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
+        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
+        && isValidName(data) && data.type in ['gain','expense'] && validAmount(data.amountCents) && data.amountCents > 0
+        && data.accountId is string && data.accountId.matches('^[A-Za-z0-9]{20}$')
+        && data.categoryId is string && data.categoryId.size() > 0 && data.categoryId.size() <= 1500 && !data.categoryId.matches('.*/.*')
+        && data.categorySource in ['new','legacy','group-root','group-legacy']
+        && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time
+        && data.explanation is string && data.explanation.size() <= 500 && !data.explanation.matches('.*[\\x00-\\x1F\\x7F].*')
+        && data.paymentFormats is list && data.paymentFormats.size() <= 1 && data.paymentFormats.hasOnly(['Variable','External'])
+        && (data.type != 'expense' || data.paymentFormats.size() == 0)
+        && data.status in ['posted','cancelled'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
+        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128) && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+    function movementCategory(data,key) {
+      let id = data.categoryId;
+      return (data.categorySource == 'new'
+          && getAfter(/databases/$(database)/documents/financialContexts/$(key)/categories/$(id)).data.status == 'active'
+          && getAfter(/databases/$(database)/documents/financialContexts/$(key)/categories/$(id)).data.usageType in [data.type,'both'])
+        || (data.categorySource in ['legacy','group-root']
+          && validLegacyCategoryScope(get(/databases/$(database)/documents/tags/$(id)).data,verifiedCategoryScope(id))
+          && key == verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId
+          && (data.categorySource == 'legacy' ? data.scopeKind == 'personal' : data.scopeKind == 'group')
+          && validLegacyCategoryState(get(/databases/$(database)/documents/tags/$(id)).data)
+          && get(/databases/$(database)/documents/tags/$(id)).data.get('deleted',false) == false
+          && get(/databases/$(database)/documents/tags/$(id)).data.get('status','active') == 'active'
+          && get(/databases/$(database)/documents/tags/$(id)).data.get('usageType',null) in [data.type,'both'])
+        || (data.categorySource == 'group-legacy' && data.scopeKind == 'group'
+          && validLegacyCategoryState(get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data)
+          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('groupId',null) in [null,data.scopeId]
+          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('financialGroupId',null) in [null,data.scopeId]
+          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('deleted',false) == false
+          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('status','active') == 'active'
+          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('usageType',null) in [data.type,'both']);
+    }
+    function movementEffect(data,accountId) {
+      return data.status == 'posted' && data.accountId == accountId ? (data.type == 'gain' ? data.amountCents : -data.amountCents) : 0;
+    }
+    function accountChangedForMovement(key,accountId,movementId) {
+      let path = /databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(accountId);
+      return get(path).data.status == 'active' && getAfter(path).data.lastMovementId == movementId
+        && getAfter(path).data.balanceRevision == get(path).data.get('balanceRevision',0) + 1;
+    }
+    function validMovementBalanceUpdate(key,accountId) {
+      let id = request.resource.data.lastMovementId;
+      let path = /databases/$(database)/documents/financialContexts/$(key)/movements/$(id);
+      let after = getAfter(path).data;
+      let oldEffect = exists(path) ? movementEffect(get(path).data,accountId) : 0;
+      return (exists(path) ? after.revision == get(path).data.revision + 1 : after.revision == 0)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceCents','balanceRevision','lastMovementId'])
+        && request.resource.data.balanceRevision == resource.data.get('balanceRevision',0) + 1
+        && request.resource.data.balanceCents == resource.data.get('balanceCents',resource.data.initialBalanceCents) + movementEffect(after,accountId) - oldEffect;
+    }
+    match /financialContexts/{key}/movements/{id} {
+      allow get: if mayReadContext(key);
+      allow list: if mayReadContext(key) && request.query.limit <= 20;
+      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validMovement(request.resource.data,key)
+        && request.resource.data.status == 'posted' && request.resource.data.revision == 0
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && movementCategory(request.resource.data,key) && accountChangedForMovement(key,request.resource.data.accountId,id);
+      allow update: if mayWriteContext(key) && validMovement(request.resource.data,key) && resource.data.status == 'posted'
+        && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','updatedBy','updatedAt'])
+        && (request.resource.data.status == 'posted' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['categoryId','categorySource']) || movementCategory(request.resource.data,key))
+        && accountChangedForMovement(key,resource.data.accountId,id)
+        && (request.resource.data.accountId == resource.data.accountId || accountChangedForMovement(key,request.resource.data.accountId,id));
+    }
     match /financialContexts/{key}/bankAccounts/{id} {
       // Namespace authority comes from the path; missing-document reads are scoped too.
       allow get: if mayReadContext(key);
       allow list: if mayReadContext(key) && request.query.limit <= 20;
       allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$')
-        && validAccount(request.resource.data,key) && request.resource.data.status == 'active' && request.resource.data.revision == 0
+        && validAccount(request.resource.data,key) && !request.resource.data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])
+        && request.resource.data.status == 'active' && request.resource.data.revision == 0
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && !exists(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id))
         && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.accountId == id
         && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.amountCents == request.resource.data.initialBalanceCents
         && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.date == request.resource.data.openingDate;
-      allow update: if mayWriteContext(key) && validAccount(request.resource.data,key)
-        && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
+      allow update: if mayWriteContext(key) && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
+        && validAccount(request.resource.data,key)
         && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
         && ((request.resource.data.status == 'active'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','institutionKey','institutionName','accountType','colorHex','revision','updatedBy','updatedAt'])
           && request.resource.data.diff(resource.data).affectedKeys().hasAny(['name','institutionKey','institutionName','accountType','colorHex']))
-        || (request.resource.data.status == 'archived' && resource.data.initialBalanceCents == 0
+        || (request.resource.data.status == 'archived' && resource.data.get('balanceCents',resource.data.initialBalanceCents) == 0
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])));
+      allow update: if mayWriteContext(key) && resource.data.status == 'active'
+        && validAmount(request.resource.data.balanceCents) && request.resource.data.balanceRevision is int
+        && request.resource.data.balanceRevision > 0 && request.resource.data.balanceRevision <= 1000000000
+        && request.resource.data.lastMovementId is string && request.resource.data.lastMovementId.matches('^[A-Za-z0-9]{20}$')
+        && validMovementBalanceUpdate(key,id);
     }
     match /financialContexts/{key}/accountOpenings/{id} {
       allow get: if mayReadContext(key);
@@ -133,9 +290,21 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.initialBalanceCents == request.resource.data.amountCents
         && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.openingDate == request.resource.data.date;
     }
-    match /banks/{id} { allow update: if isOwner(resource.data.personId) && legacyMetadataUpdate(); }
+    match /banks/{id} { allow update: if isOwner(resource.data.personId) && legacyMovementRead(resource.data) && legacyMetadataUpdate(); }
+    match /tags/{id} {
+      allow get: if validLegacyCategoryScope(resource.data, verifiedCategoryScope(id))
+        && mayReadContext(verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId);
+      allow update: if validLegacyCategoryScope(resource.data, verifiedCategoryScope(id))
+        && mayWriteContext(verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId)
+        && legacyCategoryUpdate();
+    }
     match /financialGroups/{groupId}/accounts/{id} {
       allow update: if mayWriteContext('group:'+groupId) && legacyMetadataUpdate();
+    }
+    match /financialGroups/{groupId}/tags/{id} {
+      allow update: if mayWriteContext('group:'+groupId)
+        && resource.data.get('groupId',null) in [null,groupId]
+        && resource.data.get('financialGroupId',null) in [null,groupId] && legacyCategoryUpdate();
     }
     match /users/{uid} {
       allow get: if isOwner(uid);
@@ -166,9 +335,12 @@ service cloud.firestore {
       allow get: if isOwner(uid) && hasAuthorityClaim() && validAuthorization(resource.data);
     }
     match /{collection}/{id} {
-      allow get: if legacyCollection(collection) && mayReadOwner(resource.data.personId);
-      allow list: if legacyCollection(collection) && request.query.limit <= 20
-        && mayReadOwner(resource.data.personId);
+      allow get: if (legacyCollection(collection) && mayReadOwner(resource.data.personId))
+        || (collection in ['banks','gains','expenses'] && legacyMovementRead(resource.data));
+      allow list: if request.query.limit <= 20 && ((legacyCollection(collection) && mayReadOwner(resource.data.personId))
+        || (collection in ['banks','gains','expenses'] && resource.data.groupId == null
+          && resource.data.financialGroupId == null && resource.data.ledgerGroupId == null
+          && mayReadOwner(resource.data.personId)));
     }
     match /{document=**} { allow read, write: if false; }
   }

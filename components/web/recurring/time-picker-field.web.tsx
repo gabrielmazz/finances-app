@@ -41,7 +41,7 @@ type TimeOptionColumnProps = {
 };
 
 function TimeOptionColumn({ title, options, selectedValue, onSelect, classNames }: TimeOptionColumnProps) {
-	const scrollViewRef = React.useRef<ScrollView>(null);
+	const scrollViewRef = React.useRef<import('react').ComponentRef<typeof ScrollView>>(null);
 	const selectedIndex = options.indexOf(selectedValue);
 
 	React.useEffect(() => {

@@ -2,6 +2,7 @@ import { doc, getDocFromServer, runTransaction, serverTimestamp, type Firestore 
 import type { Auth } from 'firebase/auth';
 import { parseProfile, validateProfileName } from '../domain/profile';
 import { measureRead } from './diagnostics';
+import { LOCAL_PROJECT_ID } from './config';
 
 export type AccountClient = { auth: Auth; db: Firestore };
 function requireOwner(client: AccountClient, uid: string) {
@@ -32,6 +33,7 @@ export async function saveProfileName(
 	name: string,
 	expectedName: string | null,
 ) {
+	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw new Error('read-only/operation');
 	const user = requireOwner(client, uid);
 	const invalid = validateProfileName(name);
 	if (invalid) throw new Error(invalid);

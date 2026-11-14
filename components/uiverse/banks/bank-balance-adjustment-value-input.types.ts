@@ -10,6 +10,6 @@ export type BankBalanceAdjustmentValueInputProps = {
 	isDisabled: boolean;
 	isInvalid: boolean;
 	className: string;
-	inputRef?: RefObject<TextInput | null>;
+	inputRef?: RefObject<import('react').ComponentRef<typeof TextInput> | null>;
 	onFocus?: () => void;
 };

@@ -1,4 +1,5 @@
 import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
+import { isRebuiltRoute } from '@/utils/availableRoutes';
 
 import {
 	APP_PLATFORM_GROUP,
@@ -27,5 +28,6 @@ export function isAppRouteAllowed(
 	if (entry.isLogin) return true;
 	if (!isAuthenticated) return false;
 	const visibilityKey = getRouteVisibilityKeyForPath(entry.pathname as AppRoutePath);
-	return !visibilityKey || isRouteVisible(visibilityKey);
+	if (visibilityKey) return isRebuiltRoute(visibilityKey) && isRouteVisible(visibilityKey);
+	return entry.pathname === APP_ROUTE_PATHS.home || entry.pathname === APP_ROUTE_PATHS.screenSettings;
 }

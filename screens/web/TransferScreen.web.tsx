@@ -120,8 +120,8 @@ export default function TransferScreen() {
 		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-	const transferValueInputRef = React.useRef<TextInput | null>(null);
-	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
+	const transferValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const transferDescriptionInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
@@ -249,8 +249,6 @@ setTransferDescription(null);
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 

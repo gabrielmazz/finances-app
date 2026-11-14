@@ -15,7 +15,7 @@ import {
 	type QueryConstraint,
 } from 'firebase/firestore';
 import type { AccountClient } from './profiles';
-import { LOCAL_PROJECT_ID } from './config';
+import { LOCAL_PROJECT_ID, OFFICIAL_PROJECT_ID } from './config';
 import { measureRead } from './diagnostics';
 import {
 	parseBank,
@@ -31,8 +31,12 @@ import {
 } from '../domain/banks';
 
 export function requireBankEnvironment(client: AccountClient, scope: BankScope) {
+	requireBankReadEnvironment(client, scope);
+	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw Error('read-only/operation');
+}
+export function requireBankReadEnvironment(client: AccountClient, scope: BankScope) {
 	if (client.auth.currentUser?.uid !== scope.uid) throw Error('session/changed');
-	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw Error('banks/not-released');
+	if (![LOCAL_PROJECT_ID, OFFICIAL_PROJECT_ID].includes(client.db.app.options.projectId || '')) throw Error('banks/not-released');
 	if (
 		!validId(scope.id) ||
 		!validId(scope.uid) ||
@@ -43,7 +47,7 @@ export function requireBankEnvironment(client: AccountClient, scope: BankScope) 
 }
 export const bankContextKey = (scope: BankScope) => `${scope.kind}:${scope.id}`;
 function reference(client: AccountClient, scope: BankScope, ref: BankRef) {
-	requireBankEnvironment(client, scope);
+	requireBankReadEnvironment(client, scope);
 	if (!validId(ref.id) || !['new', 'legacy', 'group-legacy'].includes(ref.source))
 		throw Error('banks/not-found');
 	if (ref.source === 'new')
@@ -63,8 +67,10 @@ export async function readBank(client: AccountClient, scope: BankScope, ref: Ban
 		() => getDocFromServer(reference(client, scope, ref)),
 		() => 1,
 	);
-	requireBankEnvironment(client, scope);
+	requireBankReadEnvironment(client, scope);
 	if (!result.exists()) throw Error('banks/not-found');
+	if (client.db.app.options.projectId === OFFICIAL_PROJECT_ID && ref.source === 'legacy' &&
+		(result.data().groupId != null || result.data().financialGroupId != null || result.data().ledgerGroupId != null)) throw Error('banks/incompatible');
 	const bank = parseBank(result.id, ref.source, result.data(), scope);
 	if (ref.source === 'new') {
 		const opening = await measureRead(
@@ -75,7 +81,7 @@ export async function readBank(client: AccountClient, scope: BankScope, ref: Ban
 				),
 			() => 1,
 		);
-		requireBankEnvironment(client, scope);
+		requireBankReadEnvironment(client, scope);
 		const event = opening.data();
 		if (
 			!event ||
@@ -83,7 +89,7 @@ export async function readBank(client: AccountClient, scope: BankScope, ref: Ban
 			event.type !== 'opening' ||
 			event.scopeKind !== scope.kind ||
 			event.scopeId !== scope.id ||
-			event.amountCents !== bank.balanceInCents ||
+			event.amountCents !== result.data().initialBalanceCents ||
 			event.schemaVersion !== 1 ||
 			event.createdBy !== result.data().createdBy ||
 			event.createdAt?.toMillis() !== result.data().createdAt?.toMillis() ||
@@ -100,9 +106,11 @@ export async function readBankPage(
 	status: 'active' | 'archived',
 	cursor?: string | null,
 ) {
-	requireBankEnvironment(client, scope);
+	requireBankReadEnvironment(client, scope);
+	if (source === 'new' && client.db.app.options.projectId === OFFICIAL_PROJECT_ID)
+		return { banks: [], nextCursor: null as string | null, issues: 0, unavailable: true, contextUnverified: false };
 	if (source !== 'new' && status === 'archived')
-		return { banks: [], nextCursor: null as string | null, issues: 0 };
+		return { banks: [], nextCursor: null as string | null, issues: 0, unavailable: false, contextUnverified: false };
 	const base =
 		source === 'new'
 			? collection(client.db, 'financialContexts', bankContextKey(scope), 'bankAccounts')
@@ -113,7 +121,9 @@ export async function readBankPage(
 		source === 'new'
 			? [where('status', '==', status)]
 			: scope.kind === 'personal'
-				? [where('personId', '==', scope.id)]
+				? client.db.app.options.projectId === OFFICIAL_PROJECT_ID
+					? [where('personId', '==', scope.id)]
+					: [where('personId', '==', scope.id), where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null)]
 				: [];
 	filters.push(orderBy(documentId()), limit(20));
 	if (cursor) filters.push(startAfter(cursor));
@@ -122,11 +132,18 @@ export async function readBankPage(
 		() => getDocsFromServer(query(base, ...filters)),
 		(result) => result.size,
 	);
-	requireBankEnvironment(client, scope);
-	let issues = 0;
+	requireBankReadEnvironment(client, scope);
+	let issues = 0, contextUnverified = false;
 	const banks = result.docs.flatMap((item) => {
 		try {
-			return [parseBank(item.id, source, item.data(), scope)];
+			if (client.db.app.options.projectId === OFFICIAL_PROJECT_ID && source === 'legacy' &&
+				(item.data().groupId != null || item.data().financialGroupId != null || item.data().ledgerGroupId != null)) {
+				contextUnverified = true;
+				issues++;
+				return [];
+			}
+			const bank = parseBank(item.id, source, item.data(), scope);
+			return bank.status === status ? [bank] : [];
 		} catch {
 			issues++;
 			return [
@@ -150,7 +167,7 @@ export async function readBankPage(
 			];
 		}
 	});
-	return { banks, nextCursor: result.size === 20 ? result.docs.at(-1)!.id : null, issues };
+	return { banks, nextCursor: result.size === 20 ? result.docs.at(-1)!.id : null, issues, unavailable: false, contextUnverified };
 }
 export async function createBank(
 	client: AccountClient,
@@ -229,7 +246,7 @@ export async function createBank(
 				recovered.institutionName === value.institutionName &&
 				recovered.accountType === value.accountType &&
 				recovered.colorHex === value.colorHex &&
-				recovered.balanceInCents === value.initialBalanceCents &&
+				origin.data()?.amountCents === value.initialBalanceCents &&
 				recovered.openingDate === value.openingDate &&
 				origin.data()?.reason === value.reason
 			)
@@ -248,6 +265,7 @@ export async function updateBank(
 	expectedRevision: number,
 	input: BankMetadata,
 ) {
+	requireBankEnvironment(client, scope);
 	const value = validateMetadata(input),
 		target = reference(client, scope, ref);
 	await runTransaction(client.db, async (transaction) => {
@@ -289,6 +307,7 @@ export async function archiveBank(
 	ref: BankRef,
 	expectedRevision: number,
 ) {
+	requireBankEnvironment(client, scope);
 	const target = reference(client, scope, ref);
 	if (ref.source !== 'new') throw Error('banks/reconciliation-required');
 	await runTransaction(client.db, async (transaction) => {

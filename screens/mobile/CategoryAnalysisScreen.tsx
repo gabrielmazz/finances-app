@@ -474,8 +474,6 @@ export default function CategoryAnalysisScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 

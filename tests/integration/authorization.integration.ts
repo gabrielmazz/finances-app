@@ -31,7 +31,7 @@ before(async()=>{
 		batch.set(db.doc(`users/${outsider}`),{name:'Outro',financialGroupId:'authorization-group',adminUser:true,relatedIdUsers:[owner]});
 		batch.set(db.doc(`_authorizations/${member}`),{generation,enabled:true,readOwners:[owner],groups:{'authorization-group':'member'}});
 		batch.set(db.doc('financialGroups/authorization-group'),{status:'active',members:{[member]:'admin',[outsider]:'admin'}});
-		batch.set(db.doc('expenses/authorization-history'),{personId:owner,valueInCents:12345});
+		batch.set(db.doc('expenses/authorization-history'),{personId:owner,groupId:null,financialGroupId:null,ledgerGroupId:null,valueInCents:12345});
 		await batch.commit();
 	});
 });
@@ -42,6 +42,7 @@ test('real emulator token + protected authorization governs access, not legacy p
 	assert.equal(client.auth.currentUser!.uid,member);
 	assert.equal((await client.auth.currentUser!.getIdTokenResult()).claims.lumusAccess,generation);
 	assert.deepEqual((await loadAuthorization(client,member))?.readOwners,[owner]);
+	assert.deepEqual(await loadFinancialContext(client,member,null),{kind:'personal',sharedReadStatus:'authorized'});
 	assert.equal((await loadProfile(client,member))?.profile.adminUser,false);
 	assert.deepEqual(await loadFinancialContext(client,member,'authorization-group'),{kind:'group',groupId:'authorization-group',role:'member'});
 	assert.equal((await getDocFromServer(doc(client.db,'expenses','authorization-history'))).data()?.valueInCents,12345);
@@ -56,6 +57,7 @@ test('revocation blocks shared documents immediately even while a valid old toke
 	assert.equal((await client.auth.currentUser!.getIdTokenResult()).claims.lumusAccess,generation);
 	await assert.rejects(getDocFromServer(doc(client.db,'expenses','authorization-history')),(e:any)=>e.code==='permission-denied');
 	await assert.rejects(loadAuthorization(client,member));
+	assert.deepEqual(await loadFinancialContext(client,member,null),{kind:'personal',sharedReadStatus:'unverified'});
 	assert.equal((await loadProfile(client,member))?.profile.name,'Membro legado');
 });
 test('token refresh propagates the new generation; stale grant cannot be reused',async()=>{

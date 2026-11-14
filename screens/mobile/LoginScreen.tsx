@@ -198,8 +198,6 @@ export default function LoginScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 

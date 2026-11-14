@@ -242,7 +242,7 @@ export default function LumusAssistantScreen() {
 	const [isAcceptingConsent, setIsAcceptingConsent] = React.useState(false);
 	const [viewportHeight, setViewportHeight] = React.useState(0);
 	const [expandedViewportHeight, setExpandedViewportHeight] = React.useState(0);
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const scrollViewRef = React.useRef<import('react').ComponentRef<typeof ScrollView> | null>(null);
 	const shouldAutoScrollRef = React.useRef(true);
 	const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 	const recorderState = useAudioRecorderState(recorder, 200);
@@ -408,7 +408,7 @@ export default function LumusAssistantScreen() {
 
 	return (
 		<SafeAreaView className={ASSISTANT_CLASS_NAMES.screen} edges={['left', 'right', 'bottom']}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<Box className={`flex-1 ${cardBackground}`} onLayout={handleViewportLayout}>
 				<Box className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: assistantViewportLayout.heroHeight }}>
 					<Image

@@ -12,6 +12,8 @@ type PageState = {
 	error: string | null;
 	loaded: boolean;
 	issues: number;
+	unavailable: boolean;
+	contextUnverified: boolean;
 	nextNew: string | null;
 	nextLegacy: string | null;
 	complete: boolean;
@@ -22,6 +24,8 @@ const empty = (): PageState => ({
 	error: null,
 	loaded: false,
 	issues: 0,
+	unavailable: false,
+	contextUnverified: false,
 	nextNew: null,
 	nextLegacy: null,
 	complete: false,
@@ -34,6 +38,7 @@ type Store = {
 	load(status: 'active' | 'archived', more?: boolean): Promise<void>;
 	reload(): Promise<void>;
 	total: number | null;
+	sharedReadStatus: 'authorized' | 'group-listed' | 'unverified' | null;
 };
 const Context = React.createContext<Store | null>(null);
 export function BankAccountsProvider({ children }: React.PropsWithChildren) {
@@ -80,10 +85,10 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 					const [fresh, legacy] = await Promise.all([
 						!more || before.nextNew
 							? readBankPage(client, scope, 'new', status, more ? before.nextNew : null)
-							: Promise.resolve({ banks: [], nextCursor: null, issues: 0 }),
+							: Promise.resolve({ banks: [], nextCursor: null, issues: 0, unavailable: false, contextUnverified: false }),
 						!more || before.nextLegacy
 							? readBankPage(client, scope, legacySource, status, more ? before.nextLegacy : null)
-							: Promise.resolve({ banks: [], nextCursor: null, issues: 0 }),
+							: Promise.resolve({ banks: [], nextCursor: null, issues: 0, unavailable: false, contextUnverified: false }),
 					]);
 					if (generation.current !== version || identityRef.current !== owner) return;
 					const items = [...(more ? before.items : []), ...fresh.banks, ...legacy.banks];
@@ -95,6 +100,8 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 							error: null,
 							loaded: true,
 							issues: (more ? before.issues : 0) + fresh.issues + legacy.issues,
+							unavailable: (more && before.unavailable) || fresh.unavailable || legacy.unavailable,
+							contextUnverified: (more && before.contextUnverified) || fresh.contextUnverified || legacy.contextUnverified,
 							nextNew: fresh.nextCursor,
 							nextLegacy: legacy.nextCursor,
 							complete: !fresh.nextCursor && !legacy.nextCursor,
@@ -145,6 +152,7 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 		!visible.active.error &&
 		visible.active.complete &&
 		!visible.active.issues &&
+		!visible.active.unavailable &&
 		visible.active.items.every((item) => item.balanceInCents !== null)
 	) {
 		try {
@@ -169,6 +177,7 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 				load,
 				reload,
 				total,
+				sharedReadStatus: session.context?.kind === 'personal' ? session.context.sharedReadStatus ?? null : null,
 			}}
 		>
 			{children}

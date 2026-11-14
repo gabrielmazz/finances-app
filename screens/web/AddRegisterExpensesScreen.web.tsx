@@ -1,6 +1,11 @@
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { useMovementOptions } from '@/hooks/useMovementOptions';
+import { useMovementSubmit } from '@/hooks/useMovementSubmit';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import { errorMessage } from '@/application/errors';
+import type { CategorySource } from '@/domain/categories';
 import type { MandatoryExpenseSuggestion } from '@/types/presentation/suggestion';
 
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
@@ -50,7 +55,7 @@ import AddExpenseIllustration from '../../assets/UnDraw/addRegisterExpanseScreen
 
 import { useAppTheme } from '@/contexts/ThemeContext';
 
-import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
 
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 
@@ -155,16 +160,13 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const [tags] = React.useState<OptionItem[]>([]);
-	const [banks] = React.useState<OptionItem[]>([]);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('expense');
+	const { submit, isSubmitting } = useMovementSubmit();
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
-	const [isLoadingTags] = React.useState(false);
-	const [isLoadingBanks] = React.useState(false);
-	const [isSubmitting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
@@ -237,7 +239,7 @@ export default function AddRegisterExpensesScreen() {
 		return value?.trim() || null;
 	}, [params.expenseId]);
 	const isEditing = Boolean(editingExpenseId);
-	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry();
+	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingExpenseId);
 	const templateData = React.useMemo(() => {
 		const name = decodeParam(params.templateName);
 		const description = decodeParam(params.templateDescription);
@@ -355,10 +357,19 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseValueCents(cents);
 	}, []);
 
-	const handleSubmit = React.useCallback(
-		async (options: SubmitOptions = {}) => { showFeatureUnavailable(); },
-		[],
-	);
+	const handleSubmit = React.useCallback(async (_options: SubmitOptions = {}) => {
+		if (moneyFormat || linkedMandatoryExpenseId || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if (!selectedBankId || !selectedTagId || !expenseValueCents) return;
+		const separator = selectedTagId.indexOf(':');
+		if (separator < 1) return;
+		const [day, month, year] = expenseDate.split('/');
+		try {
+			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, categorySource: selectedTagId.slice(0, separator) as CategorySource, categoryId: selectedTagId.slice(separator + 1), date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement);
+			await reloadBanks();
+			showNotifierAlert({ type: 'success', description: isEditing ? 'Despesa atualizada.' : 'Despesa cadastrada.' });
+			navigateToHomeDashboard();
+		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
+	}, [moneyFormat, linkedMandatoryExpenseId, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);
@@ -422,6 +433,8 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseDate(formatDateToBR(normalizeDateValue(data.date) ?? new Date()));
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+		setSelectedMovementTagName(typeof data.tagName === 'string' ? data.tagName : null);
+		setSelectedMovementBankName(typeof data.bankName === 'string' ? data.bankName : null);
 		setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
 		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
 	}, [existingMovement]);
@@ -483,7 +496,7 @@ export default function AddRegisterExpensesScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 			edges={['left', 'right', 'bottom']}
 		>
-			<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+			<StatusBar barStyle="light-content" />
 			<KeyboardAvoidingView
 				className={webDashboardClassNames.fill}
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -768,6 +781,7 @@ export default function AddRegisterExpensesScreen() {
 																	selectedLabel={selectedBankLabel}
 																	selectedOption={selectedBankOption}
 																	onSelect={handleSelectBank}
+												onEndReached={() => void loadMoreBanks()}
 																	isDisabled={isBankSelectDisabled}
 																	isDarkMode={isDarkMode}
 																	bodyTextClassName={bodyText}
@@ -813,6 +827,8 @@ export default function AddRegisterExpensesScreen() {
 															selectedLabel={selectedTagLabel}
 															selectedOption={selectedTagOption}
 															onSelect={handleSelectTag}
+												onOpen={() => { if (!tags.length && hasMoreTags) void loadMoreTags(); }}
+												onEndReached={() => void loadMoreTags()}
 															isDisabled={isTagSelectDisabled}
 															isDarkMode={isDarkMode}
 															bodyTextClassName={bodyText}
@@ -831,7 +847,7 @@ export default function AddRegisterExpensesScreen() {
 													)}
 												</VStack>
 											</View>
-											<MovementFormStatus loading={isLoadingExisting} error={movementLoadError} onRetry={retryMovementLoad} />
+											<MovementFormStatus loading={isLoadingExisting} error={movementLoadError || optionsError} onRetry={() => { retryMovementLoad(); reloadTags(); void reloadBanks(); }} />
 											<Button
 												className={`${submitButtonClassName} ${webExpenseClassNames.submit}`}
 												onPress={() => void handleSubmit()}

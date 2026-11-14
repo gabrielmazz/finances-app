@@ -82,6 +82,10 @@ describe('bank money and opening domain', () => {
 		expect(old.id).toBe('original-id');
 		expect(old.balanceInCents).toBeNull();
 		expect(old.issue).toContain('conciliação');
+		expect(parseBank('inactive', 'legacy', { name: 'Antiga', personId: 'owner', isActive: false, valueInCents: 100 }, scope)).toMatchObject({ blocked: true, balanceInCents: null });
+		expect(parseBank('archived', 'legacy', { name: 'Antiga', personId: 'owner', archived: true }, scope).status).toBe('archived');
+		expect(parseBank('ambiguous', 'legacy', { name: 'Antiga', personId: 'owner', isActive: 'yes' }, scope).blocked).toBe(true);
+		expect(() => parseBank('group', 'legacy', { name: 'Antiga', personId: 'owner', groupId: 'third-party' }, scope)).toThrow();
 		expect(() => parseBank('foreign', 'legacy', { name: 'Outro', personId: 'victim' }, scope)).toThrow();
 		expect(() => parseBank('missing', 'legacy', { personId: 'owner' }, scope)).toThrow();
 		expect(() => parseBank('bad', 'new', { ...fresh, initialBalanceCents: 0.5 }, scope)).toThrow();

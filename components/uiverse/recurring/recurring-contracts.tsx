@@ -24,7 +24,7 @@ export default function RecurringContracts({ recurringType, onChanged }: { recur
   const [amount, setAmount] = React.useState(''), [count, setCount] = React.useState(''), [cycle, setCycle] = React.useState(''), [reason, setReason] = React.useState('');
   const [reviewing, setReviewing] = React.useState(false), [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null), [message, setMessage] = React.useState<string | null>(null);
-  const refs = { amount: React.useRef<TextInput>(null), count: React.useRef<TextInput>(null), cycle: React.useRef<TextInput>(null), reason: React.useRef<TextInput>(null) };
+  const refs = { amount: React.useRef<import('react').ComponentRef<typeof TextInput>>(null), count: React.useRef<import('react').ComponentRef<typeof TextInput>>(null), cycle: React.useRef<import('react').ComponentRef<typeof TextInput>>(null), reason: React.useRef<import('react').ComponentRef<typeof TextInput>>(null) };
   const getInputRef = React.useCallback((field: Field) => refs[field], []);
   const keyboard = useKeyboardAwareScroll<Field>({ getInputRef });
   const plans: {data: RecurringContractSummary[]; isError: boolean; refetch: () => Promise<void>} = {data: [], isError: false, refetch: async () => showFeatureUnavailable()};

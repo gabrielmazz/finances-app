@@ -68,7 +68,7 @@ export const Conversation = ({ children, ...props }: ConversationProps) => (
 
 export type ConversationContentProps = ScrollViewProps;
 
-export const ConversationContent = React.forwardRef<ScrollView, ConversationContentProps>(
+export const ConversationContent = React.forwardRef<import('react').ComponentRef<typeof ScrollView>, ConversationContentProps>(
 	function ConversationContent({ children, ...props }, ref) {
 		return (
 			<ScrollView ref={ref} {...props}>
@@ -200,7 +200,7 @@ export type PromptInputTextareaProps = Omit<
 	containerClassName?: string;
 	containerStyle?: StyleProp<ViewStyle>;
 	fieldClassName?: string;
-	inputRef?: React.Ref<TextInput>;
+	inputRef?: React.Ref<import('react').ComponentRef<typeof TextInput>>;
 };
 
 export const PromptInputTextarea = ({

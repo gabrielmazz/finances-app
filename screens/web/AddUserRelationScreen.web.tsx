@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AddUserRelationScreen() {
   const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
   const { isDarkMode, heroHeight, insets, webDashboardClassNames: layout } = useScreenStyles();
-  const inputRef = React.useRef<TextInput>(null);
+  const inputRef = React.useRef<import('react').ComponentRef<typeof TextInput>>(null);
   const getInputRef = React.useCallback(() => inputRef, []);
   const keyboard = useKeyboardAwareScroll<'related-user-id'>({ getInputRef });
   const back = React.useCallback(() => {

@@ -1,6 +1,11 @@
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { useMovementOptions } from '@/hooks/useMovementOptions';
+import { useMovementSubmit } from '@/hooks/useMovementSubmit';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import { errorMessage } from '@/application/errors';
+import type { CategorySource } from '@/domain/categories';
 
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 
@@ -54,7 +59,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import type { TagIconFamily,TagIconSelection,TagIconStyle } from '@/hooks/useTagIcons';
 import { TagIcon } from '@/hooks/useTagIcons';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
-import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
 import {
 type TagUsageType
 } from '@/utils/tagUsage';
@@ -212,15 +217,12 @@ export default function AddRegisterGainScreen() {
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
 	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 
-	const [tags] = React.useState<OptionItem[]>([]);
-	const [banks] = React.useState<OptionItem[]>([]);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('gain');
+	const { submit, isSubmitting } = useMovementSubmit();
 
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 
-	const [isLoadingTags] = React.useState(false);
-	const [isLoadingBanks] = React.useState(false);
-	const [isSubmitting] = React.useState(false);
 
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
@@ -295,7 +297,7 @@ export default function AddRegisterGainScreen() {
 		return value && value.trim().length > 0 ? value : null;
 	}, [params.gainId]);
 	const isEditing = Boolean(editingGainId);
-	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry();
+	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingGainId);
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -578,7 +580,19 @@ export default function AddRegisterGainScreen() {
 		setGainValueCents(centsValue);
 	}, []);
 
-	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleSubmit = React.useCallback(async () => {
+		if (moneyFormat || linkedMandatoryGainId || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if (!selectedBankId || !selectedTagId || !gainValueCents) return;
+		const separator = selectedTagId.indexOf(':');
+		if (separator < 1) return;
+		const [day, month, year] = gainDate.split('/');
+		try {
+			await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, categorySource: selectedTagId.slice(0, separator) as CategorySource, categoryId: selectedTagId.slice(separator + 1), date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement);
+			await reloadBanks();
+			showNotifierAlert({ type: 'success', description: isEditing ? 'Receita atualizada.' : 'Receita cadastrada.' });
+			navigateToHomeDashboard();
+		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
+	}, [moneyFormat, linkedMandatoryGainId, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
 
 	React.useEffect(() => {
 		if (!existingMovement) return;
@@ -593,6 +607,8 @@ export default function AddRegisterGainScreen() {
 
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+		setSelectedMovementTagName(typeof data.tagName === 'string' ? data.tagName : null);
+		setSelectedMovementBankName(typeof data.bankName === 'string' ? data.bankName : null);
 
 		if (Array.isArray(data.paymentFormats)) {
 			const validFormats = (data.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[];
@@ -705,7 +721,7 @@ export default function AddRegisterGainScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 			edges={['left', 'right', 'bottom']}
 		>
-			<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+			<StatusBar barStyle="light-content" />
 			<KeyboardAvoidingView
 				className={webDashboardClassNames.fill}
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -1125,6 +1141,7 @@ export default function AddRegisterGainScreen() {
 																		selectedLabel={selectedBankLabel}
 																		selectedOption={selectedBankOption}
 																		onSelect={handleSelectBank}
+												onEndReached={() => void loadMoreBanks()}
 																		isDisabled={isBankSelectDisabled}
 																		isDarkMode={isDarkMode}
 																		bodyTextClassName={bodyText}
@@ -1171,6 +1188,8 @@ export default function AddRegisterGainScreen() {
 															selectedLabel={selectedTagLabel}
 															selectedOption={selectedTagOption}
 															onSelect={handleSelectTag}
+												onOpen={() => { if (!tags.length && hasMoreTags) void loadMoreTags(); }}
+												onEndReached={() => void loadMoreTags()}
 															isDisabled={isTagSelectDisabled}
 															isDarkMode={isDarkMode}
 															bodyTextClassName={bodyText}
@@ -1190,7 +1209,7 @@ export default function AddRegisterGainScreen() {
 												</VStack>
 											</View>
 
-											<MovementFormStatus loading={isLoadingExisting} error={movementLoadError} onRetry={retryMovementLoad} />
+											<MovementFormStatus loading={isLoadingExisting} error={movementLoadError || optionsError} onRetry={() => { retryMovementLoad(); reloadTags(); void reloadBanks(); }} />
 
 											<Button
 												className={submitButtonClassName + ' ' + webExpenseClassNames.submit}

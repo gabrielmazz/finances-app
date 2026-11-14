@@ -1,6 +1,7 @@
-import BankAccountDetails from '@/components/uiverse/banks/bank-account-details';
+import { hasAmbiguousMovementIds, isIncomeOrExpenseTotal } from '@/domain/movements';
+import { sumCents } from '@/domain/money';
+import { useMovementList } from '@/hooks/useMovementList';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
 import type { MovementRecord } from '@/types/bankMovements';
 import { useSession } from '@/hooks/useSession';
@@ -105,7 +106,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
 import { TagIcon } from '@/hooks/useTagIcons';
 import { RedemptionTerm,redemptionTermLabels } from '@/utils/finance';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { buildPdfFileName } from '@/utils/pdfFileName';
 import { exportHtmlReport } from '@/utils/reportExport';
 import { Info,Tags as TagsIcon } from 'lucide-react-native';
@@ -916,21 +917,14 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		setStartDateInput(formatDateToBR(start)); setEndDateInput(formatDateToBR(end));
 	}, [start, end]);
 
-	const [storedMovements] = React.useState<MovementRecord[]>([]);
-	const [storedIsLoading] = React.useState(false);
-	const [isRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
-	const [storedErrorMessage, setErrorMessage] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
-	const movements: MovementRecord[] = recentMovements?.items ?? storedMovements;
-	const isLoading = recentMovements?.loading ?? storedIsLoading;
-	const errorMessage = recentMovements?.error ?? storedErrorMessage;
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
-	const [isProcessingAction] = React.useState(false);
+	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [movementFilter, setMovementFilter] = React.useState<MovementFilter>('all');
 	const [selectedTagFilterIds, setSelectedTagFilterIds] = React.useState<string[]>([]);
 	const [monthlyInitialBalanceInCents] = React.useState<number | null>(null);
-	const [bankCurrentBalanceInCents] = React.useState<number | null>(null);
+
 	const [bankAccentColorHex] = React.useState<string | null>(
 		isCashView ? CASH_CARD_COLOR : null,
 	);
@@ -938,10 +932,22 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	const [expandedMovementIds, setExpandedMovementIds] = React.useState<string[]>([]);
 	const [renderedMovementIds, setRenderedMovementIds] = React.useState<string[]>([]);
 	const [tagMetadataById, setTagMetadataById] = React.useState<Record<string, MovementTagMetadata>>({});
-	const [bankOptions, setBankOptions] = React.useState<BankOption[]>([]);
+
 	// A rota pode ser aberta pelo menu sem contexto. Mantemos a escolha local para
 	// carregar o extrato sem exigir um retorno à Home (ver [[Gerenciamento de Bancos]]).
 	const [selectedBankId, setSelectedBankId] = React.useState(bankId);
+	const movementList = useMovementList(selectedBankId, startDateInput, endDateInput, !isCashView && !recentMovements);
+	const bankOptions: BankOption[] = movementList.accounts.active.items.filter(item => !item.blocked).map(item => ({ id: item.id, name: item.name, iconKey: item.institutionKey, colorHex: item.colorHex, description: item.source !== 'new' ? item.issue : undefined }));
+	const bankCurrentBalanceInCents = movementList.accounts.active.items.find(item => item.source === 'new' && item.id === selectedBankId)?.balanceInCents ?? null;
+	const movements: MovementRecord[] = recentMovements?.items ?? movementList.items;
+	const isLoading = recentMovements?.loading ?? movementList.loading;
+	const isRefreshing = movementList.loading;
+	const errorMessage = recentMovements?.error ?? movementList.error;
+	React.useEffect(() => {
+		const metadata: Record<string, MovementTagMetadata> = {};
+		for (const item of movements) if (item.tagId) metadata[item.tagId] = { name: item.tagName ?? null, icon: { iconFamily: item.tagIconFamily ?? null, iconName: item.tagIconName ?? null, iconStyle: item.tagIconStyle ?? null } as TagIconSelection };
+		setTagMetadataById(metadata);
+	}, [movements]);
 	const selectedBankOption = React.useMemo(
 		() => bankOptions.find(option => option.id === selectedBankId) ?? null,
 		[bankOptions, selectedBankId],
@@ -970,8 +976,6 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		JSON.stringify([activeBankId, isCashView, startDateInput, endDateInput]),
 	);
 	React.useEffect(() => {
-		setTagMetadataById({});
-		setBankOptions([]);
 		setPendingAction(null);
 		setEditingFinanceMovement(null);
 	}, [personId]);
@@ -1077,6 +1081,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 			return '';
 		}
 		if (movement.isBalanceAdjustment) return movement.reversesAdjustmentId ? 'Estorno de ajuste de saldo' : 'Ajuste de saldo';
+		if (movement.isCashRescue) return 'Saque em dinheiro';
 		if (movement.isBankTransfer) {
 			if (movement.bankTransferDirection === 'outgoing') {
 				return 'Transferência enviada';
@@ -1098,6 +1103,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		if (movement.isInvestmentRedemption) {
 			return 'Resgate de investimento';
 		}
+		if (movement.isFromMandatory) return movement.type === 'gain' ? 'Receita obrigatória' : 'Despesa obrigatória';
 		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
 	}, []);
 
@@ -1185,7 +1191,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	const getMovementSummarySubtitle = React.useCallback(
 		(movement: MovementRecord) => {
 			if (movement.isCashRescue) {
-				return `Saque do banco ${movement.cashRescueSourceBankName ?? 'não identificado'}`;
+				return `Saque do banco ${movement.cashRescueSourceBankName ?? movement.bankName ?? bankName}`;
 			}
 
 			if (movement.isBankTransfer) {
@@ -1297,7 +1303,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 			}
 
 			if (movement.isCashRescue) {
-				return movement.cashRescueSourceBankName ?? 'Banco não identificado';
+				return movement.cashRescueSourceBankName ?? movement.bankName ?? bankName;
 			}
 
 			if (movement.moneyFormat || isCashView) {
@@ -1339,7 +1345,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		[isMovementFilterDisabled],
 	);
 
-	const fetchMovements = React.useCallback(async (asRefresh = false) => { showFeatureUnavailable(); }, []);
+	const fetchMovements = React.useCallback(async (_asRefresh = false) => { await movementList.refresh(); }, [movementList.refresh]);
 
 	// Busca a cor do banco selecionado para renderizar o card-resumo com a mesma
 	// paleta visual usada no card da tela inicial.
@@ -1453,14 +1459,23 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	const dailyMovementChartData = [] as {day: string; gainsInCents: number; expensesInCents: number}[];
 
 	React.useEffect(() => {
-		const visibleIds = new Set(visibleMovements.map(movement => `${movement.type}:${movement.id}`));
+		const visibleIds = new Set(visibleMovements.map(movement => `${movement.type}:${movement.storageSource ?? 'legacy'}:${movement.id}`));
 		setExpandedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
 		setRenderedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [visibleMovements]);
 
 	// Separa os totais fixos do banco dos totais filtrados do período, seguindo [[Gerenciamento de Bancos]].
-	const allMovementsTotals = {totalGains: 0, totalExpenses: 0};
-	const filteredTotals = {totalGains: 0, totalExpenses: 0};
+	const sumMovements = (items: MovementRecord[]) => {
+		try {
+			const totalGains = sumCents(items.filter(item => item.type === 'gain' && isIncomeOrExpenseTotal(item)).map(item => item.valueInCents));
+			const totalExpenses = sumCents(items.filter(item => item.type === 'expense' && isIncomeOrExpenseTotal(item)).map(item => item.valueInCents));
+			sumCents([totalGains, -totalExpenses]);
+			return { totalGains, totalExpenses, valid: true };
+		} catch { return { totalGains: 0, totalExpenses: 0, valid: false }; }
+	};
+	const allMovementsTotals = sumMovements(movements);
+	const filteredTotals = sumMovements(visibleMovements);
+	const formatPeriodTotal = (amount: number) => !allMovementsTotals.valid || !filteredTotals.valid || hasAmbiguousMovementIds(movements) || (!recentMovements && (movementList.loading || movementList.error || movementList.cursor || movementList.issues > 0)) ? '—' : formatCurrencyBRL(amount);
 	const allMovementsBalanceInCents = allMovementsTotals.totalGains - allMovementsTotals.totalExpenses;
 	const filteredBalanceInCents = filteredTotals.totalGains - filteredTotals.totalExpenses;
 
@@ -1481,7 +1496,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		if (isLoading || isRefreshing) return 'Carregando…';
 		if (errorMessage || !canUseMovementFilters) return 'Saldo indisponível';
 		if (isCashView) {
-			return formatCurrencyBRL(allMovementsBalanceInCents);
+			return formatPeriodTotal(allMovementsBalanceInCents);
 		}
 
 		if (typeof bankCurrentBalanceInCents === 'number') {
@@ -1591,17 +1606,17 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		const generalMetrics: PeriodSummaryPdfMetric[] = [
 			{
 				label: 'Ganhos totais',
-				value: formatCurrencyBRL(allMovementsTotals.totalGains),
+				value: formatPeriodTotal(allMovementsTotals.totalGains),
 				tone: 'gain',
 			},
 			{
 				label: 'Despesas totais',
-				value: formatCurrencyBRL(allMovementsTotals.totalExpenses),
+				value: formatPeriodTotal(allMovementsTotals.totalExpenses),
 				tone: 'expense',
 			},
 			{
 				label: 'Saldo geral',
-				value: formatCurrencyBRL(allMovementsBalanceInCents),
+				value: formatPeriodTotal(allMovementsBalanceInCents),
 				tone: allMovementsBalanceInCents >= 0 ? 'gain' : 'expense',
 			},
 			{
@@ -1625,17 +1640,17 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		const filteredMetrics: PeriodSummaryPdfMetric[] = [
 			{
 				label: 'Ganhos filtrados',
-				value: formatCurrencyBRL(filteredTotals.totalGains),
+				value: formatPeriodTotal(filteredTotals.totalGains),
 				tone: 'gain',
 			},
 			{
 				label: 'Despesas filtradas',
-				value: formatCurrencyBRL(filteredTotals.totalExpenses),
+				value: formatPeriodTotal(filteredTotals.totalExpenses),
 				tone: 'expense',
 			},
 			{
 				label: 'Saldo do filtro',
-				value: formatCurrencyBRL(filteredBalanceInCents),
+				value: formatPeriodTotal(filteredBalanceInCents),
 				tone: filteredBalanceInCents >= 0 ? 'gain' : 'expense',
 			},
 			{
@@ -1810,11 +1825,27 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	const handleSubmitFinanceEdit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleRequestMovementAction = React.useCallback(
-		async (action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => { showFeatureUnavailable(); },
-		[],
+		async (action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
+			if (action === 'revert-cash-rescue' || movement.type === 'sync') { showFeatureUnavailable(); return; }
+			setPendingAction({ type: action === 'edit' ? 'edit-standard-movement' : 'delete-standard-movement', movement });
+		}, [],
 	);
 
-	const handleConfirmAction = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleConfirmAction = React.useCallback(async () => {
+		if (!pendingAction || isProcessingAction) return;
+		const movement = pendingAction.movement;
+		if (pendingAction.type === 'edit-standard-movement') {
+			setPendingAction(null);
+			if (movement.type === 'gain') navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, { gainId: movement.id });
+			else if (movement.type === 'expense') navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, { expenseId: movement.id });
+			return;
+		}
+		if (pendingAction.type !== 'delete-standard-movement') { showFeatureUnavailable(); return; }
+		setIsProcessingAction(true);
+		try { await movementList.cancel(movement.id); setPendingAction(null); showScreenAlert('Movimentação removida.', 'success'); }
+		catch { showScreenAlert('Não foi possível remover a movimentação. Tente novamente.'); }
+		finally { setIsProcessingAction(false); }
+	}, [pendingAction, isProcessingAction, movementList.cancel, showScreenAlert]);
 
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
@@ -1909,7 +1940,6 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		setSelectedTagFilterIds([]);
 		setExpandedMovementIds([]);
 		setRenderedMovementIds([]);
-		setErrorMessage(FEATURE_UNAVAILABLE_MESSAGE);
 	}, []);
 	const screenTitle = isCashView
 		? 'Movimentações em dinheiro'
@@ -1961,7 +1991,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									<PopoverBody className="px-3 py-3">
 										<Text className={`${bodyText} text-xs leading-5`}>
 											Consulte os lançamentos de bancos e dinheiro, incluindo ganhos, despesas, transferências, investimentos e ajustes. Toque em cada movimento para ver seus detalhes e as ações disponíveis.
-											{recentMovements ? 'A Home mostra os seis movimentos mais recentes do mês. Abra uma conta para consultar o extrato completo por período.' : 'Os movimentos seguem o período e os filtros selecionados.'}
+												{recentMovements ? 'A Home mostra os seis movimentos mais recentes. Abra uma conta para consultar o extrato completo por período.' : 'Os movimentos seguem o período e os filtros selecionados.'}
 										</Text>
 									</PopoverBody>
 								</PopoverContent>
@@ -1990,6 +2020,8 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 				</TouchableOpacity>
 			</HStack>
 
+			{isPeriodTimelineExpanded && (recentMovements?.cashIncomplete ?? movementList.cashIncomplete) ? <Text className={helperText}>Alguns saques não puderam ser exibidos. Consulte um período menor no extrato.</Text> : null}
+			{isPeriodTimelineExpanded && recentMovements?.incomplete ? <Text className={helperText}>Algumas movimentações não foram carregadas. Consulte o extrato.</Text> : null}
 			{isPeriodTimelineExpanded ? (
 				isLoading ? (
 					<View
@@ -2006,7 +2038,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 							Carregando movimentações...
 						</Text>
 					</View>
-				) : recentMovements && errorMessage ? (
+				) : errorMessage ? (
 					<View className="gap-3 py-4">
 						<Text className="text-lumus-error">{errorMessage}</Text>
 						<Button variant="outline" onPress={() => void fetchMovements()}>
@@ -2022,8 +2054,11 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 						}}
 					>
 						<Text style={{ color: timelinePalette.subtitle }}>
-							Nenhuma movimentação foi registrada para o período informado.
+							{!recentMovements && movementList.cursor ? 'Há mais movimentações para consultar.' : 'Nenhuma movimentação foi registrada para o período informado.'}
 						</Text>
+						{!recentMovements && movementList.cursor ? (
+							<Button variant="outline" onPress={() => void movementList.loadMore()}><ButtonText>Carregar mais</ButtonText></Button>
+						) : null}
 					</View>
 				) : (
 					<View className={webDashboardClassNames.timeline}>
@@ -2036,7 +2071,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 								tagMetadata?.icon && tagMetadata.icon.iconName
 									? tagMetadata.icon
 									: getFallbackMovementIcon(movement);
-							const movementKey = `${movement.type}:${movement.id}`;
+							const movementKey = `${movement.type}:${movement.storageSource ?? 'legacy'}:${movement.id}`;
 							const isExpanded = expandedMovementIds.includes(movementKey);
 							const counterpartyLabel = movement.isBankTransfer
 								? movement.bankTransferDirection === 'outgoing'
@@ -2120,12 +2155,12 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 							const canChangeAdjustmentRecord = false;
 							const canChangeMovementRecord = false;
 							const canReverseAccountPair = false;
-							const canEditMovement = false;
+							const canEditMovement = !recentMovements && movement.storageSource === 'new' && movementList.items.some(item => item.id === movement.id && item.storageSource === 'new');
 							const usesUndoAction = canChangeMovementRecord || canChangeAdjustmentRecord || canReverseAccountPair || movement.isBalanceAdjustment ||
 								movement.isInvestmentDeposit ||
 								movement.isInvestmentRedemption ||
 								movement.isFinanceInvestmentSync;
-							const canDeleteMovement = false;
+							const canDeleteMovement = canEditMovement;
 							const secondaryActionLabel = canChangeMovementRecord || canChangeAdjustmentRecord || canReverseAccountPair ? 'Estornar' : movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
 								? 'Desfazer aporte'
 								: movement.isInvestmentRedemption
@@ -2315,7 +2350,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																	</Pressable>
 																) : null}
 
-																{movement.isCashRescue && true ? (
+																{movement.isCashRescue && canChangeMovementRecord ? (
 																	<Pressable
 																		onPress={() =>
 																			handleRequestMovementAction('revert-cash-rescue', movement)
@@ -2329,7 +2364,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																	</Pressable>
 																) : null}
 
-																{(
+																{canDeleteMovement ? (
 																	<Pressable
 																		disabled={!canChangeAdjustment}
 																		onPress={() => handleRequestMovementAction('delete', movement)}
@@ -2343,7 +2378,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																			{secondaryActionLabel}
 																		</Text>
 																	</Pressable>
-																)}
+																) : null}
 															</View>
 														</VStack>
 													</View>
@@ -2631,13 +2666,15 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
-				translucent
-				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 			<GestureHandlerRootView style={{ flex: 1, width: '100%', backgroundColor: surfaceBackground }}>
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 					<ScrollView
+							scrollEventThrottle={400}
+							onScroll={({ nativeEvent }) => {
+								if (nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >= nativeEvent.contentSize.height - 160) void movementList.loadMore();
+							}}
 						keyboardShouldPersistTaps="handled"
 						keyboardDismissMode="on-drag"
 						showsVerticalScrollIndicator={false}
@@ -2688,7 +2725,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									style={{ marginTop: 0 }}
 								>
 
-									<BankAccountDetails/>
+
 <VStack className="w-full mb-4">
 										<VStack className="gap-2">
 											{!isCashView ? (
@@ -2700,6 +2737,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 														selectedLabel={activeBankId ? bankName : null}
 														selectedOption={selectedBankOption}
 														onSelect={handleSelectBank}
+														onEndReached={() => void movementList.accounts.load('active', true)}
 														isDarkMode={isDarkMode}
 														bodyTextClassName={bodyText}
 														helperTextClassName={helperText}
@@ -2839,8 +2877,8 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																				color={iconColor}
 																			/>
 																		) : (
-																			<TagsIcon size={14} color={iconColor} />
-																		)}
+													<TagsIcon size={14} color={iconColor} />
+																)}
 																		<span>{tagOption?.label ?? String(option.value)}</span>
 																	</span>
 																	<span className="text-xs" style={{ color: iconColor }}>
@@ -2936,7 +2974,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 														<Icon as={ArrowUpIcon} size="sm" className="text-emerald-500" />
 													</HStack>
 													<Heading size="md" style={{ color: periodSummaryPalette.gainText }}>
-														{formatCurrencyBRL(filteredTotals.totalGains)}
+														{formatPeriodTotal(filteredTotals.totalGains)}
 													</Heading>
 												</VStack>
 											</View>
@@ -2963,7 +3001,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 														<Icon as={ArrowDownIcon} size="sm" className="text-rose-500" />
 													</HStack>
 													<Heading size="md" style={{ color: periodSummaryPalette.expenseText }}>
-														{formatCurrencyBRL(filteredTotals.totalExpenses)}
+														{formatPeriodTotal(filteredTotals.totalExpenses)}
 													</Heading>
 												</VStack>
 											</View>
@@ -2997,7 +3035,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																		: periodSummaryPalette.expenseText,
 															}}
 														>
-															{formatCurrencyBRL(filteredBalanceInCents)}
+															{formatPeriodTotal(filteredBalanceInCents)}
 														</Heading>
 													</VStack>
 

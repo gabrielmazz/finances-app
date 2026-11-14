@@ -225,7 +225,7 @@ export default function LumusAssistantScreenWeb() {
 	const [voiceError, setVoiceError] = React.useState<string | null>(null);
 	const [isTranscribing, setIsTranscribing] = React.useState(false);
 	const [isAcceptingConsent, setIsAcceptingConsent] = React.useState(false);
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const scrollViewRef = React.useRef<import('react').ComponentRef<typeof ScrollView> | null>(null);
 	const shouldAutoScrollRef = React.useRef(true);
 	const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 	const recorderState = useAudioRecorderState(recorder, 200);
@@ -382,7 +382,7 @@ export default function LumusAssistantScreenWeb() {
 
 	return (
 		<SafeAreaView className={`${ASSISTANT_CLASS_NAMES.screen} w-screen`} edges={['left', 'right', 'bottom']}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View
 				className={`${ASSISTANT_CLASS_NAMES.webLayout} min-w-0 min-h-0 z-0`}
 			>

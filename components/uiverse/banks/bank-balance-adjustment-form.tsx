@@ -16,8 +16,8 @@ import type { TextInput } from 'react-native';
 
 type Props = {
 	form: ReturnType<typeof useBankBalanceAdjustmentForm>;
-	valueRef?: React.RefObject<TextInput | null>;
-	descriptionRef?: React.RefObject<TextInput | null>;
+	valueRef?: React.RefObject<import('react').ComponentRef<typeof TextInput> | null>;
+	descriptionRef?: React.RefObject<import('react').ComponentRef<typeof TextInput> | null>;
 	onFocus?: (field: 'value' | 'description') => void;
 };
 

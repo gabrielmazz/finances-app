@@ -203,11 +203,11 @@ export default function AddMandatoryExpensesScreen() {
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? selectedTagName ?? null;
 	}, [selectedTagId, selectedTagName, tagOptions]);
 
-	const expenseNameInputRef = React.useRef<TextInput | null>(null);
-	const expenseValueInputRef = React.useRef<TextInput | null>(null);
-	const dueDayInputRef = React.useRef<TextInput | null>(null);
-	const installmentsInputRef = React.useRef<TextInput | null>(null);
-	const descriptionInputRef = React.useRef<TextInput | null>(null);
+	const expenseNameInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const expenseValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const dueDayInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const installmentsInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
+	const descriptionInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => {
 			if (key === 'description') {
@@ -601,7 +601,7 @@ setLastPaymentCycle(null);
 	const screenTitle = isEditingMode ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

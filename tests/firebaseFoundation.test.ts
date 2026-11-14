@@ -16,6 +16,24 @@ describe('isolated Firebase foundation', () => {
 		expect(isAppRouteAllowed(profile, () => false, true)).toBe(false);
 		expect(isAppRouteAllowed(inactive, () => true, true)).toBe(false);
 	});
+	it('blocks unfinished routes even when a saved preference makes them visible', () => {
+		jest.doMock('expo-router', () => ({ router: {} }));
+		const { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } =
+			require('../utils/appRouteGuards') as typeof import('../utils/appRouteGuards');
+		for (const suffix of ['/bank-summary', '/transfer-screen', '/add-rescue']) {
+			const entry = APP_ROUTE_GUARD_ENTRIES.find(item => item.isActivePlatform && item.pathname.endsWith(suffix))!;
+			expect(isAppRouteAllowed(entry, () => true, true)).toBe(false);
+		}
+		for (const suffix of ['/add-register-expenses', '/add-register-gain']) {
+			const entry = APP_ROUTE_GUARD_ENTRIES.find(item => item.isActivePlatform && item.pathname.endsWith(suffix))!;
+			expect(isAppRouteAllowed(entry, () => true, true)).toBe(true);
+			expect(isAppRouteAllowed(entry, () => true, false)).toBe(false);
+		}
+		const bank = APP_ROUTE_GUARD_ENTRIES.find(item => item.isActivePlatform && item.pathname.endsWith('/add-register-bank'))!;
+		expect(isAppRouteAllowed(bank, () => true, true)).toBe(true);
+		const category = APP_ROUTE_GUARD_ENTRIES.find(item => item.isActivePlatform && item.pathname.endsWith('/add-register-tag'))!;
+		expect(isAppRouteAllowed(category, () => true, true)).toBe(true);
+	});
 	it('requires explicit emulator mode and never falls back to a real project', () => {
 		for (const mode of [undefined, '', 'test'])
 			expect(() => readFirebaseConfig({ mode })).toThrow('config/isolated-environment-required');

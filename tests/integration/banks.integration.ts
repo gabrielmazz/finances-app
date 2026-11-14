@@ -167,7 +167,7 @@ before(async () => {
 			.doc('banks/stage04legacy')
 			.set({
 				name: 'Conta anterior',
-				personId: owner.auth.currentUser!.uid,
+				personId: owner.auth.currentUser!.uid, groupId: null, financialGroupId: null, ledgerGroupId: null,
 				colorHex: '#123456',
 				createdAt: date,
 			});
@@ -545,7 +545,7 @@ scenario('revoked authorization and inactive groups immediately lose account acc
 scenario('legacy incomplete and ambiguous records are explicitly blocked without writes', async () => {
 	const s = scope(owner);
 	await environment.withSecurityRulesDisabled(async (context) => {
-		await context.firestore().doc('banks/stage04incomplete').set({ personId: s.uid });
+		await context.firestore().doc('banks/stage04incomplete').set({ personId: s.uid, groupId: null, financialGroupId: null, ledgerGroupId: null });
 		await context
 			.firestore()
 			.doc('banks/stage04ambiguous')

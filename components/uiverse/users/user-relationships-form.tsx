@@ -13,7 +13,7 @@ import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 
-export default function UserRelationshipsForm({ inputRef, onInputFocus, dismissKeyboard }: { inputRef: React.RefObject<TextInput | null>; onInputFocus: () => void; dismissKeyboard: () => void }) {
+export default function UserRelationshipsForm({ inputRef, onInputFocus, dismissKeyboard }: { inputRef: React.RefObject<import('react').ComponentRef<typeof TextInput> | null>; onInputFocus: () => void; dismissKeyboard: () => void }) {
   const state = useUserRelationships();
   const focused = useIsFocused();
   const focusedRef = React.useRef(focused); focusedRef.current = focused;

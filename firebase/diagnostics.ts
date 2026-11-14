@@ -16,6 +16,9 @@ export async function measureRead<T>(
 		return result;
 	} catch (error) {
 		metric.failures++;
+		const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
+		if (typeof __DEV__ !== 'undefined' && __DEV__ && ['permission-denied', 'failed-precondition', 'unavailable'].includes(code))
+			console.warn(`[Firebase] ${operation}: ${code}`);
 		throw error;
 	}
 }

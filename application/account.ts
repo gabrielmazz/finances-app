@@ -6,11 +6,13 @@ import {
 } from 'firebase/auth';
 import { saveProfileName, type AccountClient } from '../firebase/profiles';
 import { validateProfileName } from '../domain/profile';
+import { LOCAL_PROJECT_ID } from '../firebase/config';
 
 export async function login(client: AccountClient, email: string, password: string) {
 	return signInWithEmailAndPassword(client.auth, email.trim().toLowerCase(), password);
 }
 export async function register(client: AccountClient, name: string, email: string, password: string) {
+	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw new Error('read-only/operation');
 	if (client.auth.currentUser) throw new Error('auth/already-signed-in');
 	const invalid = validateProfileName(name);
 	if (invalid) throw new Error(invalid);
@@ -27,6 +29,7 @@ export async function register(client: AccountClient, name: string, email: strin
 	return user;
 }
 export async function requestPasswordReset(client: AccountClient, email: string) {
+	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw new Error('read-only/operation');
 	try {
 		await sendPasswordResetEmail(client.auth, email.trim().toLowerCase());
 	} catch (error) {

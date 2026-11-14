@@ -50,7 +50,7 @@ const Table = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <ExpoTable
-      ref={ref}
+      ref={ref as never}
       className={tableStyle({ class: className })}
       {...props}
     />
@@ -69,7 +69,7 @@ const TableHeader = React.forwardRef<
   return (
     <TableHeaderContext.Provider value={contextValue}>
       <ExpoTHead
-        ref={ref}
+        ref={ref as never}
         className={tableHeaderStyle({ class: className })}
         {...props}
       />
@@ -83,7 +83,7 @@ const TableBody = React.forwardRef<
 >(function TableBody({ className, ...props }, ref) {
   return (
     <ExpoTBody
-      ref={ref}
+      ref={ref as never}
       className={tableBodyStyle({ class: className })}
       {...props}
     />
@@ -102,7 +102,7 @@ const TableFooter = React.forwardRef<
   return (
     <TableFooterContext.Provider value={contextValue}>
       <ExpoTFoot
-        ref={ref}
+        ref={ref as never}
         className={tableFooterStyle({ class: className })}
         {...props}
       />
@@ -127,7 +127,7 @@ const TableHead = React.forwardRef<
       <Text
         ref={ref}
         className={tableHeadStyle({ class: className })}
-        {...props}
+        {...(props as React.ComponentProps<typeof Text>)}
       />
     );
   }
@@ -142,7 +142,7 @@ const TableRow = React.forwardRef<
 
   return (
     <ExpoTR
-      ref={ref}
+      ref={ref as never}
       className={tableRowStyleStyle({
         isHeaderRow,
         isFooterRow,
@@ -170,7 +170,7 @@ const TableData = React.forwardRef<
       <Text
         ref={ref}
         className={tableDataStyle({ class: className })}
-        {...props}
+        {...(props as React.ComponentProps<typeof Text>)}
       />
     );
   }
@@ -182,7 +182,7 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <ExpoTCaption
-      ref={ref}
+      ref={ref as never}
       className={tableCaptionStyle({ class: className })}
       {...props}
     />

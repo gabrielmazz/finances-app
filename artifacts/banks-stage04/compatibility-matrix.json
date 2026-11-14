@@ -390,10 +390,10 @@
     "collection": "tags",
     "permission": "get shared owner",
     "published": "allowed",
-    "expected": "allowed",
-    "proposed": "allowed",
+    "expected": "denied",
+    "proposed": "denied",
     "verified": true,
-    "adjustment": "Compatível com o fluxo restrito; versão mobile instalada não comprovada."
+    "adjustment": "Acesso negado por menor privilégio."
   },
   {
     "id": "guest",
@@ -463,9 +463,20 @@
   },
   {
     "id": "query.shared",
-    "flow": "Consulta compartilhada verificada",
+    "flow": "Consulta sem prova de contexto",
     "collection": "expenses",
     "permission": "personId in authorized owners, date, limit",
+    "published": "allowed",
+    "expected": "denied",
+    "proposed": "denied",
+    "verified": true,
+    "adjustment": "Consulta ampla negada; é preciso comprovar ausência de vínculo de grupo."
+  },
+  {
+    "id": "query.shared.personal",
+    "flow": "Consulta pessoal com contexto explícito",
+    "collection": "expenses",
+    "permission": "personId in authorized owners, no group, limit",
     "published": "allowed",
     "expected": "allowed",
     "proposed": "allowed",

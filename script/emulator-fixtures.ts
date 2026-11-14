@@ -74,12 +74,12 @@ export async function seedEmulatorFixtures() {
 			await create('_authorizations', users.legacy, { generation: FIXTURE_AUTHORIZATION_GENERATION, enabled: true, readOwners: [], groups: { 'fixture-group': 'admin' } });
 			await create('_authorizations', users.incomplete, { generation: FIXTURE_AUTHORIZATION_GENERATION, enabled: true, readOwners: [], groups: { 'fixture-group': 'member' } });
 			await create('banks', 'fixture-legacy-bank', {
-				personId: users.legacy,
+				personId: users.legacy, groupId: null, financialGroupId: null, ledgerGroupId: null,
 				name: 'Banco legado',
 				createdAt: Timestamp.now(),
 			});
 			await create('banks', 'fixture-other-bank', {
-				personId: users.outsider,
+				personId: users.outsider, groupId: null, financialGroupId: null, ledgerGroupId: null,
 				name: 'Banco de outra pessoa',
 			});
 			await create('expenses', 'fixture-expense', {

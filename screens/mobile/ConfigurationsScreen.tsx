@@ -1,5 +1,10 @@
+import { useConfigurationBanks } from '@/hooks/useConfigurationBanks';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import type { TagReferenceSummary } from '@/types/presentation/tag';
+import type { Category, CategorySource } from '@/domain/categories';
+import { useCategories } from '@/hooks/useCategories';
+import { errorMessage } from '@/application/errors';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 
 import React from 'react';
 import { Pressable,ScrollView,StatusBar,View } from 'react-native';
@@ -190,7 +195,7 @@ type PendingAction =
 	}
 	| {
 		type: 'delete-tag';
-		payload: { tagId: string; tagName: string };
+		payload: { tagId: string; tagName: string; source: CategorySource };
 	}
 	| {
 		type: 'tag-in-use';
@@ -208,6 +213,7 @@ type PaginatedTableResult<T> = {
 	startIndex: number;
 	endIndex: number;
 	hasPagination: boolean;
+	hasMore?: boolean;
 };
 
 // Limite por página segue a convenção documentada em [[Configurações]].
@@ -767,7 +773,7 @@ function TablePaginationControls({
 				})}
 			</HStack>
 			<Text className={infoTextClassName}>
-				Mostrando {pagination.startIndex + 1}-{pagination.endIndex} de {pagination.totalItems}
+				Mostrando {pagination.startIndex + (pagination.totalItems ? 1 : 0)}-{pagination.endIndex}{pagination.hasMore ? '' : ` de ${pagination.totalItems}`}
 			</Text>
 		</VStack>
 	);
@@ -847,22 +853,8 @@ export default function ConfigurationsScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 
-	const [bankData] = React.useState<
-		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean; archived?: boolean; financialSource?: string }>
-	>([]);
-	const [tagData] = React.useState<
-		Array<{
-			id: string;
-			name: string;
-			usageType?: TagUsageType;
-			isMandatoryExpense?: boolean;
-			isMandatoryGain?: boolean;
-			showInBothLists?: boolean;
-			iconFamily?: TagIconFamily | null;
-			iconName?: string | null;
-			iconStyle?: TagIconStyle | null;
-		}>
-	>([]);
+	const configurationBanks = useConfigurationBanks();
+	const bankData = configurationBanks.items;
 	const [tagFilter, setTagFilter] = React.useState<CategoryFilterValue>('all');
 	const tagFilterLabels: Record<CategoryFilterValue, string> = {
 		all: 'Todas',
@@ -895,6 +887,8 @@ export default function ConfigurationsScreen() {
 	const [isCheckingTagUsageId] = React.useState<string | null>(null);
 	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
 	const [openConfigurationSection, setOpenConfigurationSection] = React.useState<string | null>(null);
+	const categories = useCategories(openConfigurationSection === 'item-3', tagFilter);
+	const tagData = categories.items;
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
 		banks: 1,
 		tags: 1,
@@ -955,19 +949,29 @@ export default function ConfigurationsScreen() {
 		});
 	}, [tagData, tagFilter]);
 
-	const banksTable = React.useMemo(
-		() => paginateTableItems(bankData, tablePages.banks),
-		[bankData, tablePages.banks],
-	);
+	const banksTable = React.useMemo(() => {
+		const page = paginateTableItems(bankData, tablePages.banks);
+		return configurationBanks.hasMore ? { ...page, totalPages: page.totalPages + 1, hasPagination: true, hasMore: true } : page;
+	}, [bankData, tablePages.banks, configurationBanks.hasMore]);
 
-	const tagsTable = React.useMemo(
-		() => paginateTableItems(filteredTags, tablePages.tags),
-		[filteredTags, tablePages.tags],
-	);
+	const tagsTable = React.useMemo(() => {
+		const page = paginateTableItems(filteredTags, tablePages.tags);
+		return categories.hasMore ? { ...page, totalPages: page.totalPages + 1, hasPagination: true, hasMore: true } : page;
+	}, [filteredTags, tablePages.tags, categories.hasMore]);
+	React.useEffect(() => {
+		if (categories.error && categories.items.length) showNotifierAlert({ type: 'error', description: categories.error });
+	}, [categories.error, categories.items.length]);
 
 	// Esta tela usa notifier-alert para feedback in-app, conforme [[Notificações]].
 
-	const handleTablePageChange = React.useCallback((tableKey: TablePaginationKey, page: number) => {
+	const handleTablePageChange = React.useCallback(async (tableKey: TablePaginationKey, page: number) => {
+		if (tableKey === 'banks' && page > Math.ceil(bankData.length / CONFIGURATIONS_TABLE_PAGE_SIZE)) {
+			if (!configurationBanks.hasMore) return;
+			await configurationBanks.loadMore();
+		}
+		if (tableKey === 'tags' && page > Math.ceil(filteredTags.length / CONFIGURATIONS_TABLE_PAGE_SIZE)) {
+			if (!await categories.loadMore()) return;
+		}
 		setTablePages(previousPages =>
 			previousPages[tableKey] === page
 				? previousPages
@@ -976,7 +980,7 @@ export default function ConfigurationsScreen() {
 					[tableKey]: page,
 				},
 		);
-	}, []);
+	}, [categories.loadMore, filteredTags.length, bankData.length, configurationBanks.hasMore, configurationBanks.loadMore]);
 
 	React.useEffect(() => {
 		setTablePages(previousPages => {
@@ -1012,8 +1016,10 @@ export default function ConfigurationsScreen() {
 	}, [tagFilter]);
 
 	const handleBankRemoval = React.useCallback(
-		async (bankId: string, bankName: string, archived = false) => { showFeatureUnavailable(); },
-		[],
+		async (bankId: string, _bankName: string, _archived = false, source?: string) => {
+			try { await configurationBanks.archive(bankId, source); showNotifierAlert({ type: 'success', description: 'Banco arquivado.' }); }
+			catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
+		}, [configurationBanks.archive],
 	);
 
 	const handleBankStatusChange = React.useCallback(
@@ -1022,7 +1028,7 @@ export default function ConfigurationsScreen() {
 	);
 
 	const handleBankEdit = React.useCallback(
-		(bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean }) => {
+		(bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean; financialSource?: string }) => {
 			if (!bank?.id) {
 				return;
 			}
@@ -1033,6 +1039,7 @@ export default function ConfigurationsScreen() {
 
 			navigateToRoute(APP_ROUTE_PATHS.addRegisterBank, {
 				bankId: bank.id,
+				bankSource: bank.financialSource,
 				bankName: encodedName,
 				...(encodedColor ? { colorHex: encodedColor } : {}),
 				...(encodedIconKey ? { bankIconKey: encodedIconKey } : {}),
@@ -1041,15 +1048,20 @@ export default function ConfigurationsScreen() {
 		[],
 	);
 
-	const handleTagRemoval = React.useCallback(
-		async (tagId: string, tagName: string) => { showFeatureUnavailable(); },
-		[],
-	);
+	const handleTagRemoval = React.useCallback(async (tagId: string, tagName: string, source: CategorySource) => {
+		const item = tagData.find(tag => tag.id === tagId && tag.source === source);
+		if (!item) return;
+		try {
+			await categories.archive(item);
+			showNotifierAlert({ type: 'success', description: 'Categoria removida.' });
+		} catch (error) {
+			showNotifierAlert({ type: 'error', description: errorMessage(error) });
+		}
+	}, [tagData, categories.archive]);
 
-	const handleRequestTagRemoval = React.useCallback(
-		async (tagId: string, tagName: string) => { showFeatureUnavailable(); },
-		[],
-	);
+	const handleRequestTagRemoval = React.useCallback((tag: Category) => {
+		setPendingAction({ type: 'delete-tag', payload: { tagId: tag.id, tagName: tag.name, source: tag.source } });
+	}, []);
 
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
@@ -1078,7 +1090,7 @@ export default function ConfigurationsScreen() {
 
 		try {
 			if (pendingAction.type === 'delete-bank') {
-				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName, pendingAction.payload.archived);
+				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName, pendingAction.payload.archived, pendingAction.payload.financialSource);
 			} else if (pendingAction.type === 'toggle-bank-status') {
 				await handleBankStatusChange(
 					pendingAction.payload.bankId,
@@ -1086,7 +1098,7 @@ export default function ConfigurationsScreen() {
 					pendingAction.payload.isActive,
 				);
 			} else if (pendingAction.type === 'delete-tag') {
-				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName);
+				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName, pendingAction.payload.source);
 			}
 		} finally {
 			setIsProcessingAction(false);
@@ -1166,7 +1178,7 @@ export default function ConfigurationsScreen() {
 	const getTagBadgeLabels = React.useCallback(
 		(tag: (typeof tagData)[number]) => {
 			const fields: Partial<CategoryAvailabilityFields> = {
-				usageType: tag.usageType,
+				usageType: tag.usageType ?? undefined,
 				isMandatoryExpense: tag.isMandatoryExpense,
 				isMandatoryGain: tag.isMandatoryGain,
 				showInBothLists: tag.showInBothLists,
@@ -1306,7 +1318,7 @@ export default function ConfigurationsScreen() {
 
 	return (
 		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 					<View className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
@@ -1419,7 +1431,7 @@ export default function ConfigurationsScreen() {
 																		<TableBody>
 																			{banksTable.items.map(bank => (
 																				<TableRow
-																					key={bank.id}
+																					key={`${bank.financialSource}:${bank.id}`}
 																					className={tableRowClassName}
 																				>
 																					<TableData useRNView className={tableContentCellClassName}>
@@ -1464,7 +1476,7 @@ export default function ConfigurationsScreen() {
 																	},
 																	})
 															}
-															disabled={isProcessingAction}
+															disabled={isProcessingAction || !configurationBanks.canWrite}
 														/>
 																<ConfigurationActionButton
 																							icon={EditIcon}
@@ -1473,6 +1485,7 @@ export default function ConfigurationsScreen() {
 																							className={tableIconButtonClassName}
 																							iconClassName={tablePrimaryIconClassName}
 																							accessibilityLabel={`Editar banco ${bank.name}`}
+																	disabled={!configurationBanks.canWrite || bank.blocked}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'edit-bank',
@@ -1486,6 +1499,7 @@ export default function ConfigurationsScreen() {
 																							className={tableIconButtonClassName}
 																							action="negative"
 																							accessibilityLabel={`${'Excluir'} banco ${bank.name}`}
+																	disabled={!configurationBanks.canWrite || bank.blocked}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'delete-bank',
@@ -1508,7 +1522,10 @@ export default function ConfigurationsScreen() {
 																	{renderTablePagination('banks', banksTable)}
 																</Box>
 															) : (
-																renderEmptyTableState('Consulta de bancos temporariamente indisponível.')
+																			<>
+																						{renderEmptyTableState(configurationBanks.error || (configurationBanks.loading ? 'Carregando bancos…' : configurationBanks.warning || (configurationBanks.hasMore ? 'Nenhum banco nesta parte da lista.' : 'Nenhum banco encontrado.')))}
+																				{configurationBanks.hasMore && !configurationBanks.loading && !configurationBanks.error && renderTablePagination('banks', banksTable)}
+																			</>
 															)}
 														</VStack>
 													) : null}
@@ -1554,7 +1571,7 @@ export default function ConfigurationsScreen() {
 																		<TableBody>
 																			{tagsTable.items.map(tag => (
 																				<TableRow
-																					key={tag.id}
+																					key={`${tag.source}:${tag.id}`}
 																					className={tableRowClassName}
 																				>
 																					<TableData useRNView className={tableContentCellClassName}>
@@ -1592,7 +1609,8 @@ export default function ConfigurationsScreen() {
 													className={tableIconButtonClassName}
 													iconClassName={tablePrimaryIconClassName}
 													accessibilityLabel={`Editar categoria ${tag.name}`}
-													onPress={() => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, { tagId: tag.id })}
+							disabled={tag.blocked}
+													onPress={() => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, { tagId: tag.id, tagSource: tag.source })}
 												/>
 																						<ConfigurationActionButton
 																							icon={TrashIcon}
@@ -1600,9 +1618,9 @@ export default function ConfigurationsScreen() {
 													className={tableIconButtonClassName}
 													action="negative"
 													accessibilityLabel={`Excluir categoria ${tag.name}`}
-													disabled={isCheckingTagUsageId === tag.id}
+													disabled={tag.blocked || isCheckingTagUsageId === tag.id}
 													onPress={() => {
-														void handleRequestTagRemoval(tag.id, tag.name);
+														handleRequestTagRemoval(tag);
 													}}
 																						/>
 																					</TableActionsCell>
@@ -1610,13 +1628,16 @@ export default function ConfigurationsScreen() {
 																			))}
 																		</TableBody>
 																		<TableCaption className={tableCaptionClassName}>
-																			{tagsTable.totalItems} categoria(s) encontradas para o filtro atual.
+																			{categories.hasMore ? '' : `${tagsTable.totalItems} categoria(s) encontradas para o filtro atual.`}
 																		</TableCaption>
 																	</Table></ScrollView>
 																	{renderTablePagination('tags', tagsTable)}
 																</Box>
 															) : (
-																renderEmptyTableState('Consulta de categorias temporariamente indisponível.')
+															<Box>
+																{renderEmptyTableState(categories.loading ? 'Carregando categorias...' : categories.error ?? (categories.hasMore ? 'Nenhuma categoria nesta parte da lista.' : 'Nenhuma categoria encontrada.'))}
+																{categories.hasMore && renderTablePagination('tags', tagsTable)}
+															</Box>
 															)}
 														</VStack>
 													) : null}

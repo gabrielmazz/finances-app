@@ -16,7 +16,7 @@ import { measureRead } from './diagnostics';
 import { loadAuthorization } from './authorization';
 
 export type FinancialContext =
-	{ kind: 'personal' } | { kind: 'group'; groupId: string; role: 'admin' | 'member' };
+	{ kind: 'personal'; sharedReadStatus?: 'authorized' | 'group-listed' | 'unverified' } | { kind: 'group'; groupId: string; role: 'admin' | 'member' };
 
 export async function loadFinancialContext(
 	client: AccountClient,
@@ -24,7 +24,18 @@ export async function loadFinancialContext(
 	groupId: unknown,
 ): Promise<FinancialContext> {
 	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
-	if (groupId == null) return { kind: 'personal' };
+	if (groupId == null) {
+		try {
+			const authorization = await loadAuthorization(client, uid);
+			if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
+			if (authorization?.readOwners.some(owner => owner !== uid)) return { kind: 'personal', sharedReadStatus: 'authorized' };
+			if (authorization && Object.keys(authorization.groups).length) return { kind: 'personal', sharedReadStatus: 'group-listed' };
+			return { kind: 'personal' };
+		} catch (error) {
+			if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
+			return { kind: 'personal', sharedReadStatus: 'unverified' };
+		}
+	}
 	if (typeof groupId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(groupId))
 		throw new Error('context/invalid-group');
 	const authorization = await loadAuthorization(client, uid);
@@ -45,7 +56,7 @@ export async function loadFinancialContext(
 // Read-only compatibility probe. No balance reconstruction or full-history scan.
 export async function readOwnBankPage(client: AccountClient, uid: string, afterId?: string) {
 	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
-	const constraints: QueryConstraint[] = [where('personId', '==', uid), orderBy(documentId()), limit(20)];
+	const constraints: QueryConstraint[] = [where('personId', '==', uid), where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null), orderBy(documentId()), limit(20)];
 	if (afterId) constraints.push(startAfter(afterId));
 	const snapshot = await measureRead(
 		'banks.page',

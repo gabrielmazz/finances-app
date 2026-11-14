@@ -166,7 +166,7 @@ export default function LoginScreen() {
 			className="flex-1"
 			style={{ backgroundColor: surfaceBackground }}
 		>
-			<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+			<StatusBar barStyle="light-content" />
 
 			<KeyboardAvoidingView
 				className="flex-1"

@@ -14,6 +14,7 @@ export type MovementRecord = {
 	reversesAdjustmentId?: string | null;
 	adjustmentPreviousBalanceInCents?: number;
 	adjustmentTargetBalanceInCents?: number;
+	storageSource?: 'new' | 'legacy-gain' | 'legacy-expense' | 'legacy-cash' | 'group-legacy';
 	id: string;
 	name: string;
 	bankName?: string | null;

@@ -57,33 +57,7 @@ export type HomeMovementsData = {
 	bankColorsById: Record<string, string | null>;
 };
 
-export type HomeTimelineMovement = MovementRecord & {
-	id: string;
-	type: 'expense' | 'gain' | 'sync';
-	name: string;
-	valueInCents: number;
-	date: Date | null;
-	tagId: string | null;
-	tagName: string | null;
-	tagIconFamily: string | null;
-	tagIconName: string | null;
-	tagIconStyle: string | null;
-	bankId: string | null;
-	bankName: string | null;
-	explanation: string | null;
-	moneyFormat: boolean | null;
-	isBankTransfer: boolean;
-	bankTransferDirection: 'incoming' | 'outgoing' | null;
-	bankTransferSourceBankNameSnapshot: string | null;
-	bankTransferTargetBankNameSnapshot: string | null;
-	isInvestmentDeposit: boolean;
-	isInvestmentRedemption: boolean;
-	isFinanceInvestmentSync: boolean;
-	investmentSyncPreviousValueInCents: number | null;
-	investmentSyncReason: 'manual' | 'deposit' | 'withdrawal' | null;
-	investmentNameSnapshot: string | null;
-	isFromMandatory: boolean;
-};
+export type HomeTimelineMovement = MovementRecord;
 
 export type HomeOverviewData = {
 	bankBalances: HomeBankBalanceCard[];

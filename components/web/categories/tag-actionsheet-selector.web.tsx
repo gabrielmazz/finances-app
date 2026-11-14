@@ -46,6 +46,8 @@ type TagActionsheetSelectorProps = {
 	triggerHint?: string;
 	disabledHint?: string;
 	accessibilityLabel: string;
+	onOpen?: () => void;
+	onEndReached?: () => void;
 	rightAccessory?: React.ReactNode;
 	onCreatePress?: () => void;
 	createActionLabel?: string;
@@ -71,6 +73,8 @@ export default function TagActionsheetSelector({
 	triggerHint = 'Toque para escolher uma categoria.',
 	disabledHint = 'Categoria indisponível no momento.',
 	accessibilityLabel,
+	onOpen,
+	onEndReached,
 	rightAccessory,
 	onCreatePress,
 	createActionLabel = 'Adicionar categoria',
@@ -128,7 +132,8 @@ export default function TagActionsheetSelector({
 		}
 
 		setIsOpen(true);
-	}, [canOpenSheet]);
+		onOpen?.();
+	}, [canOpenSheet, onOpen]);
 
 	const handleSelect = React.useCallback(
 		(tag: TagActionsheetOption) => {
@@ -222,6 +227,10 @@ export default function TagActionsheetSelector({
 					</VStack>
 
 					<ActionsheetScrollView
+						onScroll={(event: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+							const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+							if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 48) onEndReached?.();
+						}}
 						className="w-full flex-1"
 						keyboardShouldPersistTaps="handled"
 						contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
