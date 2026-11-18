@@ -20,13 +20,24 @@ const output=path.join(os.homedir(),'.cache/lumus-homologation/web');
 		console.log('Local homologation configuration prepared; no administrative credentials or remote changes.');return;
 	}
 	const config=JSON.parse(fs.readFileSync(path.join(directory,'firebase.json'),'utf8'));
-	if(config.projectId!=='finances-app-e8685'||config.appId!==require('../firebase/production-readiness.json').appId||config.rulesSHA256!==require('../firebase/production-readiness.json').rulesSHA256)throw Error('Homologation project/app/Rules mismatch');
-	const env={...process.env,EXPO_NO_DOTENV:'1',EXPO_PUBLIC_FIREBASE_MODE:'production',EXPO_PUBLIC_FIREBASE_API_KEY:config.apiKey,LUMUS_HOMOLOGATION:'1'};
-	if(action==='serve-web'){
-		require('./serve_web.cjs').createWebServer(output).listen(4174,'127.0.0.1',()=>console.log('Homologation UI: http://127.0.0.1:4174/web (real Firebase; no Hosting deployment)'));return;
+	const readiness=require('../firebase/production-readiness.json');
+	if(config.projectId!=='finances-app-e8685'||config.appId!==readiness.appId||config.rulesSHA256!==readiness.rulesSHA256||!config.apiKey?.trim())throw Error('Homologation project/app/Rules mismatch');
+	const env={...process.env,EXPO_NO_DOTENV:'1',EXPO_NO_CLIENT_ENV_VARS:'0',EXPO_PUBLIC_FIREBASE_MODE:'production',EXPO_PUBLIC_FIREBASE_API_KEY:config.apiKey,EXPO_PUBLIC_FIREBASE_EMULATOR_HOST:'',LUMUS_HOMOLOGATION:'1'};
+	if(action==='serve-web'||action==='serve-web-lan'){
+		const host=action==='serve-web-lan'?'0.0.0.0':'127.0.0.1';
+		require('./serve_web.cjs').createWebServer(output).listen(4174,host,()=>console.log(`Homologation UI: ${host}:4174/web (real Firebase, read-only client; no Hosting deployment)`));return;
 	}
 	const cli=path.join(repo,'node_modules/expo/bin/cli');
-	const args=action==='export-web'?['export','--platform','web','--output-dir',output]:action==='native'?['start','--go','--lan','--port','8088']:action==='web'?['start','--web','--host','localhost','--port','8088']:null;
-	if(!args)throw Error('Use prepare, web, export-web, serve-web or native');
-	const child=spawn(process.execPath,[cli,...args],{cwd:repo,env,stdio:'inherit'});for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>child.kill(signal));child.on('exit',code=>{process.exitCode=code??1;});
+	const args=action==='export-web'?['export','--platform','web','--output-dir',output]:action==='native'?['start','--go','--lan','--port','8088']:action==='web'?['start','--web','--host','localhost','--port','8088']:action==='prebuild-android'?['prebuild','--platform','android','--no-install']:null;
+	const android=path.join(repo,'android');
+	if(action==='build-android'){
+		const gradle=fs.readFileSync(path.join(android,'app/build.gradle'),'utf8');
+		if(!/applicationId\s+['"]com\.gabrielmazz\.lumusfinances\.homologacao['"]/.test(gradle))throw Error('Android project belongs to a different environment');
+	}else if(!args)throw Error('Unknown homologation command');
+	const child=action==='build-android'
+		?spawn(path.join(android,'gradlew'),[':app:assembleRelease','-PreactNativeArchitectures=arm64-v8a',...process.argv.slice(3)],{cwd:android,env,stdio:'inherit'})
+		:spawn(process.execPath,[cli,...args],{cwd:repo,env,stdio:'inherit'});
+	for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>child.kill(signal));
+	child.on('error',()=>{console.error('Não foi possível iniciar o comando de homologação.');process.exitCode=1;});
+	child.on('exit',code=>{process.exitCode=code??1;});
 })().catch(()=>{console.error('Homologation preparation/launch failed; check local configuration and verified Rules.');process.exitCode=1;});

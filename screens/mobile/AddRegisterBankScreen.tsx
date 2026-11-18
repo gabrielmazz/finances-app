@@ -1,6 +1,7 @@
 import { useBankAccountForm } from '@/hooks/useBankAccountForm';
 import BankAccountFields from '@/components/uiverse/banks/bank-account-fields';
 import BankFormFeedback from '@/components/uiverse/banks/bank-form-feedback';
+import BankReferenceControls from '@/components/uiverse/banks/bank-reference-controls';
 import React from 'react';
 import {
 KeyboardAvoidingView,
@@ -268,6 +269,7 @@ export default function AddRegisterBankScreen() {
                                 {isEditing ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
 
                                 <BankFormFeedback error={form.error} saved={form.saved} isEditing={isEditing} busy={isSubmitting} onAnother={form.startAnother} canWrite={form.canWrite}/>
+                                <BankReferenceControls bank={form.loadedBank} metadata={{ name: nameBank, institutionKey: selectedBankIconKey, institutionName: form.institutionName, accountType: form.accountType as import('@/domain/banks').AccountType, colorHex: selectedColor }} />
                                 <Button
                                     className={`${submitButtonClassName} web:mt-2 web:h-12`}
                                     onPress={registerBank}

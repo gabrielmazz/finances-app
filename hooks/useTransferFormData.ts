@@ -1,18 +1,23 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
-import type { BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
-export function useTransferFormData(..._selection: (string | null)[]) {
+import { useMovementBanks } from './useMovementOptions';
+
+export function useTransferFormData(originId: string | null, destinationId: string | null) {
+	const { accounts, banks, writable } = useMovementBanks();
+	const { active } = accounts;
+	const error = accounts.scopeError || active.error;
+	const hasMore = !!(active.nextNew || active.nextLegacy || active.nextBound);
 	return {
-		personId: null as string | null,
-		banks: [] as BankActionsheetOption[],
-		isLoadingBanks: false,
-		banksError: FEATURE_UNAVAILABLE_MESSAGE,
-		error: FEATURE_UNAVAILABLE_MESSAGE,
-		reload: showFeatureUnavailable,
-		originBalanceInCents: null as number | null,
-		isLoadingBalance: false,
-		targetBalanceInCents: null as number | null,
-		isLoadingTargetBalance: false,
-		needsBanks: false,
+		personId: accounts.scope?.uid ?? null,
+		banks,
+		isLoadingBanks: active.loading,
+		banksError: error,
+		error,
+		reload: accounts.reload,
+		hasMore,
+		loadMore: () => accounts.load('active', true),
+		originBalanceInCents: writable.find(bank => bank.id === originId)?.balanceInCents ?? null,
+		isLoadingBalance: active.loading && !!originId,
+		targetBalanceInCents: writable.find(bank => bank.id === destinationId)?.balanceInCents ?? null,
+		isLoadingTargetBalance: active.loading && !!destinationId,
+		needsBanks: active.loaded && !active.loading && !hasMore && banks.length < 2,
 	};
 }

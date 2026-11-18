@@ -1,0 +1,407 @@
+--- rules-publicadas
++++ rules-candidatas
+@@ -1,5 +1,11 @@
+ rules_version = '2';
+-// Stage 03 candidate, not published. Default deny; all financial writes remain denied.
++// Local candidate; NOT published. Stage03 source: security/stage03-published.rules.
++// financialContexts/{personal:uid|group:gid}/bankAccounts/{operationId}: schemaVersion=1,
++// bounded name/institutionKey/institutionName/type/color, scopeKind/scopeId, integer
++// initialBalanceCents (+/-9e12), openingDate, status, revision and server audit fields.
++// accountOpenings/{same operationId}: immutable opening, amount/date/context matching
++// the account, reason<=500, type='opening'. Both documents MUST be created atomically.
++// Movement transactions update account balances atomically; zero-balance accounts can archive.
+ // users/{uid}: legacy fields retained; clients create a minimal own profile or edit
+ // their own bounded name. Permission/relationship fields cannot be changed.
+ // _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,
+@@ -32,15 +38,370 @@
+         && authorization().groups.get(groupId, '') in ['admin', 'member'];
+     }
+     function legacyCollection(name) {
+-      return name in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
+-        'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains',
+-        'monthlyBalances','tags'];
++      return name in ['financeInvestmentSyncs',
++        'financeInvestments','investmentCdiRates','mandatoryExpenses','mandatoryGains',
++        'monthlyBalances'];
++    }
++    function legacyMovementRead(data) {
++      let group = data.get('groupId',null);
++      return data.keys().hasAll(['groupId','financialGroupId','ledgerGroupId']) && group == null
++          && data.financialGroupId == null && data.ledgerGroupId == null && mayReadOwner(data.personId);
++    }
++    // Individual legacy reads were explicitly authorized for the signed-in
++    // owner when group metadata is absent. This is never used for queries.
++    function ownLegacyDocument(data) {
++      return isAuthenticated() && data.get('personId',null) == request.auth.uid
++        && data.get('groupId',null) == null && data.get('financialGroupId',null) == null
++        && data.get('ledgerGroupId',null) == null;
++    }
++    function personalLegacyBindingSafe(collection,id,owner) {
++      let binding = /databases/$(database)/documents/$(collection)/$(id);
++      return !exists(binding) || (get(binding).data.scopeKind == 'personal' && get(binding).data.scopeId == owner);
++    }
++    function groupLegacyBankBindingSafe(id,data) {
++      let binding = /databases/$(database)/documents/_bankScopes/$(id);
++      let group = data.get('groupId',null) != null ? data.groupId : data.get('financialGroupId',null) != null ? data.financialGroupId : data.get('ledgerGroupId',null);
++      return !exists(binding) || (get(binding).data.scopeKind == 'group' && get(binding).data.scopeId == group);
++    }
++    function legacyGroupDocument(data) {
++      let group = data.get('groupId',null) != null ? data.groupId
++        : data.get('financialGroupId',null) != null ? data.financialGroupId : data.get('ledgerGroupId',null);
++      return group is string && data.get('groupId',null) in [null,group]
++        && data.get('financialGroupId',null) in [null,group] && data.get('ledgerGroupId',null) in [null,group]
++        && mayReadOwner(data.personId) && hasGroupAccess(group) && activeGroup(group);
++    }
++    // Optional, server-managed binding for a legacy personal bank whose group
++    // fields are missing. Clients cannot create or update this document.
++    function protectedPersonalBank(id,data) {
++      let binding = /databases/$(database)/documents/_bankScopes/$(id);
++      return isAuthenticated() && data.personId == request.auth.uid
++        && data.get('groupId',null) == null && data.get('financialGroupId',null) == null && data.get('ledgerGroupId',null) == null
++        && exists(binding) && get(binding).data.keys().hasOnly(['scopeKind','scopeId'])
++        && get(binding).data.scopeKind == 'personal' && get(binding).data.scopeId == request.auth.uid;
+     }
+     function isValidName(data) {
+       return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+         && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\x00-\\x1F\\x7F].*');
+     }
+     function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }
++    function boundedText(value, max) {
++      return value is string && value.size() > 0 && value.size() <= max
++        && value.matches('.*[^ ].*') && !value.matches('.*[\\x00-\\x1F\\x7F].*');
++    }
++    function validBankMetadata(data) {
++      return isValidName(data) && boundedText(data.institutionName,100)
++        && data.institutionKey is string && data.institutionKey.matches('^[a-z0-9-]{1,64}$')
++        && data.accountType in ['checking','savings','payment','cash']
++        && (data.colorHex == null || (data.colorHex is string && data.colorHex.matches('^#[a-fA-F0-9]{6}$')));
++    }
++    function contextId(key) { return key.split(':')[1]; }
++    function validContext(key) { return key.matches('^(personal|group):[A-Za-z0-9_-]{1,128}$'); }
++    function activeGroup(id) {
++      return get(/databases/$(database)/documents/financialGroups/$(id)).data.status == 'active';
++    }
++    function mayReadContext(key) {
++      return isAuthenticated() && validContext(key) &&
++        ((key.split(':')[0] == 'personal' && isOwner(contextId(key))) ||
++         (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))));
++    }
++    function mayWriteContext(key) {
++      return isAuthenticated() && validContext(key) &&
++        ((key.split(':')[0] == 'personal' && isOwner(contextId(key))) ||
++         (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))
++          && authorization().groups.get(contextId(key),'') == 'admin'));
++    }
++    function verifiedCategoryScope(id) {
++      return get(/databases/$(database)/documents/_categoryScopes/$(id)).data;
++    }
++    function validLegacyCategoryScope(data, binding) {
++      return binding.keys().hasOnly(['scopeKind','scopeId'])
++        && binding.scopeKind in ['personal','group'] && binding.scopeId is string
++        && validContext(binding.scopeKind + ':' + binding.scopeId)
++        && ((binding.scopeKind == 'personal' && data.personId == binding.scopeId
++          && data.get('groupId',null) == null && data.get('financialGroupId',null) == null && data.get('ledgerGroupId',null) == null)
++        || (binding.scopeKind == 'group' && data.get('groupId',null) == binding.scopeId
++          && data.get('financialGroupId',null) in [null,binding.scopeId] && data.get('ledgerGroupId',null) in [null,binding.scopeId]));
++    }
++    function validAmount(value) { return value is int && value >= -9000000000000 && value <= 9000000000000; }
++    function validAccount(data,key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt','balanceCents','balanceRevision','lastMovementId','legacyBankId'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion is int && data.schemaVersion == 1 && data.scopeKind in ['personal','group']
++        && (!data.keys().hasAny(['legacyBankId']) || (data.scopeKind == 'personal' && data.legacyBankId is string && data.legacyBankId.matches('^[A-Za-z0-9]{20}$')))
++        && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
++        && validBankMetadata(data) && validAmount(data.initialBalanceCents)
++        && ((!data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])) ||
++          (data.keys().hasAll(['balanceCents','balanceRevision','lastMovementId']) && validAmount(data.balanceCents)
++            && data.balanceRevision is int && data.balanceRevision > 0 && data.balanceRevision <= 1000000000
++            && data.lastMovementId is string && data.lastMovementId.matches('^[A-Za-z0-9]{20}$')))
++        && data.openingDate is timestamp && data.openingDate >= timestamp.date(1900,1,1) && data.openingDate <= request.time
++        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
++        && data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() <= 128
++        && data.createdAt is timestamp && data.updatedAt is timestamp;
++    }
++    function validOpening(data,key,id) {
++      return data.keys().hasOnly(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt','confirmed','pendingReviewed'])
++        && data.keys().hasAll(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt'])
++        && data.schemaVersion is int && data.schemaVersion == 1 && data.accountId == id
++        && ((data.type == 'opening' && !data.keys().hasAny(['confirmed','pendingReviewed']))
++          || (data.type == 'reference' && data.confirmed == true && data.pendingReviewed == true))
++        && data.scopeKind in ['personal','group'] && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
++        && validAmount(data.amountCents) && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time
++        && data.reason is string && data.reason.size() <= 500 && !data.reason.matches('.*[\\x00-\\x1F\\x7F].*')
++        && ((data.amountCents >= 0 && data.reason == '') || (data.amountCents < 0 && boundedText(data.reason,500) && data.reason.size() >= 3))
++        && data.createdBy == request.auth.uid && data.createdAt == request.time;
++    }
++    function legacyMetadataUpdate() {
++      let data = request.resource.data;
++      return data.keys().hasAll(['name','bankIconKey','institutionName','accountType','colorHex','metadataRevision','updatedBy','updatedAt'])
++        && validBankMetadata({'name':data.name,'institutionKey':data.bankIconKey,'institutionName':data.institutionName,'accountType':data.accountType,'colorHex':data.colorHex})
++        && data.metadataRevision is int && data.metadataRevision == resource.data.get('metadataRevision',0) + 1
++        && data.metadataRevision <= 1000000000 && data.updatedBy == request.auth.uid && data.updatedAt == request.time
++        && data.diff(resource.data).affectedKeys().hasOnly(['name','bankIconKey','institutionName','accountType','colorHex','metadataRevision','updatedBy','updatedAt'])
++        && data.diff(resource.data).affectedKeys().hasAny(['name','bankIconKey','institutionName','accountType','colorHex']);
++    }
++    function validLegacyCategoryState(data) {
++      return data.get('deleted',false) is bool
++        && data.get('isMandatoryExpense',false) is bool && data.get('isMandatoryGain',false) is bool
++        && data.get('showInBothLists',false) is bool
++        && data.get('usageType',null) in [null,'expense','gain','both']
++        && data.get('status','active') in ['active','archived']
++        && (data.get('usageType',null) != 'expense' || !data.get('isMandatoryGain',false))
++        && (data.get('usageType',null) != 'gain' || !data.get('isMandatoryExpense',false));
++    }
++    function legacyCategoryUpdate() {
++      let data = request.resource.data;
++      return validLegacyCategoryState(resource.data) && validLegacyCategoryState(data)
++        && resource.data.get('deleted', false) != true && resource.data.get('status','active') == 'active'
++        && data.updatedBy == request.auth.uid && data.updatedAt == request.time
++        && ((data.diff(resource.data).affectedKeys().hasOnly(['name','iconFamily','iconName','iconStyle','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','updatedBy','updatedAt'])
++          && isValidName(data)
++          && (data.get('iconFamily',null) == null || boundedText(data.iconFamily,100))
++          && (data.get('iconName',null) == null || boundedText(data.iconName,100))
++          && (data.get('iconStyle',null) == null || boundedText(data.iconStyle,100))
++          && (!data.diff(resource.data).affectedKeys().hasAny(['usageType','isMandatoryExpense','isMandatoryGain','showInBothLists'])
++            || (data.usageType in ['expense','gain','both'] && data.isMandatoryExpense is bool
++              && data.isMandatoryGain is bool && data.showInBothLists is bool
++              && (data.usageType != 'expense' || !data.isMandatoryGain)
++              && (data.usageType != 'gain' || !data.isMandatoryExpense))))
++        || (data.diff(resource.data).affectedKeys().hasOnly(['deleted','updatedBy','updatedAt']) && data.deleted == true));
++    }
++    function validCategory(data, key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','nameKey','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
++        && isValidName(data) && data.usageType in ['expense','gain','both']
++        && data.isMandatoryExpense is bool && data.isMandatoryGain is bool && data.showInBothLists is bool
++        && (data.usageType != 'expense' || !data.isMandatoryGain)
++        && (data.usageType != 'gain' || !data.isMandatoryExpense)
++        && (data.iconFamily == null || boundedText(data.iconFamily,100))
++        && (data.iconName == null || boundedText(data.iconName,100))
++        && (data.iconStyle == null || boundedText(data.iconStyle,100))
++        && (!data.keys().hasAny(['nameKey']) || (data.nameKey is string && data.nameKey.size() <= 1300))
++        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128)
++        && data.createdAt is timestamp && data.updatedAt is timestamp;
++    }
++    match /financialContexts/{key}/categories/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validCategory(request.resource.data,key)
++        && !request.resource.data.keys().hasAny(['nameKey'])
++        && request.resource.data.status == 'active' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
++      allow update: if mayWriteContext(key) && validCategory(request.resource.data,key)
++        && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','updatedBy','updatedAt'])
++        && (request.resource.data.status == 'active' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']));
++    }
++    function validMovement(data,key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
++        && isValidName(data) && data.type in ['gain','expense'] && validAmount(data.amountCents) && data.amountCents > 0
++        && data.accountId is string && data.accountId.matches('^[A-Za-z0-9]{20}$')
++        && data.categoryId is string && data.categoryId.size() > 0 && data.categoryId.size() <= 1500 && !data.categoryId.matches('.*/.*')
++        && data.categorySource in ['new','legacy','group-root','group-legacy']
++        && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time
++        && data.explanation is string && data.explanation.size() <= 500 && !data.explanation.matches('.*[\\x00-\\x1F\\x7F].*')
++        && data.paymentFormats is list && data.paymentFormats.size() <= 1 && data.paymentFormats.hasOnly(['Variable','External'])
++        && (data.type != 'expense' || data.paymentFormats.size() == 0)
++        && data.status in ['posted','cancelled'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128) && data.createdAt is timestamp && data.updatedAt is timestamp;
++    }
++    function movementCategory(data,key) {
++      let id = data.categoryId;
++      return (data.categorySource == 'new'
++          && getAfter(/databases/$(database)/documents/financialContexts/$(key)/categories/$(id)).data.status == 'active'
++          && getAfter(/databases/$(database)/documents/financialContexts/$(key)/categories/$(id)).data.usageType in [data.type,'both'])
++        || (data.categorySource in ['legacy','group-root']
++          && validLegacyCategoryScope(get(/databases/$(database)/documents/tags/$(id)).data,verifiedCategoryScope(id))
++          && key == verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId
++          && (data.categorySource == 'legacy' ? data.scopeKind == 'personal' : data.scopeKind == 'group')
++          && validLegacyCategoryState(get(/databases/$(database)/documents/tags/$(id)).data)
++          && get(/databases/$(database)/documents/tags/$(id)).data.get('deleted',false) == false
++          && get(/databases/$(database)/documents/tags/$(id)).data.get('status','active') == 'active'
++          && get(/databases/$(database)/documents/tags/$(id)).data.get('usageType',null) in [data.type,'both'])
++        || (data.categorySource == 'group-legacy' && data.scopeKind == 'group'
++          && validLegacyCategoryState(get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data)
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('groupId',null) in [null,data.scopeId]
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('financialGroupId',null) in [null,data.scopeId]
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('ledgerGroupId',null) in [null,data.scopeId]
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('deleted',false) == false
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('status','active') == 'active'
++          && get(/databases/$(database)/documents/financialGroups/$(data.scopeId)/tags/$(id)).data.get('usageType',null) in [data.type,'both']);
++    }
++    function movementEffect(data,accountId) {
++      return data.status == 'posted' && data.accountId == accountId ? (data.type == 'gain' ? data.amountCents : -data.amountCents) : 0;
++    }
++    // A reference is an instant; date-only movements begin on a later UTC day.
++    function afterAccountReference(key,data) {
++      let account = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
++      return !account.keys().hasAny(['legacyBankId']) || (data.date == data.date.date() && data.date > account.openingDate.date());
++    }
++    function readableMovementAccount(key,data) {
++      let account = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
++      return !account.keys().hasAny(['legacyBankId']) || referenceAuthority(key,data.accountId,account);
++    }
++    function unusedHistoricalId(key,data,id) {
++      let account = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
++      return !account.keys().hasAny(['legacyBankId']) || (!exists(/databases/$(database)/documents/gains/$(id))
++        && !exists(/databases/$(database)/documents/expenses/$(id)) && !exists(/databases/$(database)/documents/cashRescues/$(id))
++        && !exists(/databases/$(database)/documents/bankTransfers/$(id)));
++    }
++    function unusedHistoricalIdForUpdate(key,before,after,id) {
++      let fromAccount = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(before.accountId)).data;
++      let toAccount = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(after.accountId)).data;
++      return (!fromAccount.keys().hasAny(['legacyBankId']) && !toAccount.keys().hasAny(['legacyBankId']))
++        || (!exists(/databases/$(database)/documents/gains/$(id)) && !exists(/databases/$(database)/documents/expenses/$(id))
++          && !exists(/databases/$(database)/documents/cashRescues/$(id)) && !exists(/databases/$(database)/documents/bankTransfers/$(id)));
++    }
++    function referenceAuthority(key,id,data) {
++      let legacy = /databases/$(database)/documents/banks/$(id);
++      return data.legacyBankId == id && data.scopeKind == 'personal' && isOwner(data.scopeId)
++        && exists(legacy) && get(legacy).data.personId == data.scopeId
++        && personalLegacyBindingSafe('_bankScopes',id,data.scopeId)
++        && ((get(legacy).data.keys().hasAll(['groupId','financialGroupId','ledgerGroupId'])
++          && get(legacy).data.groupId == null && get(legacy).data.financialGroupId == null && get(legacy).data.ledgerGroupId == null)
++          || protectedPersonalBank(id,get(legacy).data))
++        && get(legacy).data.get('isActive',true) == true && get(legacy).data.get('archived',false) == false
++        && get(legacy).data.get('status','active') == 'active';
++    }
++    function accountChangedForMovement(key,accountId,movementId) {
++      let path = /databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(accountId);
++      return get(path).data.status == 'active' && getAfter(path).data.lastMovementId == movementId
++        && getAfter(path).data.balanceRevision == get(path).data.get('balanceRevision',0) + 1;
++    }
++    function validMovementBalanceUpdate(key,accountId) {
++      let id = request.resource.data.lastMovementId;
++      let path = /databases/$(database)/documents/financialContexts/$(key)/movements/$(id);
++      let after = getAfter(path).data;
++      let oldEffect = exists(path) ? movementEffect(get(path).data,accountId) : 0;
++      return (exists(path) ? after.revision == get(path).data.revision + 1 : after.revision == 0)
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceCents','balanceRevision','lastMovementId'])
++        && request.resource.data.balanceRevision == resource.data.get('balanceRevision',0) + 1
++        && request.resource.data.balanceCents == resource.data.get('balanceCents',resource.data.initialBalanceCents) + movementEffect(after,accountId) - oldEffect;
++    }
++    match /financialContexts/{key}/movements/{id} {
++      allow get: if mayReadContext(key) && (!exists(/databases/$(database)/documents/financialContexts/$(key)/movements/$(id)) || readableMovementAccount(key,resource.data));
++      allow list: if mayReadContext(key) && request.query.limit <= 20 && readableMovementAccount(key,resource.data);
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validMovement(request.resource.data,key)
++        && request.resource.data.status == 'posted' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
++        && movementCategory(request.resource.data,key) && afterAccountReference(key,request.resource.data) && unusedHistoricalId(key,request.resource.data,id) && accountChangedForMovement(key,request.resource.data.accountId,id);
++      allow update: if mayWriteContext(key) && afterAccountReference(key,resource.data) && afterAccountReference(key,request.resource.data)
++        && unusedHistoricalIdForUpdate(key,resource.data,request.resource.data,id)
++        && validMovement(request.resource.data,key) && resource.data.status == 'posted'
++        && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','amountCents','accountId','categoryId','categorySource','date','explanation','paymentFormats','status','revision','updatedBy','updatedAt'])
++        && (request.resource.data.status == 'posted' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']))
++        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['categoryId','categorySource']) || movementCategory(request.resource.data,key))
++        && accountChangedForMovement(key,resource.data.accountId,id)
++        && (request.resource.data.accountId == resource.data.accountId || accountChangedForMovement(key,request.resource.data.accountId,id));
++    }
++    match /financialContexts/{key}/bankAccounts/{id} {
++      // Namespace authority comes from the path; missing-document reads are scoped too.
++      allow get: if mayReadContext(key) && (!exists(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id))
++        || !resource.data.keys().hasAny(['legacyBankId']) || referenceAuthority(key,id,resource.data));
++      // Resolve IDs through authorized openings or bindings, then use get.
++      allow list: if false;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$')
++        && validAccount(request.resource.data,key) && !request.resource.data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])
++        && request.resource.data.status == 'active' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
++        && (request.resource.data.keys().hasAny(['legacyBankId'])
++          ? referenceAuthority(key,id,request.resource.data) && request.resource.data.name == get(/databases/$(database)/documents/banks/$(id)).data.name && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.type == 'reference'
++          : getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.type == 'opening'
++            && (request.resource.data.scopeKind != 'personal' || !exists(/databases/$(database)/documents/banks/$(id)) || get(/databases/$(database)/documents/banks/$(id)).data.personId != request.auth.uid))
++        && !exists(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id))
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.accountId == id
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.amountCents == request.resource.data.initialBalanceCents
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.date == request.resource.data.openingDate;
++      allow update: if mayWriteContext(key) && request.resource.data.diff(resource.data).affectedKeys().hasAny(['revision']) && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
++        && (!resource.data.keys().hasAny(['legacyBankId']) || referenceAuthority(key,id,resource.data))
++        && validAccount(request.resource.data,key)
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && ((request.resource.data.status == 'active'
++          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','institutionKey','institutionName','accountType','colorHex','revision','updatedBy','updatedAt'])
++          && request.resource.data.diff(resource.data).affectedKeys().hasAny(['name','institutionKey','institutionName','accountType','colorHex']))
++        || (request.resource.data.status == 'archived' && !resource.data.keys().hasAny(['legacyBankId']) && resource.data.get('balanceCents',resource.data.initialBalanceCents) == 0
++          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])));
++      allow update: if mayWriteContext(key) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceCents','balanceRevision','lastMovementId']) && resource.data.status == 'active'
++        && (!resource.data.keys().hasAny(['legacyBankId']) || referenceAuthority(key,id,resource.data))
++        && validAmount(request.resource.data.balanceCents) && request.resource.data.balanceRevision is int
++        && request.resource.data.balanceRevision > 0 && request.resource.data.balanceRevision <= 1000000000
++        && request.resource.data.lastMovementId is string && request.resource.data.lastMovementId.matches('^[A-Za-z0-9]{20}$')
++        && validMovementBalanceUpdate(key,id);
++    }
++    match /financialContexts/{key}/accountOpenings/{id} {
++      allow get: if mayReadContext(key) && (!exists(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id))
++        || resource.data.type != 'reference' || referenceAuthority(key,id,get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data));
++      // Normal openings are immutable and identify accounts that never used a
++      // revocable legacy reference. Reference openings remain individual reads.
++      allow list: if mayReadContext(key) && request.query.limit <= 20 && resource.data.type == 'opening';
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validOpening(request.resource.data,key,id)
++        && !exists(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id))
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.initialBalanceCents == request.resource.data.amountCents
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.openingDate == request.resource.data.date;
++    }
++    match /_bankScopes/{id} {
++      allow get: if isAuthenticated() && resource.data.scopeKind == 'personal' && resource.data.scopeId == request.auth.uid
++        && ownLegacyDocument(get(/databases/$(database)/documents/banks/$(id)).data);
++      allow list: if isAuthenticated() && request.query.limit <= 20 && resource.data.scopeKind == 'personal' && resource.data.scopeId == request.auth.uid
++        && ownLegacyDocument(get(/databases/$(database)/documents/banks/$(id)).data);
++    }
++    match /banks/{id} {
++      allow get: if protectedPersonalBank(id,resource.data);
++      allow update: if isOwner(resource.data.personId) && legacyMovementRead(resource.data)
++        && personalLegacyBindingSafe('_bankScopes',id,resource.data.personId) && legacyMetadataUpdate();
++    }
++    match /tags/{id} {
++      allow get: if (ownLegacyDocument(resource.data) && personalLegacyBindingSafe('_categoryScopes',id,resource.data.personId)) || (validLegacyCategoryScope(resource.data, verifiedCategoryScope(id))
++        && mayReadContext(verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId));
++      allow list: if request.query.limit <= 20 && resource.data.personId == request.auth.uid
++        && resource.data.groupId == null && resource.data.financialGroupId == null && resource.data.ledgerGroupId == null
++        && personalLegacyBindingSafe('_categoryScopes',id,resource.data.personId);
++      allow update: if validLegacyCategoryScope(resource.data, verifiedCategoryScope(id))
++        && mayWriteContext(verifiedCategoryScope(id).scopeKind + ':' + verifiedCategoryScope(id).scopeId)
++        && legacyCategoryUpdate();
++    }
++    match /financialGroups/{groupId}/accounts/{id} {
++      allow update: if mayWriteContext('group:'+groupId)
++        && resource.data.get('groupId',null) in [null,groupId]
++        && resource.data.get('financialGroupId',null) in [null,groupId]
++        && resource.data.get('ledgerGroupId',null) in [null,groupId] && legacyMetadataUpdate();
++    }
++    match /financialGroups/{groupId}/tags/{id} {
++      allow update: if mayWriteContext('group:'+groupId)
++        && resource.data.get('groupId',null) in [null,groupId]
++        && resource.data.get('financialGroupId',null) in [null,groupId]
++        && resource.data.get('ledgerGroupId',null) in [null,groupId] && legacyCategoryUpdate();
++    }
+     match /users/{uid} {
+       allow get: if isOwner(uid);
+       allow create: if isOwner(uid) && isValidUser(request.resource.data)
+@@ -70,9 +431,14 @@
+       allow get: if isOwner(uid) && hasAuthorityClaim() && validAuthorization(resource.data);
+     }
+     match /{collection}/{id} {
+-      allow get: if legacyCollection(collection) && mayReadOwner(resource.data.personId);
+-      allow list: if legacyCollection(collection) && request.query.limit <= 20
+-        && mayReadOwner(resource.data.personId);
++      allow get: if (legacyCollection(collection) || collection in ['banks','gains','expenses','cashRescues','bankTransfers'])
++        && (((ownLegacyDocument(resource.data) || legacyMovementRead(resource.data)) && (collection != 'banks' || personalLegacyBindingSafe('_bankScopes',id,resource.data.personId)))
++          || (legacyGroupDocument(resource.data) && (collection != 'banks' || groupLegacyBankBindingSafe(id,resource.data))));
++      allow list: if request.query.limit <= 20 && (legacyCollection(collection) || collection in ['banks','gains','expenses','cashRescues','bankTransfers'])
++          && resource.data.groupId == null
++          && resource.data.financialGroupId == null && resource.data.ledgerGroupId == null
++          && (collection != 'banks' || personalLegacyBindingSafe('_bankScopes',id,resource.data.personId))
++          && mayReadOwner(resource.data.personId);
+     }
+     match /{document=**} { allow read, write: if false; }
+   }

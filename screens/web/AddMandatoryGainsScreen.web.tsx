@@ -1,8 +1,11 @@
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+import { errorMessage } from '@/application/errors';
+import { civilDay } from '@/domain/mandatory';
+import { useMandatoryTemplate } from '@/hooks/useMandatoryTemplate';
+import { movementCategorySelection } from '@/hooks/useMovementOptions';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 import { getMantineNumberInputClassNames } from '@/design-system/mantine';
 import { cn } from '@/lib/utils';
@@ -157,10 +160,12 @@ export default function AddMandatoryGainsScreen() {
 		return raw && raw.trim().length > 0 ? raw : null;
 	}, [params.gainTemplateId]);
 
-	const [tagOptions] = React.useState<TagOption[]>([]);
+	const entry = useMandatoryTemplate('gain', editingGainTemplateId);
+	const tagOptions = entry.tagOptions as TagOption[];
+	const applyPostSubmit = usePostSubmitBehavior('addMandatoryGains');
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
-	const [isLoadingTags] = React.useState(false);
+	const isLoadingTags = entry.tags.loading && !tagOptions.length;
 	const [gainName, setGainName] = React.useState('');
 	const [valueDisplay, setValueDisplay] = React.useState('');
 	const [valueInCents, setValueInCents] = React.useState<number | null>(null);
@@ -187,11 +192,10 @@ export default function AddMandatoryGainsScreen() {
 	const submitLockRef = React.useRef<object | null>(null);
 	const { personId, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-gain-form');
 
-	const entry = useMovementFormEntry();
 	const isPrefilling = entry.loading;
 	const currentFormScope = JSON.stringify([personId, editingGainTemplateId]);
 	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
-	const [tagsError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
+	const tagsError = entry.tags.error;
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -350,40 +354,7 @@ export default function AddMandatoryGainsScreen() {
 		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
 
-	const handleReminderToggle = React.useCallback(
-		(value: boolean) => {
-			if (!value) {
-				setReminderEnabled(false);
-				return;
-			}
-
-			if (!gainName.trim() || valueInCents === null || valueInCents <= 0 || !isDueDayValid || !selectedTagId) {
-				showNotifierAlert({
-					title: 'Lembrete indisponível',
-					description: 'Preencha nome, valor, dia do recebimento e categoria antes de ativar o lembrete.',
-					type: 'warn',
-					isDarkMode,
-					duration: 4500,
-				});
-				return;
-			}
-
-			setReminderTime((currentValue) =>
-				parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
-			);
-			setOpenOptionalSection('optional');
-			setReminderEnabled(true);
-			showNotifierAlert({
-				title: 'Lembrete salvo no cadastro',
-				description:
-					'O navegador guarda a configuração, mas o aviso será agendado somente no aplicativo Android ou iOS instalado.',
-				type: 'info',
-				isDarkMode,
-				duration: 5500,
-			});
-		},
-		[gainName, isDarkMode, isDueDayValid, selectedTagId, valueInCents],
-	);
+	const handleReminderToggle = () => showFeatureUnavailable();
 
 	const hasGainName = gainName.trim().length > 0;
 	const hasGainValue = valueInCents !== null && Number.isSafeInteger(valueInCents) && valueInCents > 0;
@@ -478,7 +449,7 @@ setLastReceiptCycle(null);
 		setSelectedTagName(tag.name);
 	}, []);
 
-	const loadTags = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const loadTags = entry.tags.reload;
 
 	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ }); setSubmitError(null); }, [personId, editingGainTemplateId, resetForm]);
 	React.useEffect(() => {
@@ -550,9 +521,33 @@ setLastReceiptCycle(null);
 		setLastReceiptCycle(lastReceiptCycle);
 	}, [entry.ready, entry.record, editingGainTemplateId, resetForm]);
 
-	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleSubmit = async () => {
+		if (submitLockRef.current || !entry.ready || !isTemplateReady || valueInCents === null || !selectedTagId) return;
+		const category = movementCategorySelection(selectedTagId);
+		if (!category) return;
+		const lock = {}, submittedScope = formScopeRef.current;
+		submitLockRef.current = lock; setIsSubmitting(true); setSubmitError(null);
+		try {
+			await entry.save({ name: gainName, valueInCents, dueDay: Number(dueDay), usesBusinessDays,
+				categoryId: category.categoryId, categorySource: category.categorySource, description,
+				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
+				installmentStartDate: installmentsEnabled && parsedInstallmentStartDate ? civilDay(parsedInstallmentStartDate) : null });
+			if (mounted.current && formScopeRef.current === submittedScope) {
+				showNotifierAlert({ type: 'success', description: 'Ganho obrigatório salvo.', isDarkMode });
+				applyPostSubmit({ resetForm, isEditing: !!editingGainTemplateId });
+			}
+		} catch (error) {
+			if (mounted.current && formScopeRef.current === submittedScope) setSubmitError(errorMessage(error));
+		} finally {
+			if (submitLockRef.current === lock) {
+				submitLockRef.current = null;
+				if (mounted.current) setIsSubmitting(false);
+			}
+		}
+	};
 
-	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	const isEditingMode = Boolean(editingGainTemplateId);
 	const screenTitle = isEditingMode ? 'Atualize seu ganho obrigatório' : 'Registro de ganho obrigatório';
 	const inputClassName = `${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`;
@@ -797,6 +792,7 @@ setLastReceiptCycle(null);
 														selectedId={selectedTagId}
 														selectedLabel={selectedTagLabel}
 														onSelect={handleSelectTag}
+										onEndReached={() => { if (entry.tags.hasMore) void entry.tags.loadMore(); }}
 														isDisabled={isTagSelectDisabled}
 														isDarkMode={isDarkMode}
 														bodyTextClassName={bodyText}
@@ -938,7 +934,7 @@ setLastReceiptCycle(null);
 																		<Switch
 																			value={reminderEnabled}
 																			onValueChange={handleReminderToggle}
-																			disabled={!isTemplateReady || isFormBusy}
+																			disabled
 																			trackColor={switchTrackColor}
 																			thumbColor={switchThumbColor}
 																			activeThumbColor={switchActiveThumbColor}

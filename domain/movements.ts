@@ -13,12 +13,21 @@ export type MovementInput = {
   date: string;
   explanation: string;
   paymentFormats: ('Variable' | 'External')[];
+  isFromMandatory?: true;
 };
 export type Movement = MovementInput & {
   id: string;
   status: 'posted' | 'cancelled';
   revision: number;
 };
+export type BankOperationInput = Pick<MovementInput, 'amountCents' | 'accountId' | 'date' | 'explanation'>;
+export type BankTransferInput = BankOperationInput & { destinationAccountId: string };
+export type BankLedgerInput = BankOperationInput & Pick<MovementInput, 'name' | 'type' | 'paymentFormats'> & (
+  { operation: 'cash-withdrawal' } |
+  { operation: 'transfer-out' | 'transfer-in'; transferId: string }
+);
+export type LedgerInput = MovementInput | BankLedgerInput;
+export type LedgerEntry = LedgerInput & Pick<Movement, 'id' | 'status' | 'revision'>;
 
 export function movementDate(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw Error('movements/invalid-date');
@@ -28,16 +37,22 @@ export function movementDate(value: string): Date {
 }
 
 export function validateMovement(input: MovementInput): MovementInput {
+  const value = validateBankOperation(input);
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!name || name.length > 100 || /[\x00-\x1f\x7f]/.test(name)) throw Error('movements/invalid-name');
   if (!['gain', 'expense'].includes(input.type)) throw Error('movements/invalid-type');
+  if (typeof input.categoryId !== 'string' || !input.categoryId || input.categoryId.includes('/') || input.categoryId === '.' || input.categoryId === '..' || !['new', 'legacy', 'group-root', 'group-legacy'].includes(input.categorySource)) throw Error('movements/invalid-category');
+  if (!Array.isArray(input.paymentFormats) || input.paymentFormats.length > 1 || input.paymentFormats.some(value => value !== 'Variable' && value !== 'External') || (input.type === 'expense' && input.paymentFormats.length)) throw Error('movements/invalid-format');
+  if (input.isFromMandatory !== undefined && input.isFromMandatory !== true) throw Error('movements/invalid-category');
+  return { ...input, ...value, name };
+}
+
+export function validateBankOperation(input: BankOperationInput): BankOperationInput {
   if (!validCents(input.amountCents) || input.amountCents <= 0) throw Error('movements/invalid-amount');
   if (!validId(input.accountId)) throw Error('movements/invalid-account');
-  if (typeof input.categoryId !== 'string' || !input.categoryId || input.categoryId.includes('/') || input.categoryId === '.' || input.categoryId === '..' || !['new', 'legacy', 'group-root', 'group-legacy'].includes(input.categorySource)) throw Error('movements/invalid-category');
   movementDate(input.date);
   if (typeof input.explanation !== 'string' || input.explanation.length > 500 || /[\x00-\x1f\x7f]/.test(input.explanation)) throw Error('movements/invalid-explanation');
-  if (!Array.isArray(input.paymentFormats) || input.paymentFormats.length > 1 || input.paymentFormats.some(value => value !== 'Variable' && value !== 'External') || (input.type === 'expense' && input.paymentFormats.length)) throw Error('movements/invalid-format');
-  return { ...input, name, explanation: input.explanation.trim() };
+  return { accountId: input.accountId, amountCents: input.amountCents, date: input.date, explanation: input.explanation.trim() };
 }
 
 export function movementEffect(movement: Pick<Movement, 'accountId' | 'status' | 'type' | 'amountCents'> | null, accountId: string): number {

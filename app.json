@@ -3,7 +3,7 @@
     "name": "Lumus Finanças",
     "slug": "finances-app",
     "scheme": "financesapp",
-    "version": "2.3.3",
+    "version": "1.5.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/lumusIcon.png",
@@ -17,7 +17,8 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.gabrielmazz.lumusfinances"
+      "package": "com.gabrielmazz.lumusfinances",
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/Logo/Icon.png",
@@ -32,7 +33,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#ffffff",
-          "image": "./assets/splash-icon.png",
+          "image": "./assets/lumusIcon.png",
           "imageWidth": 288,
           "resizeMode": "contain"
         }

@@ -1,9 +1,9 @@
 {
-  "startedAt": "2026-11-09T13:22:53.074Z",
-  "finishedAt": "2026-11-09T13:22:59.478Z",
+  "startedAt": "2026-11-16T11:57:00.164Z",
+  "finishedAt": "2026-11-16T11:57:07.276Z",
   "verifiedFromApprovedDestination": true,
   "auth": {
-    "checkedAt": "2026-11-09T13:22:53.191Z",
+    "checkedAt": "2026-11-16T11:57:00.256Z",
     "userCount": 3,
     "passwordAccounts": 3,
     "passwordHashesPresent": 3,
@@ -33,6 +33,7 @@
     "profilesInterpreted": 2,
     "foreignProfilesDenied": 2,
     "ownBankQueriesPassed": true,
+    "rulesUsed": "stage03-published",
     "uidPathsPreserved": true,
     "internalReferencesRemapped": true,
     "sourceSHA256": "c1ee1b628523a62bd70f8705ac7ddd4ae9b536fcff23800ff16264a4a9f0b82e",

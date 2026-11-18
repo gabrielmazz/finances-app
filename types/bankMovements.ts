@@ -33,6 +33,7 @@ export type MovementRecord = {
 	moneyFormat?: boolean | null;
 	// true se esta movimentação for a ligada a um Gasto/Ganho Obrigatório do ciclo atual
 	isFromMandatory?: boolean;
+	recurringTemplateId?: string;
 	isCashRescue?: boolean;
 	cashRescueSourceBankName?: string | null;
 	isBankTransfer?: boolean;

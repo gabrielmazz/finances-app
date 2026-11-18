@@ -44,34 +44,27 @@ export async function readCategory(client: AccountClient, scope: BankScope, ref:
 export async function readCategoryPage(client: AccountClient, scope: BankScope, source: CategorySource, cursor?: string | null, pageSize = 20) {
   requireCategoryEnvironment(client, scope);
   const official = client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
-  if (official && (source === 'new' || source === 'group-root')) return { items: [], issues: 0, unavailable: true, nextCursor: null };
+  if ((official && source === 'new') || source === 'group-root') return { items: [], issues: 0, unavailable: true, nextCursor: null };
   const base = source === 'new' ? contextCollection(client, scope, 'categories')
-    : source === 'legacy' && scope.kind === 'personal' && official ? collection(client.db, 'tags')
-    : (source === 'legacy' && scope.kind === 'personal') || (source === 'group-root' && scope.kind === 'group') ? contextCollection(client, scope, 'legacyCategoryIndex')
+    : source === 'legacy' && scope.kind === 'personal' ? collection(client.db, 'tags')
     : source === 'group-legacy' && scope.kind === 'group' ? collection(client.db, 'financialGroups', scope.id, 'tags')
     : null;
   if (!base) throw Error('categories/invalid-context');
   const filters: QueryConstraint[] = [];
-  if (official && source === 'legacy') filters.push(where('personId', '==', scope.uid));
+  if (source === 'legacy') filters.push(where('personId', '==', scope.uid), ...(official ? [] : [where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null)]));
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 20) throw Error('categories/invalid-page');
   filters.push(orderBy(documentId()), limit(pageSize));
   if (cursor) filters.push(startAfter(cursor));
-  const snap = await measureRead('categories.page.' + source, () => getDocsFromServer(query(base, ...filters)), value => value.size);
+  let snap;
+  try { snap = await measureRead('categories.page.' + source, () => getDocsFromServer(query(base, ...filters)), value => value.size); }
+  catch (error) {
+    if (source === 'legacy' && typeof error === 'object' && error && 'code' in error && error.code === 'permission-denied') return { items: [], issues: 0, unavailable: true, nextCursor: null };
+    throw error;
+  }
   requireCategoryEnvironment(client, scope);
   let issues = 0;
   const resolved = await Promise.all(snap.docs.map(async item => {
-    let data = item.data();
-    if ((source === 'legacy' || source === 'group-root') && !official) {
-      if (data.tagId !== item.id) { issues++; return null; }
-      try {
-        const legacy = await measureRead('categories.legacy.get', () => getDocFromServer(doc(client.db, 'tags', item.id)), () => 1);
-        if (!legacy.exists()) { issues++; return null; }
-        data = legacy.data();
-      } catch (error) {
-        if (typeof error === 'object' && error && 'code' in error && error.code === 'permission-denied') { issues++; return null; }
-        throw error;
-      }
-    }
+    const data = item.data();
     try {
       if (official && source === 'legacy' && (data.groupId != null || data.financialGroupId != null || data.ledgerGroupId != null)) throw Error('categories/ambiguous-owner');
       return parseCategory(item.id, source, data, scope);
@@ -83,7 +76,7 @@ export async function readCategoryPage(client: AccountClient, scope: BankScope, 
   return { items, issues, unavailable: false, nextCursor: snap.size === pageSize ? snap.docs.at(-1)!.id : null };
 }
 export type CategoryFilter = 'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain';
-export type CategoryCursor = { sourceIndex: number; after: string | null; pending: Category[]; unavailable?: boolean };
+export type CategoryCursor = { sourceIndex: number; after: string | null; unavailable?: boolean };
 function matchesCategoryFilter(item: Category, filter: CategoryFilter) {
   if (item.status !== 'active') return false;
   if (filter === 'all') return true;
@@ -93,33 +86,37 @@ function matchesCategoryFilter(item: Category, filter: CategoryFilter) {
 export async function readCategorySlice(client: AccountClient, scope: BankScope, cursor: CategoryCursor | null, filter: CategoryFilter) {
   const sources: CategorySource[] = scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
   let sourceIndex = cursor?.sourceIndex ?? 0, after = cursor?.after ?? null, issues = 0, unavailable = cursor?.unavailable ?? false;
-  const pending = [...(cursor?.pending ?? [])];
+  const items: Category[] = [];
   let requests = 0;
   // Sparse filters must not turn a page request into a scan of the collection.
-  while (pending.length < 5 && sourceIndex < sources.length && requests < 2) {
+  while (items.length < 5 && sourceIndex < sources.length && requests < 2) {
     const result = await readCategoryPage(client, scope, sources[sourceIndex], after, 6);
     requests++;
-    pending.push(...result.items.filter(item => matchesCategoryFilter(item, filter)));
+    const matches = result.items.filter(item => matchesCategoryFilter(item, filter));
+    const capacity = 5 - items.length;
+    items.push(...matches.slice(0, capacity));
     issues += result.issues;
     unavailable ||= result.unavailable;
-    if (result.nextCursor) after = result.nextCursor;
+    // Resume at the last item shown if the page contained another match.
+    // The next request must reauthorize it instead of carrying a cached row.
+    if (matches.length > capacity) after = matches[capacity - 1].id;
+    else if (result.nextCursor) after = result.nextCursor;
     else { sourceIndex++; after = null; }
   }
-  const items = pending.splice(0, 5);
-  return { items, issues, unavailable, cursor: pending.length || sourceIndex < sources.length ? { sourceIndex, after, pending, unavailable } : null };
+  return { items, issues, unavailable, cursor: sourceIndex < sources.length ? { sourceIndex, after, unavailable } : null };
 }
 export async function resolveHistoricalCategory(client: AccountClient, scope: BankScope, id: string) {
   const official = client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
   const sources: CategorySource[] = official ? (scope.kind === 'personal' ? ['legacy'] : ['group-legacy']) : scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
-  // Validate the original ID before constructing either the protected index or document paths.
+  // Validate the original ID before constructing any document path.
   categoryRef(client, scope, { id, source: 'new' });
   const matches = (await Promise.all(sources.map(async source => {
-    if (!official && (source === 'legacy' || source === 'group-root')) {
-      const index = await getDocFromServer(doc(contextCollection(client, scope, 'legacyCategoryIndex'), id));
-      if (!index.exists()) return null;
-      if (index.data().tagId !== id) throw Error('categories/ambiguous');
+    let snapshot;
+    try { snapshot = await getDocFromServer(categoryRef(client, scope, { id, source })); }
+    catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && error.code === 'permission-denied') return null;
+      throw error;
     }
-    const snapshot = await getDocFromServer(categoryRef(client, scope, { id, source }));
     if (!snapshot.exists()) return null;
     if (official && source === 'legacy' && (snapshot.data().groupId != null || snapshot.data().financialGroupId != null || snapshot.data().ledgerGroupId != null)) throw Error('categories/ambiguous');
     try { return parseCategory(id, source, snapshot.data(), scope); }

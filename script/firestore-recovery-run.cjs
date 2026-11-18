@@ -69,7 +69,9 @@ async function recover(snapshot, input) {
 		const {parseProfile} = require(path.join(repo, 'domain/profile.ts'));
 		const {initializeTestEnvironment} = require('@firebase/rules-unit-testing');
 		const {setLogLevel} = require('firebase/firestore'); setLogLevel('silent');
-		environment = await initializeTestEnvironment({projectId:target,firestore:{host:'127.0.0.1',port:8089,rules:fs.readFileSync(path.join(repo,'firestore.rules'),'utf8')}});
+		// The archive predates the candidate's legacy-query changes. Verify its
+		// recovery against the rules actually published when it was captured.
+		environment = await initializeTestEnvironment({projectId:target,firestore:{host:'127.0.0.1',port:8089,rules:fs.readFileSync(path.join(repo,'security/stage03-published.rules'),'utf8')}});
 		const profiles = snapshot.documents.filter(document => /^users\/[^/]+$/.test(document.path));
 		let interpreted = 0, foreignDenied = 0;
 		for (const profile of profiles) {
@@ -84,7 +86,7 @@ async function recover(snapshot, input) {
 			const foreign = profiles.find(other => other.path !== profile.path);
 			if (foreign) { await assert.rejects(db.doc(foreign.path).get(), error => error.code === 'permission-denied'); foreignDenied++; }
 		}
-		return {...comparison,javaCoreDumpsDisabled:true,profilesInterpreted:interpreted,foreignProfilesDenied:foreignDenied,ownBankQueriesPassed:true,uidPathsPreserved:true,internalReferencesRemapped:true};
+		return {...comparison,javaCoreDumpsDisabled:true,profilesInterpreted:interpreted,foreignProfilesDenied:foreignDenied,ownBankQueriesPassed:true,rulesUsed:'stage03-published',uidPathsPreserved:true,internalReferencesRemapped:true};
 	} finally {
 		await environment?.cleanup(); emulator.kill('SIGTERM'); await closed;
 		fs.rmSync(scratch,{recursive:true,force:true});

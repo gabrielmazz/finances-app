@@ -1,6 +1,7 @@
 import React from 'react';
 import { getFirebaseClient } from '../firebase/client';
-import { readBankPage } from '../firebase/banks';
+import { readBank, readBankPage, readBoundLegacyBankPage } from '../firebase/banks';
+import { LOCAL_PROJECT_ID } from '../firebase/config';
 import type { BankAccount, BankScope } from '../domain/banks';
 import { sumCents } from '../domain/money';
 import { errorMessage } from '../application/errors';
@@ -16,6 +17,7 @@ type PageState = {
 	contextUnverified: boolean;
 	nextNew: string | null;
 	nextLegacy: string | null;
+	nextBound: string | null;
 	complete: boolean;
 };
 const empty = (): PageState => ({
@@ -28,6 +30,7 @@ const empty = (): PageState => ({
 	contextUnverified: false,
 	nextNew: null,
 	nextLegacy: null,
+	nextBound: null,
 	complete: false,
 });
 type Store = {
@@ -82,36 +85,53 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 				try {
 					const client = getFirebaseClient(),
 						legacySource = scope.kind === 'personal' ? 'legacy' : 'group-legacy';
-					const [fresh, legacy] = await Promise.all([
+					const [fresh, legacy, bound] = await Promise.all([
 						!more || before.nextNew
 							? readBankPage(client, scope, 'new', status, more ? before.nextNew : null)
 							: Promise.resolve({ banks: [], nextCursor: null, issues: 0, unavailable: false, contextUnverified: false }),
 						!more || before.nextLegacy
 							? readBankPage(client, scope, legacySource, status, more ? before.nextLegacy : null)
 							: Promise.resolve({ banks: [], nextCursor: null, issues: 0, unavailable: false, contextUnverified: false }),
+						!more || before.nextBound
+							? readBoundLegacyBankPage(client, scope, status, more ? before.nextBound : null)
+							: Promise.resolve({ banks: [], nextCursor: null, issues: 0, unavailable: false }),
 					]);
+					// Reference accounts keep their legacy IDs. Resolve them individually
+					// from the already-authorized legacy/binding pages.
+					const candidates = [...new Map([...legacy.banks, ...bound.banks].map(bank => [bank.id, bank])).values()];
+					const references = client.db.app.options.projectId === LOCAL_PROJECT_ID && status === 'active'
+						? await Promise.all(candidates.map(async bank => {
+							try { return await readBank(client, scope, { source: 'new', id: bank.id }); }
+							catch (error) {
+								const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
+								if (['permission-denied', 'banks/not-found', 'banks/incompatible'].includes(code)) return null;
+								throw error;
+							}
+						})) : [];
 					if (generation.current !== version || identityRef.current !== owner) return;
-					const items = [...(more ? before.items : []), ...fresh.banks, ...legacy.banks];
+					const items = [...(more ? before.items : []), ...fresh.banks, ...references.filter((bank): bank is BankAccount => bank !== null), ...legacy.banks, ...bound.banks];
+					const linked = new Set(items.filter(item => item.source === 'new' && item.legacyBankId === item.id).map(item => item.id));
 					setState((value) => ({
 						...value,
 						[status]: {
-							items: [...new Map(items.map((item) => [item.source + ':' + item.id, item])).values()],
+							items: [...new Map(items.filter(item => item.source !== 'legacy' || !linked.has(item.id)).map((item) => [item.source + ':' + item.id, item])).values()],
 							loading: false,
 							error: null,
 							loaded: true,
-							issues: (more ? before.issues : 0) + fresh.issues + legacy.issues,
-							unavailable: (more && before.unavailable) || fresh.unavailable || legacy.unavailable,
+							issues: (more ? before.issues : 0) + fresh.issues + legacy.issues + bound.issues,
+							unavailable: (more && before.unavailable) || fresh.unavailable || legacy.unavailable || bound.unavailable,
 							contextUnverified: (more && before.contextUnverified) || fresh.contextUnverified || legacy.contextUnverified,
 							nextNew: fresh.nextCursor,
 							nextLegacy: legacy.nextCursor,
-							complete: !fresh.nextCursor && !legacy.nextCursor,
+							nextBound: bound.nextCursor,
+							complete: !fresh.nextCursor && !legacy.nextCursor && !bound.nextCursor,
 						},
 					}));
 				} catch (error) {
 					if (generation.current === version && identityRef.current === owner)
 						setState((value) => ({
 							...value,
-							[status]: { ...value[status], loading: false, error: errorMessage(error) },
+							[status]: { ...empty(), loading: false, error: errorMessage(error) },
 						}));
 				}
 			})();

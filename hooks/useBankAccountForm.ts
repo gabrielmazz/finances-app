@@ -212,6 +212,7 @@ export function useBankAccountForm() {
 		setNameValidationError,
 		bankLoadError: accounts.scopeError || loadError,
 		loadedBankId: isCurrent ? (loaded?.id ?? null) : null,
+		loadedBank: isCurrent ? loaded : null,
 		editingBankId: id,
 		isEditing: !!ref,
 		retryBankLoad,

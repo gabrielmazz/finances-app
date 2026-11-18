@@ -62,6 +62,13 @@ Desktop.ini
 # generated native folders
 /ios
 /android
+/artifacts/mvp-1.0/*.apk
+/artifacts/mvp-1.5/*.apk
+/artifacts/mvp-1.5/web-emulator/
+/artifacts/mvp-1.5.1/*.apk
+/artifacts/mvp-1.5.1/web-emulator/
+/artifacts/mvp-1.5.2/*.apk
+/artifacts/mvp-1.5.2/web-oficial/
 
 # Ignorar arquivos do Visual Studio Code
 .vscode/

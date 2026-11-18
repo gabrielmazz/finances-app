@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { createBank, readBank } from '../../firebase/banks';
-import { createCategory } from '../../firebase/categories';
-import { createMovement, readMovement, readMovementPage, readHistoricalMovement, updateMovement } from '../../firebase/movements';
+import { archiveCategory, createCategory } from '../../firebase/categories';
+import { createBankTransfer, createCashWithdrawal, createMovement, readMovement, readMovementPage, readMovementTimeline, readHistoricalMovement, readTransferCounterpartyName, updateMovement } from '../../firebase/movements';
+import { isIncomeOrExpenseTotal } from '../../domain/movements';
 
 let env: RulesTestEnvironment;
 const uid = 'movement-owner', scope = { kind: 'personal' as const, id: uid, uid };
@@ -45,11 +46,21 @@ test('posted gains, expenses, edits, account changes and cancellation update bal
   await assertFails(updateDoc(doc(other, 'financialContexts', `personal:${uid}`, 'movements', expense.id), { status: 'cancelled', revision: 4, updatedBy: 'movement-other', updatedAt: serverTimestamp() }));
   const mandatoryId = 'mandatoryCostTag0001';
   await createCategory(client, scope, mandatoryId, { ...category, usageType: 'expense', isMandatoryExpense: true, showInBothLists: true });
-  const mandatory = await createMovement(client, scope, 'mandatoryMovement001', { ...input, categoryId: mandatoryId, amountCents: 1 });
+  const mandatory = await createMovement(client, scope, 'mandatoryMovement001', { ...input, categoryId: mandatoryId, amountCents: 1, isFromMandatory: true });
   assert.equal(mandatory.type, 'expense');
+  assert.equal(mandatory.isFromMandatory, true);
   assert.equal((await readBank(client, scope, { id: bank1, source: 'new' })).balanceInCents, 99999);
   await updateMovement(client, scope, mandatory, null);
   assert.equal((await readBank(client, scope, { id: bank1, source: 'new' })).balanceInCents, 100000);
+  const mandatoryGainId = 'mandatoryGainTag0001';
+  const mandatoryGainCategory = await createCategory(client, scope, mandatoryGainId, { ...category, usageType: 'gain', isMandatoryGain: true });
+  const mandatoryGain = await createMovement(client, scope, 'mandatoryMovement002', { ...input, type: 'gain', categoryId: mandatoryGainId, amountCents: 10 });
+  assert.equal(mandatoryGain.isFromMandatory, true);
+  await assert.rejects(createMovement(client, scope, 'mandatoryMovement003', { ...input, type: 'gain', categoryId: mandatoryId }));
+  assert.equal((await readBank(client, scope, { id: bank1, source: 'new' })).balanceInCents, 100010);
+  await archiveCategory(client, scope, mandatoryGainCategory);
+  assert.equal((await createMovement(client, scope, mandatoryGain.id, { ...input, type: 'gain', categoryId: mandatoryGainId, amountCents: 10 })).id, mandatoryGain.id);
+  await updateMovement(client, scope, mandatoryGain, null);
 });
 
 test('concurrent independent movements do not lose updates and Rules reject forged balance writes', async () => {
@@ -149,6 +160,7 @@ test('movement pages use stable cursors and exclude cancelled entries', async ()
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     const now = Timestamp.now();
+    await setDoc(doc(db, 'financialContexts', `personal:${owner}`, 'bankAccounts', accountId), { scopeKind: 'personal', scopeId: owner });
     for (let i = 0; i < 26; i++) {
       const id = `pageMovement${String(i).padStart(8, '0')}`;
       await setDoc(doc(db, 'financialContexts', `personal:${owner}`, 'movements', id), {
@@ -169,6 +181,51 @@ test('movement pages use stable cursors and exclude cancelled entries', async ()
   assert.equal(second.cursor, null);
   assert.equal(new Set([...first.items, ...second.items].map(item => item.id)).size, 25);
   assert.ok([...first.items, ...second.items].every(item => item.status === 'posted'));
+});
+
+test('one transfer posts both ledger entries once and a cash withdrawal only debits its bank', async () => {
+  const owner = 'bank-operation-owner', scope = { kind: 'personal' as const, id: owner, uid: owner };
+  const db = env.authenticatedContext(owner).firestore();
+  const client = { db, auth: { currentUser: { uid: owner } } } as unknown as Parameters<typeof createMovement>[0];
+  const origin = 'operationOrigin00001', destination = 'operationTarget00001';
+  const bank = { name: 'Conta de teste', institutionKey: 'outro-banco', institutionName: 'Banco', accountType: 'checking' as const, colorHex: null, initialBalanceCents: 117000, openingDate: '2025-01-01', reason: '' };
+  await createBank(client, scope, origin, bank);
+  await createBank(client, scope, destination, { ...bank, name: 'Conta de destino', initialBalanceCents: 50000 });
+  const transferId = 'movementTransfer0001', withdrawalId = 'movementWithdraw0001';
+  const transfer = { accountId: origin, destinationAccountId: destination, amountCents: 30000, date: '2025-03-10', explanation: '' };
+  const balance = async (id: string) => (await readBank(client, scope, { id, source: 'new' })).balanceInCents;
+  const context = `personal:${owner}`;
+  const debitOnly = writeBatch(db);
+  debitOnly.update(doc(db, 'financialContexts', context, 'bankAccounts', origin), { balanceCents: 87000, balanceRevision: 1, lastMovementId: transferId });
+  debitOnly.set(doc(db, 'financialContexts', context, 'movements', transferId), {
+    schemaVersion: 1, scopeKind: 'personal', scopeId: owner, operation: 'transfer-out', transferId,
+    name: 'Transferência entre bancos', type: 'expense', amountCents: 30000, accountId: origin,
+    date: Timestamp.fromDate(new Date('2025-03-10T00:00:00Z')), explanation: '', paymentFormats: [],
+    status: 'posted', revision: 0, createdBy: owner, updatedBy: owner, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+  await assertFails(debitOnly.commit());
+  assert.deepEqual(await Promise.all([balance(origin), balance(destination)]), [117000, 50000]);
+
+  await Promise.all([createBankTransfer(client, scope, transferId, transfer), createBankTransfer(client, scope, transferId, transfer)]);
+  assert.deepEqual(await Promise.all([balance(origin), balance(destination)]), [87000, 80000]);
+  await assert.rejects(createBankTransfer(client, scope, transferId, { ...transfer, amountCents: 31000 }));
+  await assert.rejects(createBankTransfer(client, scope, 'movementTransfer0002', { ...transfer, destinationAccountId: origin }));
+  await assert.rejects(createBankTransfer(client, scope, 'movementTransfer0003', { ...transfer, destinationAccountId: 'missingAccount000001' }));
+  await assert.rejects(createBankTransfer(client, scope, 'movementTransfer0004', { ...transfer, amountCents: 87001 }));
+
+  const withdrawal = { accountId: origin, amountCents: 7000, date: transfer.date, explanation: '' };
+  await createCashWithdrawal(client, scope, withdrawalId, withdrawal);
+  await createCashWithdrawal(client, scope, withdrawalId, withdrawal);
+  assert.deepEqual(await Promise.all([balance(origin), balance(destination)]), [80000, 80000]);
+
+  const from = new Date('2025-03-01T00:00:00Z'), to = new Date('2025-04-01T00:00:00Z');
+  const source = await readMovementTimeline(client, scope, origin, from, to);
+  const target = await readMovementTimeline(client, scope, destination, from, to);
+  assert.equal(source.items.find(item => item.id === transferId)?.bankTransferDirection, 'outgoing');
+  assert.equal(source.items.find(item => item.id === withdrawalId)?.isCashRescue, true);
+  assert.equal(target.items.find(item => item.bankTransferPairId === transferId)?.bankTransferDirection, 'incoming');
+  assert.equal(await readTransferCounterpartyName(client, scope, transferId, 'outgoing'), 'Conta de destino');
+  assert.equal([...source.items, ...target.items].filter(isIncomeOrExpenseTotal).length, 0);
 });
 
 

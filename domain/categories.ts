@@ -41,9 +41,9 @@ export function parseCategory(id: string, source: CategorySource, data: Record<s
   if (!id || typeof data.name !== 'string' || !data.name.trim()) throw Error('categories/incompatible');
   if (source === 'legacy' && (scope.kind !== 'personal' || data.personId !== scope.id || data.groupId != null || data.financialGroupId != null || data.ledgerGroupId != null))
     throw Error('categories/ambiguous-owner');
-  if (source === 'group-root' && (scope.kind !== 'group' || (data.personId != null && typeof data.personId !== 'string') || data.groupId !== scope.id || (data.financialGroupId != null && data.financialGroupId !== scope.id)))
+  if (source === 'group-root' && (scope.kind !== 'group' || (data.personId != null && typeof data.personId !== 'string') || data.groupId !== scope.id || (data.financialGroupId != null && data.financialGroupId !== scope.id) || (data.ledgerGroupId != null && data.ledgerGroupId !== scope.id)))
     throw Error('categories/ambiguous-owner');
-  if (source === 'group-legacy' && (scope.kind !== 'group' || (data.groupId != null && data.groupId !== scope.id) || (data.financialGroupId != null && data.financialGroupId !== scope.id)))
+  if (source === 'group-legacy' && (scope.kind !== 'group' || (data.groupId != null && data.groupId !== scope.id) || (data.financialGroupId != null && data.financialGroupId !== scope.id) || (data.ledgerGroupId != null && data.ledgerGroupId !== scope.id)))
     throw Error('categories/ambiguous-owner');
   if (source === 'new' && (data.scopeKind !== scope.kind || data.scopeId !== scope.id)) throw Error('categories/ambiguous-owner');
   const blocked = ['isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'deleted']

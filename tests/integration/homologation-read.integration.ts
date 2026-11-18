@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
-import { readBank, readBankPage } from '../../firebase/banks';
+import { prepareLegacyReference, previewLegacyReference, readBank, readBankPage } from '../../firebase/banks';
 import { readCategory, readCategoryPage, readCategorySlice } from '../../firebase/categories';
 import { readHistoricalMovement, readMovementTimeline } from '../../firebase/movements';
 import { OFFICIAL_PROJECT_ID } from '../../firebase/config';
@@ -42,6 +42,22 @@ before(async () => {
   });
 });
 after(async () => env.cleanup());
+
+test('production-mode reference preview is read-only and never treats missing authority as activation', async () => {
+  await env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), 'banks', 'previewSyntheticBank'), { personId: uid, name: 'Preview bank' }));
+  const db = env.authenticatedContext(uid).firestore();
+  (db.app.options as { projectId: string }).projectId = OFFICIAL_PROJECT_ID;
+  const client = { db, auth: { currentUser: { uid } } } as unknown as Parameters<typeof readBankPage>[0];
+  const input = { name: 'Preview bank', institutionKey: 'outro-banco', institutionName: 'Bank', accountType: 'checking' as const, colorHex: null, initialBalanceCents: 10000, referenceAt: new Date('2025-01-02T15:30:00Z'), reason: '', confirmed: true, pendingReviewed: true };
+  const preview = await previewLegacyReference(client, scope, 'previewSyntheticBank', input);
+  assert.equal(preview.activationReady, false);
+  await assert.rejects(prepareLegacyReference(client, scope, 'previewSyntheticBank', input), /read-only/);
+  await env.withSecurityRulesDisabled(async context => {
+    assert.equal((await getDoc(doc(context.firestore(), 'financialContexts', `personal:${uid}`, 'bankAccounts', 'previewSyntheticBank'))).exists(), false);
+    assert.equal((await getDoc(doc(context.firestore(), 'financialContexts', `personal:${uid}`, 'accountOpenings', 'previewSyntheticBank'))).exists(), false);
+    await deleteDoc(doc(context.firestore(), 'banks', 'previewSyntheticBank'));
+  });
+});
 
 test('official read-only policy displays own legacy records without group fields and excludes explicit groups', async () => {
   const db = env.authenticatedContext(uid).firestore();

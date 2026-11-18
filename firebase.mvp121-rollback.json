@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "security/stage03-published.rules"
+  }
+}

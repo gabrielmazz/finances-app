@@ -1,3 +1,4 @@
+import LegacyRecordLookup from '@/components/uiverse/shared/legacy-record-lookup';
 import { useConfigurationBanks } from '@/hooks/useConfigurationBanks';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import type { TagReferenceSummary } from '@/types/presentation/tag';
@@ -1527,7 +1528,8 @@ export default function ConfigurationsScreen() {
 																				{configurationBanks.hasMore && !configurationBanks.loading && !configurationBanks.error && renderTablePagination('banks', banksTable)}
 																			</>
 															)}
-														</VStack>
+														{configurationBanks.warning && <LegacyRecordLookup kind="bank" />}
+												</VStack>
 													) : null}
 
 													{item.showTagsTable ? (
@@ -1639,7 +1641,8 @@ export default function ConfigurationsScreen() {
 																{categories.hasMore && renderTablePagination('tags', tagsTable)}
 															</Box>
 															)}
-														</VStack>
+														{categories.error && <LegacyRecordLookup kind="category" />}
+												</VStack>
 													) : null}
 
 													{item.showActionShortcut ? (

@@ -24,7 +24,7 @@ before(async () => {
   });
 });
 after(async () => { await env.cleanup(); });
-test('legacy access follows protected projection and current group membership', async () => {
+test('legacy access by ID follows the protected scope and current group membership', async () => {
   const creator = env.authenticatedContext('creator', { lumusAccess: generation }).firestore();
   const member = env.authenticatedContext('member', { lumusAccess: generation }).firestore();
   const outsider = env.authenticatedContext('outsider').firestore();
@@ -37,7 +37,7 @@ test('legacy access follows protected projection and current group membership', 
   await assertFails(getDoc(doc(outsider, 'tags', 'group-tag')));
   await assertFails(getDoc(doc(anonymous, 'tags', 'group-tag')));
   await assertFails(getDoc(doc(creator, 'tags', 'unverified-tag')));
-  await assertSucceeds(getDocs(query(collection(member, 'financialContexts', 'group:verified', 'legacyCategoryIndex'), limit(5))));
+  await assertFails(getDocs(query(collection(member, 'financialContexts', 'group:verified', 'legacyCategoryIndex'), limit(5))));
   await assertFails(setDoc(doc(member, '_categoryScopes', 'unverified-tag'), { scopeKind: 'group', scopeId: 'verified' }));
   await assertFails(setDoc(doc(member, 'financialContexts', 'group:verified', 'legacyCategoryIndex', 'unverified-tag'), { tagId: 'unverified-tag' }));
   await assertFails(updateDoc(doc(creator, 'tags', 'group-tag'), { groupId: 'other' }));

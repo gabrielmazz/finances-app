@@ -1,7 +1,7 @@
 import React from 'react';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
 import { getFirebaseClient } from '@/firebase/client';
-import { readMovement, readMovementTimeline, updateMovement, type TimelineCursor } from '@/firebase/movements';
+import { readMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement, type TimelineCursor } from '@/firebase/movements';
 import { errorMessage } from '@/application/errors';
 import type { MovementRecord } from '@/types/bankMovements';
 
@@ -21,6 +21,7 @@ export function useMovementList(accountId: string | null, start: string, end: st
   const identity = scope ? `${scope.uid}:${scope.kind}:${scope.id}:${accountId}:${start}:${end}:${enabled}` : '';
   const identityRef = React.useRef(identity); identityRef.current = identity;
   const [state, setState] = React.useState<{ identity: string; items: MovementRecord[]; cursor: TimelineCursor | null; issues: number; cashIncomplete: boolean; loading: boolean; error: string | null }>({ identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null });
+  const [transferDetails, setTransferDetails] = React.useState<{ identity: string; names: Record<string, string | null> }>({ identity, names: {} });
   const latest = React.useRef(state); latest.current = state;
   const generation = React.useRef(0);
   const inFlight = React.useRef(false);
@@ -32,6 +33,7 @@ export function useMovementList(accountId: string | null, start: string, end: st
     if (more && (previous.identity !== identity || !previous.cursor)) return;
     const version = generation.current;
     inFlight.current = true;
+    if (!more) setTransferDetails({ identity, names: {} });
     setState(current => ({ identity, items: more && current.identity === identity ? current.items : [], cursor: more ? current.cursor : null, issues: more ? current.issues : 0, cashIncomplete: more && current.cashIncomplete, loading: true, error: null }));
     try {
       const client = getFirebaseClient();
@@ -44,7 +46,11 @@ export function useMovementList(accountId: string | null, start: string, end: st
         return { identity, items: merged, cursor: page.cursor, issues: (more ? current.issues : 0) + page.issues, cashIncomplete: (more && current.cashIncomplete) || page.cashIncomplete, loading: false, error: null };
       });
     } catch (error) {
-      if (version === generation.current && identityRef.current === identity) setState(current => ({ ...current, loading: false, error: errorMessage(error) }));
+      if (version === generation.current && identityRef.current === identity) {
+        const denied = error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied';
+        if (denied) setTransferDetails({ identity, names: {} });
+        setState(current => ({ ...current, ...(denied ? { items: [], cursor: null } : {}), loading: false, error: errorMessage(error) }));
+      }
     } finally { if (version === generation.current) inFlight.current = false; }
   }, [scope, accountId, start, end, enabled, identity]);
   React.useEffect(() => {
@@ -63,6 +69,18 @@ export function useMovementList(accountId: string | null, start: string, end: st
     generation.current++; inFlight.current = false;
     await fetchPage();
   }, [scope, accounts.reload, fetchPage]);
+  const loadTransferDetails = React.useCallback(async (movement: MovementRecord) => {
+    if (!scope || movement.storageSource !== 'new' || !movement.bankTransferPairId || !movement.bankTransferDirection) return;
+    const version = generation.current;
+    const update = (name: string | null) => {
+      if (version === generation.current && identityRef.current === identity) {
+        setTransferDetails(current => ({ identity, names: { ...(current.identity === identity ? current.names : {}), [movement.id]: name } }));
+      }
+    };
+    update(null);
+    try { update(await readTransferCounterpartyName(getFirebaseClient(), scope, movement.bankTransferPairId, movement.bankTransferDirection)); }
+    catch { update(null); }
+  }, [scope, identity]);
   const visible = state.identity === identity ? state : { identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null };
-  return { ...visible, refresh: async () => { await accounts.reload(); await fetchPage(); }, loadMore: () => fetchPage(true), cancel, accounts };
+  return { ...visible, refresh: async () => { await accounts.reload(); await fetchPage(); }, loadMore: () => fetchPage(true), cancel, accounts, loadTransferDetails, transferNames: transferDetails.identity === identity ? transferDetails.names : {} };
 }

@@ -42,8 +42,9 @@ test('category update protects owner, context and historical identity', async ()
   await assertSucceeds(updateDoc(ref, { status: 'archived', revision: 2, updatedBy: 'owner', updatedAt: serverTimestamp() }));
   await assertFails(updateDoc(ref, { status: 'active', revision: 3, updatedBy: 'owner', updatedAt: serverTimestamp() }));
 });
-test('category operations persist while legacy IDs and references survive archival', async () => {
+test('category operations persist while legacy IDs and references survive archival', async (t) => {
   const app = initializeApp({ projectId: 'demo-lumus-foundation', apiKey: 'demo-key' }, 'category-client');
+  t.after(() => deleteApp(app));
   const auth = getAuth(app);
   connectAuthEmulator(auth, 'http://127.0.0.1:9098', { disableWarnings: true });
   const db = getFirestore(app);
@@ -53,7 +54,7 @@ test('category operations persist while legacy IDs and references survive archiv
   const client = { auth, db };
   const input = { name: 'Transporte', usageType: 'expense' as const, isMandatoryExpense: false, isMandatoryGain: false, showInBothLists: false, iconFamily: null, iconName: null, iconStyle: null };
   await env.withSecurityRulesDisabled(async context => {
-    await setDoc(doc(context.firestore(), 'tags', 'historic-id'), { personId: user.uid, name: 'Antiga', usageType: 'both' });
+    await setDoc(doc(context.firestore(), 'tags', 'historic-id'), { personId: user.uid, groupId: null, financialGroupId: null, ledgerGroupId: null, name: 'Antiga', usageType: 'both' });
     await setDoc(doc(context.firestore(), 'tags', 'untyped-id'), { personId: user.uid, name: 'Sem tipo' });
     for (const id of ['historic-id', 'untyped-id']) {
       await setDoc(doc(context.firestore(), '_categoryScopes', id), { scopeKind: 'personal', scopeId: user.uid });
@@ -114,7 +115,6 @@ test('category operations persist while legacy IDs and references survive archiv
   await env.withSecurityRulesDisabled(async context => {
     assert.equal((await getDoc(doc(context.firestore(), 'expenses', 'historic-movement'))).data()?.tagId, 'historic-id');
   });
-  await deleteApp(app);
 });
 test('group categories require verified membership and admin authority', async () => {
   const generation = 'category-test-generation';
@@ -159,7 +159,7 @@ test('legacy and new categories may share the same name while preserving their I
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     for (const [id, name] of [['legacy-race-a', 'Antiga A'], ['legacy-race-b', 'Antiga B'], ['legacy-race-c', 'Antiga C']]) {
-      await setDoc(doc(db, 'tags', id), { personId: uid, name, usageType: 'expense' });
+      await setDoc(doc(db, 'tags', id), { personId: uid, groupId: null, financialGroupId: null, ledgerGroupId: null, name, usageType: 'expense' });
       await setDoc(doc(db, '_categoryScopes', id), { scopeKind: 'personal', scopeId: uid });
       await setDoc(doc(db, 'financialContexts', contextKey, 'legacyCategoryIndex', id), { tagId: id });
     }
