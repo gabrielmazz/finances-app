@@ -6,5 +6,7 @@ const availableRoutes: ReadonlySet<RouteVisibilityKey> = new Set([
 ]);
 
 export function isRebuiltRoute(key: RouteVisibilityKey): boolean {
+	if (key === 'transferScreen' || key === 'addRescue' || key === 'addMandatoryGains' || key === 'addMandatoryExpenses')
+		return process.env.EXPO_PUBLIC_FIREBASE_MODE === 'emulator';
 	return availableRoutes.has(key);
 }

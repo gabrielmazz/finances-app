@@ -1,11 +1,10 @@
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { useMovementOptions } from '@/hooks/useMovementOptions';
+import { movementCategorySelection, useMovementOptions } from '@/hooks/useMovementOptions';
 import { useMovementSubmit } from '@/hooks/useMovementSubmit';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { errorMessage } from '@/application/errors';
-import type { CategorySource } from '@/domain/categories';
 
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 
@@ -210,7 +209,6 @@ export default function AddRegisterGainScreen() {
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
 	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 
-	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('gain');
 	const { submit, isSubmitting } = useMovementSubmit();
 
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
@@ -291,6 +289,7 @@ export default function AddRegisterGainScreen() {
 	}, [params.gainId]);
 	const isEditing = Boolean(editingGainId);
 	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingGainId);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('gain', editableMovement);
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -591,18 +590,18 @@ export default function AddRegisterGainScreen() {
 	}, []);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (moneyFormat || linkedMandatoryGainId || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if (moneyFormat || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
 		if (!selectedBankId || !selectedTagId || !gainValueCents) return;
-		const separator = selectedTagId.indexOf(':');
-		if (separator < 1) return;
+		const category = movementCategorySelection(selectedTagId);
+		if (!category) return;
 		const [day, month, year] = gainDate.split('/');
 		try {
-			await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, categorySource: selectedTagId.slice(0, separator) as CategorySource, categoryId: selectedTagId.slice(separator + 1), date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement);
+			await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement, linkedMandatoryGainId ? { id: linkedMandatoryGainId, installments: templateData?.installmentsToAdvance ?? 1 } : undefined);
 			await reloadBanks();
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Receita atualizada.' : 'Receita cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryGainId, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, linkedMandatoryGainId, templateData?.installmentsToAdvance, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
 
 	React.useEffect(() => {
 		if (!existingMovement) return;

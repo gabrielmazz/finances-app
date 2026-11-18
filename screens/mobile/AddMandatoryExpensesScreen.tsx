@@ -1,8 +1,12 @@
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+import { errorMessage } from '@/application/errors';
+import { civilDay } from '@/domain/mandatory';
+import { useMandatoryTemplate } from '@/hooks/useMandatoryTemplate';
+import { movementCategorySelection } from '@/hooks/useMovementOptions';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
@@ -158,10 +162,12 @@ export default function AddMandatoryExpensesScreen() {
 		return raw && raw.trim().length > 0 ? raw : null;
 	}, [params.expenseId]);
 
-	const [tagOptions] = React.useState<TagOption[]>([]);
+	const entry = useMandatoryTemplate('expense', editingExpenseId);
+	const tagOptions = entry.tagOptions as TagOption[];
+	const applyPostSubmit = usePostSubmitBehavior('addMandatoryExpenses');
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
-	const [isLoadingTags] = React.useState(false);
+	const isLoadingTags = entry.tags.loading && !tagOptions.length;
 
 	const [expenseName, setExpenseName] = React.useState('');
 	const [valueDisplay, setValueDisplay] = React.useState('');
@@ -188,11 +194,10 @@ export default function AddMandatoryExpensesScreen() {
 	const submitLockRef = React.useRef<object | null>(null);
 	const { personId, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-expense-form');
 
-	const entry = useMovementFormEntry();
 	const isPrefilling = entry.loading;
 	const currentFormScope = JSON.stringify([personId, editingExpenseId]);
 	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
-	const [tagsError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
+	const tagsError = entry.tags.error;
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -357,7 +362,7 @@ export default function AddMandatoryExpensesScreen() {
 		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 
 	const fieldsLockedRef = React.useRef(true);
-	const handleReminderToggle = React.useCallback(async (value: boolean) => { showFeatureUnavailable(); }, []);
+	const handleReminderToggle = () => showFeatureUnavailable();
 
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
 
@@ -516,7 +521,7 @@ setLastPaymentCycle(null);
 		setSelectedTagName(tag.name);
 	}, []);
 
-	const loadTags = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const loadTags = entry.tags.reload;
 
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
@@ -592,10 +597,34 @@ setLastPaymentCycle(null);
 				setLastPaymentCycle(lastPaymentCycle);
 	}, [entry.ready, entry.record, editingExpenseId, resetForm]);
 
-	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleSubmit = async () => {
+		if (submitLockRef.current || !entry.ready || !isTemplateReady || valueInCents === null || !selectedTagId) return;
+		const category = movementCategorySelection(selectedTagId);
+		if (!category) return;
+		const lock = {}, submittedScope = formScopeRef.current;
+		submitLockRef.current = lock; setIsSubmitting(true); setSubmitError(null);
+		try {
+			await entry.save({ name: expenseName, valueInCents, dueDay: Number(dueDay), usesBusinessDays,
+				categoryId: category.categoryId, categorySource: category.categorySource, description,
+				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
+				installmentStartDate: installmentsEnabled && parsedInstallmentStartDate ? civilDay(parsedInstallmentStartDate) : null });
+			if (mounted.current && formScopeRef.current === submittedScope) {
+				showNotifierAlert({ type: 'success', description: 'Gasto obrigatório salvo.', isDarkMode });
+				applyPostSubmit({ resetForm, isEditing: !!editingExpenseId });
+			}
+		} catch (error) {
+			if (mounted.current && formScopeRef.current === submittedScope) setSubmitError(errorMessage(error));
+		} finally {
+			if (submitLockRef.current === lock) {
+				submitLockRef.current = null;
+				if (mounted.current) setIsSubmitting(false);
+			}
+		}
+	};
 
 	const isSaveDisabled =
-		!isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+		!isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
 	const screenTitle = isEditingMode ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
@@ -818,6 +847,7 @@ setLastPaymentCycle(null);
 											selectedId={selectedTagId}
 											selectedLabel={selectedTagLabel}
 											onSelect={handleSelectTag}
+										onEndReached={() => { if (entry.tags.hasMore) void entry.tags.loadMore(); }}
 											isDisabled={isTagSelectDisabled}
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}
@@ -844,7 +874,7 @@ setLastPaymentCycle(null);
 												<Switch
 													value={reminderEnabled}
 													onValueChange={handleReminderToggle}
-													disabled={!isTemplateReady || isFormBusy}
+													disabled
 													trackColor={switchTrackColor}
 													thumbColor={switchThumbColor}
 													ios_backgroundColor={switchIosBackgroundColor}

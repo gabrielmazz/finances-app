@@ -1,4 +1,6 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { errorMessage } from '@/application/errors';
+import { useMovementSubmit } from '@/hooks/useMovementSubmit';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { useFocusEffect } from 'expo-router';
 import React from 'react';
 import {
@@ -111,9 +113,10 @@ export default function AddRescueScreen() {
 	const [rescueValueInCents, setRescueValueInCents] = React.useState<number | null>(null);
 	const [rescueDate, setRescueDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [rescueDescription, setRescueDescription] = React.useState<string | null>(null);
-	const [isSubmitting] = React.useState(false);
+	const { submit, isSubmitting, resetBankOperation } = useMovementSubmit();
+	const applyPostSubmit = usePostSubmitBehavior('addRescue');
 	const { personId, banks,    isLoadingBanks, banksError,
-		currentBankBalanceInCents, isLoadingBankBalance, error: rescueDataError, needsBank, reload: reloadRescueData } = useRescueFormData(selectedBankId);
+		currentBankBalanceInCents, isLoadingBankBalance, error: rescueDataError, needsBank, reload: reloadRescueData, hasMore, loadMore } = useRescueFormData(selectedBankId);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const rescueValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
@@ -187,12 +190,13 @@ export default function AddRescueScreen() {
 	}, []);
 
 	const resetRescueForm = React.useCallback(() => {
+		resetBankOperation();
 setSelectedBankId(null);
 setRescueValueDisplay('');
 setRescueValueInCents(null);
 setRescueDate(formatDateToBR(toFinancialCivilDate(new Date())));
 setRescueDescription(null);
-}, []);
+}, [resetBankOperation]);
 
 	React.useEffect(() => { resetRescueForm(); }, [personId, resetRescueForm]);
 
@@ -237,7 +241,18 @@ setRescueDescription(null);
 		((hasUnavailableBalance || hasInsufficientBalance)) ||
 		(isBalanceValidationUnavailable);
 
-	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleSubmit = async () => {
+		if (isSubmitDisabled || !selectedBankId || rescueValueInCents === null) return;
+		const [day, month, year] = rescueDate.split('/');
+		try {
+			await submit({ operation: 'cash-withdrawal', accountId: selectedBankId, amountCents: rescueValueInCents, date: `${year}-${month}-${day}`, explanation: rescueDescription ?? '' });
+			if (!mounted.current) return;
+			showScreenAlert('Saque registrado.', 'success');
+			applyPostSubmit({ resetForm: resetRescueForm });
+		} catch (error) {
+			if (mounted.current) showScreenAlert(errorMessage(error));
+		}
+	};
 
 	return (
 		<SafeAreaView
@@ -287,6 +302,7 @@ setRescueDescription(null);
 						>
 									<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<MovementFormStatus loading={isLoadingBanks || isLoadingBankBalance} error={rescueDataError} onRetry={reloadRescueData} />
+								{hasMore ? <Button variant="outline" isDisabled={isLoadingBanks || isSubmitting} onPress={loadMore}><ButtonText>Carregar mais contas</ButtonText></Button> : null}
 								{needsBank ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre um banco ativo para registrar o saque.</Text><Button variant="outline" onPress={reloadRescueData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
 								{null}
 								<VStack className="mb-4">

@@ -29,6 +29,7 @@ export type BankAccount = BankRef & {
 	revision: number;
 	issue: string | null;
 	blocked?: boolean;
+	legacyBankId?: string;
 };
 export const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
 	{ value: 'checking', label: 'Conta corrente' },
@@ -108,6 +109,7 @@ export function parseBank(
 		validateMetadata(data as BankMetadata);
 		if (
 			data.schemaVersion !== 1 ||
+			(data.legacyBankId !== undefined && (data.legacyBankId !== id || scope.kind !== 'personal')) ||
 			data.scopeKind !== scope.kind ||
 			data.scopeId !== scope.id ||
 			!validCents(data.initialBalanceCents) ||
@@ -131,12 +133,13 @@ export function parseBank(
 			openingDate: data.openingDate.toDate().toISOString().slice(0, 10),
 			status: data.status,
 			revision: data.revision,
+			...(data.legacyBankId === id ? { legacyBankId: id } : {}),
 			issue: null,
 		};
 	}
 	if (
 		(source === 'legacy' && (scope.kind !== 'personal' || data.personId !== scope.id || data.groupId != null || data.financialGroupId != null || data.ledgerGroupId != null)) ||
-		(source === 'group-legacy' && (scope.kind !== 'group' || (data.groupId != null && data.groupId !== scope.id) || (data.financialGroupId != null && data.financialGroupId !== scope.id))) ||
+		(source === 'group-legacy' && (scope.kind !== 'group' || (data.groupId != null && data.groupId !== scope.id) || (data.financialGroupId != null && data.financialGroupId !== scope.id) || (data.ledgerGroupId != null && data.ledgerGroupId !== scope.id))) ||
 		typeof data.name !== 'string' ||
 		!data.name.trim() ||
 		data.name.length > 100

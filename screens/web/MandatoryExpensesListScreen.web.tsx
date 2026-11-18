@@ -1,7 +1,7 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { errorMessage } from '@/application/errors';
+import { useMandatoryList } from '@/hooks/useMandatoryList';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
 import RecurringContracts from '@/components/uiverse/recurring/recurring-contracts';
 import RetainedRecurringPlans,{ type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
@@ -263,7 +263,8 @@ export default function MandatoryExpensesListScreen() {
 	const { cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-expense-action');
 	const actionLock = React.useRef<object | null>(null);
 	React.useEffect(() => () => { actionLock.current = null; }, []);
-	const [loadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
+	const list = useMandatoryList('expense');
+	const { loadError, isLoading, isRefreshing, hasLoadedData } = list;
 	const [actionError, setActionError] = React.useState<string | null>(null);
 	const [reminderWarning] = React.useState<string | null>(null);
 	const {
@@ -290,12 +291,10 @@ export default function MandatoryExpensesListScreen() {
 	const params = useLocalSearchParams<{
 		focusMandatoryExpenseId?: string | string[];
 	}>();
-	const [isLoading] = React.useState(false);
 	const [retainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
-	const [isRefreshing] = React.useState(false);
-	const [expenses] = React.useState<MandatoryExpenseItem[]>([]);
-	const [tagsMap] = React.useState<Record<string, string>>({});
-	const [tagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
+	const expenses: MandatoryExpenseItem[] = list.rows;
+	const tagsMap = React.useMemo(() => Object.fromEntries(Object.entries(list.tags).map(([key, tag]) => [key, tag.name])), [list.tags]);
+	const tagMetadataMap = list.tags as Record<string, TagMetadata>;
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [settlementInstallmentCount, setSettlementInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
@@ -303,7 +302,6 @@ export default function MandatoryExpensesListScreen() {
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
 	const [renderedExpenseIds, setRenderedExpenseIds] = React.useState<string[]>([]);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
-	const [hasLoadedData] = React.useState(false);
 	const handledFocusedExpenseIdRef = React.useRef<string | null>(null);
 
 	React.useEffect(() => { actionLock.current = null; setPendingAction(null); setIsActionProcessing(false); setActionError(null); handledFocusedExpenseIdRef.current = null; }, [personId]);
@@ -446,10 +444,10 @@ export default function MandatoryExpensesListScreen() {
 		setRenderedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [expenses]);
 
-	const loadData = React.useCallback(async (asRefresh = false) => { showFeatureUnavailable(); }, []);
+	const loadData = list.load;
 
 	const handleRefresh = React.useCallback(async () => {
-		await loadData(true);
+		await loadData();
 	}, [loadData]);
 
 	const handleOpenCreate = React.useCallback(() => {
@@ -472,9 +470,47 @@ setPendingAction(null);
 			: 0;
 	}, [pendingAction, settlementInstallmentCount]);
 
-	const selectedSettlementValueInCents = React.useMemo<number | null>(() => null, []);
+	const selectedSettlementValueInCents = pendingAction?.type === 'settle' && selectedSettlementInstallments ? list.amount(pendingAction.expense.id, selectedSettlementInstallments) : null;
 
-	const handleConfirmAction = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleConfirmAction = async () => {
+		if (!pendingAction || actionLock.current) return;
+		const { type, expense: item } = pendingAction;
+		if (type === 'edit') {
+			setPendingAction(null);
+			navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses, { expenseId: item.id });
+			return;
+		}
+		if (type === 'register' || type === 'settle') {
+			const installments = type === 'settle' ? selectedSettlementInstallments : 1;
+			const cents = installments ? list.amount(item.id, installments) : null;
+			if (!cents) return;
+			const tag = tagMetadataMap[item.tagId];
+			setPendingAction(null);
+			navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
+				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents), templateTagId: item.tagId,
+				templateDueDay: String(item.dueDay), templateUsesBusinessDays: item.usesBusinessDays ? '1' : undefined,
+				templateDescription: item.description ? encodeURIComponent(item.description.replace(/[\r\n]+/g, ' ')) : undefined,
+				templateMandatoryExpenseId: item.id,
+				templateMandatoryExpenseInstallmentsCount: String(installments),
+				templateMandatoryExpenseSettlement: type === 'settle' ? '1' : undefined,
+				templateTagName: tag?.name ? encodeURIComponent(tag.name) : undefined,
+				templateTagIconFamily: tag?.iconFamily ? encodeURIComponent(tag.iconFamily) : undefined,
+				templateTagIconName: tag?.iconName ? encodeURIComponent(tag.iconName) : undefined,
+				templateTagIconStyle: tag?.iconStyle ? encodeURIComponent(tag.iconStyle) : undefined,
+			});
+			return;
+		}
+		const lock = {};
+		actionLock.current = lock; setIsActionProcessing(true); setActionError(null);
+		try {
+			await list.change(item.id, type);
+			if (actionLock.current === lock) setPendingAction(null);
+		} catch (error) {
+			if (actionLock.current === lock) setActionError(errorMessage(error));
+		} finally {
+			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); }
+		}
+	};
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
@@ -697,9 +733,9 @@ setPendingAction(null);
 
 		if (pendingAction.type === 'reclaim') {
 			return {
-				title: 'Reivindicar pagamento',
-				message: `Deseja cancelar o pagamento registrado para "${expenseName}"? A despesa vinculada será removida.`,
-				confirmLabel: 'Reivindicar',
+				title: 'Desfazer pagamento',
+				message: `Deseja cancelar o pagamento registrado para "${expenseName}"? O lançamento será cancelado e o saldo será atualizado.`,
+				confirmLabel: 'Desfazer pagamento',
 				action: 'secondary' as const,
 			};
 		}
@@ -783,6 +819,7 @@ setPendingAction(null);
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 {reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
 <Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar despesas recorrentes</ButtonText></Button>
+							{list.hasMore ? <Button variant="outline" isDisabled={isRefreshing} onPress={() => void list.load(true)}><ButtonText>Carregar mais</ButtonText></Button> : null}
 {!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
 								{!isLoading && !loadError && <RecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
                             {loadError ? null : isLoading ? (

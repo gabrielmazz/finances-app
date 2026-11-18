@@ -3,7 +3,8 @@ import { saveProfileName } from '../firebase/profiles';
 import { register, requestPasswordReset } from '../application/account';
 import { createBank, updateBank, archiveBank, newBankOperationId, requireBankReadEnvironment } from '../firebase/banks';
 import { createCategory, updateCategory, archiveCategory, newCategoryId, readCategory } from '../firebase/categories';
-import { createMovement, updateMovement, newMovementId } from '../firebase/movements';
+import { createMovement, updateMovement, newMovementId, createBankTransfer, createCashWithdrawal, confirmMandatoryCycle, cancelMandatoryCycle } from '../firebase/movements';
+import { saveMandatoryTemplate, archiveMandatoryTemplate } from '../firebase/mandatory';
 import { readFirebaseConfig } from '../firebase/config';
 
 const scope = { kind: 'personal' as const, id: 'owner', uid: 'owner' };
@@ -27,6 +28,12 @@ it('allows only scoped reads and blocks every mutation before any SDK request in
     () => archiveCategory(client, scope, {} as never),
     () => createMovement(client, scope, 'id', {} as never),
     () => updateMovement(client, scope, {} as never, null),
+    () => createBankTransfer(client, scope, 'id', {} as never),
+    () => createCashWithdrawal(client, scope, 'id', {} as never),
+    () => saveMandatoryTemplate(client, scope, 'id', {} as never, null),
+    () => archiveMandatoryTemplate(client, scope, {} as never),
+    () => confirmMandatoryCycle(client, scope, 'id', {} as never),
+    () => cancelMandatoryCycle(client, scope, 'id', '2026-11', 0),
   ];
   for (const action of denied) await expect(action()).rejects.toThrow('read-only/operation');
 });

@@ -50,7 +50,10 @@ export function useCategories(enabled: boolean, filter: CategoryFilter) {
       setState(value => value.identity === identity ? { ...value, items: [...value.items, ...result.items], cursor: result.cursor, loading: false, error: result.issues ? incompleteMessage : result.unavailable ? unavailableMessage : null } : value);
       return result.items.length > 0;
     } catch (reason) {
-      if (currentIdentity.current === identity) setState(value => ({ ...value, loading: false, error: errorMessage(reason) }));
+      if (currentIdentity.current === identity) {
+        const denied = typeof reason === 'object' && reason && 'code' in reason && reason.code === 'permission-denied';
+        setState(value => ({ ...value, ...(denied ? { items: [], cursor: null } : {}), loading: false, error: errorMessage(reason) }));
+      }
       return false;
     } finally { running.current = false; }
   }, [scope, state, identity, filter]);

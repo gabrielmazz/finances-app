@@ -21,6 +21,7 @@
     }
   },
   "exclude": [
+    "artifacts",
     "dist",
     "node_modules"
   ]

@@ -28,7 +28,7 @@ test('legacy group movements require current participation even for their creato
   const member = env.authenticatedContext('legacy-member', { lumusAccess: generation }).firestore();
   const anonymous = env.unauthenticatedContext().firestore();
   await assertSucceeds(getDoc(doc(creator, 'expenses', 'legacy-personal')));
-  await assertFails(getDoc(doc(creator, 'expenses', 'legacy-missing')));
+  await assertSucceeds(getDoc(doc(creator, 'expenses', 'legacy-missing')));
   await assertFails(getDoc(doc(creator, 'expenses', 'legacy-shared')));
   await assertFails(getDoc(doc(member, 'expenses', 'legacy-shared')));
   await assertSucceeds(getDoc(doc(member, 'financialGroups', 'legacy-group', 'movements', 'verified-movement')));
@@ -144,7 +144,10 @@ test('legacy bank access cannot survive removal from a group just because of cre
   });
   const db = env.authenticatedContext('legacy-creator').firestore();
   await assertSucceeds(getDoc(doc(db, 'banks', 'legacy-personal-bank')));
-  await assertFails(getDoc(doc(db, 'banks', 'legacy-ambiguous-bank')));
+  // The owner explicitly authorized read-only access to their unscoped legacy
+  // records; this does not establish a binding or allow financial writes.
+  await assertSucceeds(getDoc(doc(db, 'banks', 'legacy-ambiguous-bank')));
+  await assertFails(getDoc(doc(env.authenticatedContext('legacy-outsider').firestore(), 'banks', 'legacy-ambiguous-bank')));
   await assertFails(getDoc(doc(db, 'banks', 'legacy-group-bank')));
   await assertFails(updateDoc(doc(db, 'banks', 'legacy-group-bank'), { name: 'Tentativa', bankIconKey: 'outro-banco', institutionName: 'Banco', accountType: 'checking', colorHex: null, metadataRevision: 1, updatedBy: 'legacy-creator', updatedAt: serverTimestamp() }));
   await assertFails(getDocs(query(collection(db, 'banks'), where('personId', '==', 'legacy-creator'), limit(20))));

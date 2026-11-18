@@ -1219,19 +1219,22 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		(movement: MovementRecord) => {
 			if (movement.isBalanceAdjustment) return movement.reversesAdjustmentId ? 'Este estorno cancela a diferença do ajuste original e preserva seu histórico.' : 'Diferença registrada para alinhar o saldo real do banco ao Lumus. Este valor não entra nos totais de ganhos ou gastos.';
 			if (movement.isFromMandatory) {
+				if (movement.storageSource === 'new' && !movement.recurringTemplateId) return movement.type === 'gain'
+					? 'Recebimento registrado como ganho obrigatório.'
+					: 'Pagamento registrado como gasto obrigatório.';
 				return movement.type === 'gain'
 					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
 					: 'Este lançamento marcou como pago o gasto obrigatório do ciclo atual.';
 			}
 
 			if (movement.isCashRescue) {
-				return `Este registro representa um saque em dinheiro vindo do banco ${movement.cashRescueSourceBankName ?? 'não identificado'}.`;
+				return `Este registro representa um saque em dinheiro vindo do banco ${movement.cashRescueSourceBankName ?? movement.bankName ?? bankName}.`;
 			}
 
 			if (movement.isBankTransfer) {
 				return movement.bankTransferDirection === 'outgoing'
-					? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ?? 'o banco de destino'}.`
-					: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
+					? `Transferência enviada para ${movementList.transferNames[movement.id] ?? movement.bankTransferTargetBankNameSnapshot ?? 'o banco de destino'}.`
+					: `Transferência recebida de ${movementList.transferNames[movement.id] ?? movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
 			}
 
 			if (movement.isFinanceInvestmentSync) {
@@ -1269,7 +1272,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 
 			return 'Lançamento registrado normalmente dentro do período filtrado.';
 		},
-		[],
+		[bankName, movementList.transferNames],
 	);
 
 	const getMovementPrimarySourceLabel = React.useCallback(
@@ -1994,9 +1997,9 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 							const movementKey = `${movement.type}:${movement.storageSource ?? 'legacy'}:${movement.id}`;
 							const isExpanded = expandedMovementIds.includes(movementKey);
 							const counterpartyLabel = movement.isBankTransfer
-								? movement.bankTransferDirection === 'outgoing'
+								? movementList.transferNames[movement.id] ?? (movement.bankTransferDirection === 'outgoing'
 									? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
-									: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
+									: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem')
 								: null;
 							const detailItems = [
 								{
@@ -2075,7 +2078,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 							const canChangeAdjustmentRecord = false;
 							const canChangeMovementRecord = false;
 							const canReverseAccountPair = false;
-							const canEditMovement = !recentMovements && movement.storageSource === 'new' && movementList.items.some(item => item.id === movement.id && item.storageSource === 'new');
+							const canEditMovement = !recentMovements && !movement.isBankTransfer && !movement.isCashRescue && !movement.recurringTemplateId && movement.storageSource === 'new' && movementList.items.some(item => item.id === movement.id && item.storageSource === 'new');
 							const usesUndoAction = canChangeMovementRecord || canChangeAdjustmentRecord || canReverseAccountPair || movement.isBalanceAdjustment ||
 								movement.isInvestmentDeposit ||
 								movement.isInvestmentRedemption ||
@@ -2132,7 +2135,10 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									<View style={{ width: '93%', paddingBottom: 14 }}>
 										<TouchableOpacity
 											activeOpacity={0.85}
-											onPress={() => handleToggleMovementCard(movementKey)}
+											onPress={() => {
+												if (!isExpanded && movement.isBankTransfer) void movementList.loadTransferDetails(movement);
+												handleToggleMovementCard(movementKey);
+											}}
 											style={{ width: '100%' }}
 										>
 											<HStack className="items-center justify-between gap-3">

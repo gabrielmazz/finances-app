@@ -1,11 +1,10 @@
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { useMovementOptions } from '@/hooks/useMovementOptions';
+import { movementCategorySelection, useMovementOptions } from '@/hooks/useMovementOptions';
 import { useMovementSubmit } from '@/hooks/useMovementSubmit';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { errorMessage } from '@/application/errors';
-import type { CategorySource } from '@/domain/categories';
 import type { MandatoryExpenseSuggestion } from '@/types/presentation/suggestion';
 
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
@@ -160,7 +159,6 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('expense');
 	const { submit, isSubmitting } = useMovementSubmit();
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
@@ -240,6 +238,7 @@ export default function AddRegisterExpensesScreen() {
 	}, [params.expenseId]);
 	const isEditing = Boolean(editingExpenseId);
 	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingExpenseId);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('expense', editableMovement);
 	const templateData = React.useMemo(() => {
 		const name = decodeParam(params.templateName);
 		const description = decodeParam(params.templateDescription);
@@ -358,18 +357,18 @@ export default function AddRegisterExpensesScreen() {
 	}, []);
 
 	const handleSubmit = React.useCallback(async (_options: SubmitOptions = {}) => {
-		if (moneyFormat || linkedMandatoryExpenseId || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if (moneyFormat || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
 		if (!selectedBankId || !selectedTagId || !expenseValueCents) return;
-		const separator = selectedTagId.indexOf(':');
-		if (separator < 1) return;
+		const category = movementCategorySelection(selectedTagId);
+		if (!category) return;
 		const [day, month, year] = expenseDate.split('/');
 		try {
-			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, categorySource: selectedTagId.slice(0, separator) as CategorySource, categoryId: selectedTagId.slice(separator + 1), date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement);
+			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined);
 			await reloadBanks();
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Despesa atualizada.' : 'Despesa cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryExpenseId, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);

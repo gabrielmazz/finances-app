@@ -1,12 +1,12 @@
 jest.mock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
 jest.mock('../hooks/useSession', () => ({ useSession: () => mockSession }));
-jest.mock('../firebase/client', () => ({ getFirebaseClient: () => ({}) }));
-jest.mock('../firebase/banks', () => ({ readBankPage: jest.fn() }));
+jest.mock('../firebase/client', () => ({ getFirebaseClient: () => ({ db: { app: { options: { projectId: 'demo-lumus-foundation' } } } }) }));
+jest.mock('../firebase/banks', () => ({ readBank: jest.fn(), readBankPage: jest.fn(), readBoundLegacyBankPage: jest.fn() }));
 import React, { act } from 'react';
 import { createRoot } from 'test-renderer';
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 import { BankAccountsProvider, useBankAccounts } from '../contexts/BankAccountsContext';
-import { readBankPage } from '../firebase/banks';
+import { readBank, readBankPage, readBoundLegacyBankPage } from '../firebase/banks';
 const mockSession = {
 	user: { uid: 'owner' },
 	context: { kind: 'personal' },
@@ -38,6 +38,8 @@ const bank = (id: string, amount: number | null) => ({
 beforeEach(() => {
 	mockSession.user = { uid: 'owner' };
 	(readBankPage as jest.Mock).mockReset();
+	(readBank as jest.Mock).mockReset().mockRejectedValue(Error('banks/not-found'));
+	(readBoundLegacyBankPage as jest.Mock).mockReset().mockResolvedValue(empty);
 });
 test('post-commit refresh cannot reuse a page already in flight before the commit', async () => {
 	let resolveOld!: (value: unknown) => void;
@@ -83,6 +85,20 @@ test('incomplete pages and unknown legacy balances never become a confirmed tota
 	expect(latest.total).toBeNull();
 	await act(() => renderer.unmount());
 });
+test('a verified reference replaces its legacy listing without merging unrelated equal IDs', async () => {
+	const legacy = { ...bank('same-id', null), source: 'legacy' };
+	(readBankPage as jest.Mock).mockImplementation((_client, _scope, source) => Promise.resolve({ ...empty,
+		banks: source === 'new' ? [{ ...bank('same-id', 100), legacyBankId: 'same-id' }] : [legacy] }));
+	const renderer = createRoot();
+	await act(() => renderer.render(tree()));
+	expect(latest.active.items).toHaveLength(1);
+	expect(latest.active.items[0].source).toBe('new');
+	(readBankPage as jest.Mock).mockImplementation((_client, _scope, source) => Promise.resolve({ ...empty,
+		banks: source === 'new' ? [bank('same-id', 100)] : [legacy] }));
+	await act(async () => latest.reload());
+	expect(latest.active.items).toHaveLength(2);
+	await act(() => renderer.unmount());
+});
 test('logout hides the previous context immediately and discards late page responses', async () => {
 	let resolvePage!: (value: unknown) => void;
 	const pending = new Promise((resolve) => {
@@ -101,6 +117,18 @@ test('logout hides the previous context immediately and discards late page respo
 		resolvePage({ ...empty, banks: [bank('private', 150000)] });
 		await pending;
 	});
+	expect(latest.active.items).toEqual([]);
+	expect(latest.total).toBeNull();
+	await act(() => renderer.unmount());
+});
+test('a denied refresh clears previously displayed accounts', async () => {
+	(readBankPage as jest.Mock).mockImplementation((_client, _scope, source) => Promise.resolve({ ...empty,
+		banks: source === 'new' ? [bank('protected', 100)] : [] }));
+	const renderer = createRoot();
+	await act(async () => renderer.render(tree()));
+	expect(latest.active.items).toHaveLength(1);
+	(readBankPage as jest.Mock).mockRejectedValue(Object.assign(Error('denied'), { code: 'permission-denied' }));
+	await act(async () => latest.reload());
 	expect(latest.active.items).toEqual([]);
 	expect(latest.total).toBeNull();
 	await act(() => renderer.unmount());

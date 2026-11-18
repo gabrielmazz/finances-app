@@ -1,4 +1,7 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import { errorMessage } from '@/application/errors';
+import { useMovementSubmit } from '@/hooks/useMovementSubmit';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import React from 'react';
 import {
 KeyboardAvoidingView,
@@ -115,9 +118,10 @@ export default function TransferScreen() {
 	const [transferValueInCents, setTransferValueInCents] = React.useState<number | null>(null);
 	const [transferDate, setTransferDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [transferDescription, setTransferDescription] = React.useState<string | null>(null);
-	const [isSubmitting] = React.useState(false);
+	const { submit, isSubmitting, resetBankOperation } = useMovementSubmit();
+	const applyPostSubmit = usePostSubmitBehavior('transferScreen');
 	const { personId, banks, isLoadingBanks, banksError, originBalanceInCents, isLoadingBalance,
-		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
+		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData, hasMore, loadMore } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const transferValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
@@ -171,13 +175,14 @@ export default function TransferScreen() {
 	}, []);
 
 	const resetTransferForm = React.useCallback(() => {
+		resetBankOperation();
 setSelectedSourceBankId(null);
 setSelectedTargetBankId(null);
 setTransferValueDisplay('');
 setTransferValueInCents(null);
 setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
 setTransferDescription(null);
-}, []);
+}, [resetBankOperation]);
 
 	React.useEffect(() => { resetTransferForm(); }, [personId, resetTransferForm]);
 
@@ -240,7 +245,18 @@ setTransferDescription(null);
 		setSelectedTargetBankId(null);
 	}, [selectedSourceBankId]);
 
-	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleSubmit = async () => {
+		if (isSubmitDisabled || !selectedSourceBankId || !selectedTargetBankId || transferValueInCents === null) return;
+		const [day, month, year] = transferDate.split('/');
+		try {
+			await submit({ operation: 'transfer', accountId: selectedSourceBankId, destinationAccountId: selectedTargetBankId, amountCents: transferValueInCents, date: `${year}-${month}-${day}`, explanation: transferDescription ?? '' });
+			if (!mounted.current) return;
+			showNotifierAlert({ type: 'success', description: 'Transferência registrada.', isDarkMode });
+			applyPostSubmit({ resetForm: resetTransferForm });
+		} catch (error) {
+			if (mounted.current) showNotifierAlert({ type: 'error', description: errorMessage(error), isDarkMode });
+		}
+	};
 
 	return (
 		<SafeAreaView
@@ -290,6 +306,7 @@ setTransferDescription(null);
 						>
 							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4`}>
 								<MovementFormStatus loading={isLoadingBanks || isLoadingBalance || isLoadingTargetBalance} error={transferDataError} onRetry={reloadTransferData} />
+								{hasMore ? <Button variant="outline" isDisabled={isLoadingBanks || isSubmitting} onPress={loadMore}><ButtonText>Carregar mais contas</ButtonText></Button> : null}
 								{needsBanks ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre pelo menos dois bancos ativos para transferir entre contas.</Text><Button variant="outline" onPress={reloadTransferData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
 								{null}
 
@@ -370,7 +387,7 @@ setTransferDescription(null);
 												)}
 												{!isLoadingBalance && typeof originBalanceInCents !== 'number' && (
 													<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
-														Saldo não registrado para este mês. Registre o saldo mensal para validar a transferência.
+														Atualize os bancos para confirmar o saldo da conta.
 													</Text>
 												)}
 											</BankBalanceAttachedPanel>
@@ -418,7 +435,7 @@ setTransferDescription(null);
 												)}
 												{!isLoadingTargetBalance && typeof targetBalanceInCents !== 'number' && (
 													<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
-														Saldo não registrado para este mês.
+														Não foi possível confirmar o saldo da conta.
 													</Text>
 												)}
 											</BankBalanceAttachedPanel>

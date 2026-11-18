@@ -1,7 +1,7 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { errorMessage } from '@/application/errors';
+import { useMandatoryList } from '@/hooks/useMandatoryList';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
-import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
 import RecurringContracts from '@/components/uiverse/recurring/recurring-contracts';
 import RetainedRecurringPlans,{ type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
@@ -256,10 +256,10 @@ export default function MandatoryGainsListScreen() {
 	const { cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-gain-action');
 	const actionLock = React.useRef<object | null>(null);
 	React.useEffect(() => () => { actionLock.current = null; }, []);
-	const [loadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
+	const list = useMandatoryList('gain');
+	const { loadError, isLoading, isRefreshing, hasLoadedData } = list;
 	const [actionError, setActionError] = React.useState<string | null>(null);
 	const [reminderWarning] = React.useState<string | null>(null);
-	const [hasLoadedData] = React.useState(false);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -281,12 +281,10 @@ export default function MandatoryGainsListScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 	const webStyles = webDashboardClassNames;
-	const [isLoading] = React.useState(false);
 	const [retainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
-	const [isRefreshing] = React.useState(false);
-	const [gains] = React.useState<MandatoryGainItem[]>([]);
-	const [tagsMap] = React.useState<Record<string, string>>({});
-	const [tagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
+	const gains: MandatoryGainItem[] = list.rows;
+	const tagsMap = React.useMemo(() => Object.fromEntries(Object.entries(list.tags).map(([key, tag]) => [key, tag.name])), [list.tags]);
+	const tagMetadataMap = list.tags as Record<string, TagMetadata>;
 	const [pendingAction, setPendingAction] = React.useState<PendingGainAction | null>(null);
 	const [receiptInstallmentCount, setReceiptInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
@@ -438,8 +436,8 @@ export default function MandatoryGainsListScreen() {
 		[],
 	);
 
-	const loadData = React.useCallback(async (asRefresh = false) => { showFeatureUnavailable(); }, []);
-	const handleRefresh = React.useCallback(async () => { await loadData(true); }, [loadData]);
+	const loadData = list.load;
+	const handleRefresh = React.useCallback(async () => { await loadData(); }, [loadData]);
 
 	const handleOpenCreate = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains);
@@ -461,9 +459,47 @@ setPendingAction(null);
 			: 0;
 	}, [pendingAction, receiptInstallmentCount]);
 
-	const selectedReceiptValueInCents = React.useMemo<number | null>(() => null, []);
+	const selectedReceiptValueInCents = pendingAction?.type === 'register' && selectedReceiptInstallments ? list.amount(pendingAction.gain.id, selectedReceiptInstallments) : null;
 
-	const handleConfirmAction = React.useCallback(async () => { showFeatureUnavailable(); }, []);
+	const handleConfirmAction = async () => {
+		if (!pendingAction || actionLock.current) return;
+		const { type, gain: item } = pendingAction;
+		if (type === 'edit') {
+			setPendingAction(null);
+			navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains, { gainTemplateId: item.id });
+			return;
+		}
+		if (type === 'register') {
+			const installments = selectedReceiptInstallments;
+			const cents = installments ? list.amount(item.id, installments) : null;
+			if (!cents) return;
+			const tag = tagMetadataMap[item.tagId];
+			setPendingAction(null);
+			navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, {
+				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents), templateTagId: item.tagId,
+				templateDueDay: String(item.dueDay), templateUsesBusinessDays: item.usesBusinessDays ? '1' : undefined,
+				templateDescription: item.description ? encodeURIComponent(item.description.replace(/[\r\n]+/g, ' ')) : undefined,
+				templateMandatoryGainId: item.id,
+				templateMandatoryGainInstallmentsCount: String(installments),
+
+				templateTagName: tag?.name ? encodeURIComponent(tag.name) : undefined,
+				templateTagIconFamily: tag?.iconFamily ? encodeURIComponent(tag.iconFamily) : undefined,
+				templateTagIconName: tag?.iconName ? encodeURIComponent(tag.iconName) : undefined,
+				templateTagIconStyle: tag?.iconStyle ? encodeURIComponent(tag.iconStyle) : undefined,
+			});
+			return;
+		}
+		const lock = {};
+		actionLock.current = lock; setIsActionProcessing(true); setActionError(null);
+		try {
+			await list.change(item.id, type);
+			if (actionLock.current === lock) setPendingAction(null);
+		} catch (error) {
+			if (actionLock.current === lock) setActionError(errorMessage(error));
+		} finally {
+			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); }
+		}
+	};
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
@@ -681,9 +717,9 @@ setPendingAction(null);
 
 		if (pendingAction.type === 'reclaim') {
 			return {
-				title: 'Reivindicar recebimento',
-				message: `Deseja cancelar o recebimento registrado para “${gainName}”? O ganho vinculado será removido.`,
-				confirmLabel: 'Reivindicar',
+				title: 'Desfazer recebimento',
+				message: `Deseja cancelar o recebimento registrado para “${gainName}”? O lançamento será cancelado e o saldo será atualizado.`,
+				confirmLabel: 'Desfazer recebimento',
 				action: 'secondary' as const,
 			};
 		}
@@ -765,6 +801,7 @@ setPendingAction(null);
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 								{reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
 								<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar receitas recorrentes</ButtonText></Button>
+							{list.hasMore ? <Button variant="outline" isDisabled={isRefreshing} onPress={() => void list.load(true)}><ButtonText>Carregar mais</ButtonText></Button> : null}
 								{!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
 								{!isLoading && !loadError && <RecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
                             {loadError ? null : isLoading ? (
