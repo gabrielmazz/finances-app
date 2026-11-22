@@ -2,7 +2,7 @@ import React from 'react';
 import { onIdTokenChanged } from 'firebase/auth';
 import { getFirebaseClient } from '../firebase/client';
 import { loadProfile } from '../firebase/profiles';
-import { loadFinancialContext, type FinancialContext } from '../firebase/financialContext';
+import { loadFinancialContext, watchFinancialGroup, type FinancialContext } from '../firebase/financialContext';
 import { trackAuthObserver } from '../firebase/diagnostics';
 import { errorMessage } from '../application/errors';
 import type { UserSummary } from '../types/presentation/session';
@@ -89,6 +89,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 			setState({ ...initial, initializing: false, error: errorMessage(error) });
 		}
 	}, [reload]);
+	const groupId = state.context?.kind === 'group' ? state.context.groupId : null;
+	const uid = state.user?.uid;
+	React.useEffect(() => {
+		if (!uid || !groupId) return;
+		let listening = true;
+		const revoke = () => {
+			if (!listening) return;
+			setState(current => current.user?.uid === uid && current.context?.kind === 'group' && current.context.groupId === groupId
+				? { ...current, context: null, contextError: errorMessage(Error('context/access-denied')) } : current);
+		};
+		const stop = watchFinancialGroup(getFirebaseClient(), uid, groupId, role => {
+			if (!listening) return;
+			setState(current => current.user?.uid === uid && current.context?.kind === 'group' &&
+				current.context.groupId === groupId && current.context.role !== role
+				? { ...current, context: { kind: 'group', groupId, role } } : current);
+		}, revoke);
+		return () => { listening = false; stop(); };
+	}, [uid, groupId]);
 	return <SessionContext.Provider value={{ ...state, reload }}>{children}</SessionContext.Provider>;
 }
 

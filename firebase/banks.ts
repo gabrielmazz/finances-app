@@ -15,7 +15,7 @@ import {
 	type QueryConstraint,
 } from 'firebase/firestore';
 import type { AccountClient } from './profiles';
-import { LOCAL_PROJECT_ID, OFFICIAL_PROJECT_ID } from './config';
+import { financialLedgerAllowsWrites, LOCAL_PROJECT_ID, STAGING_PROJECT_ID, OFFICIAL_PROJECT_ID, usesCanonicalFinance } from './config';
 import { measureRead } from './diagnostics';
 import {
 	parseBank,
@@ -32,11 +32,12 @@ import {
 
 export function requireBankEnvironment(client: AccountClient, scope: BankScope) {
 	requireBankReadEnvironment(client, scope);
-	if (client.db.app.options.projectId !== LOCAL_PROJECT_ID) throw Error('read-only/operation');
+	const projectId = client.db.app.options.projectId;
+	if (!financialLedgerAllowsWrites(projectId)) throw Error('read-only/operation');
 }
 export function requireBankReadEnvironment(client: AccountClient, scope: BankScope) {
 	if (client.auth.currentUser?.uid !== scope.uid) throw Error('session/changed');
-	if (![LOCAL_PROJECT_ID, OFFICIAL_PROJECT_ID].includes(client.db.app.options.projectId || '')) throw Error('banks/not-released');
+	if (![LOCAL_PROJECT_ID, OFFICIAL_PROJECT_ID, STAGING_PROJECT_ID].includes(client.db.app.options.projectId || '')) throw Error('banks/not-released');
 	if (
 		!validId(scope.id) ||
 		!validId(scope.uid) ||
@@ -50,6 +51,7 @@ function reference(client: AccountClient, scope: BankScope, ref: BankRef) {
 	requireBankReadEnvironment(client, scope);
 	if (!validId(ref.id) || !['new', 'legacy', 'group-legacy'].includes(ref.source))
 		throw Error('banks/not-found');
+	if (ref.source !== 'new' && usesCanonicalFinance(client.db.app.options.projectId)) throw Error('banks/not-found');
 	if (ref.source === 'new')
 		return doc(client.db, 'financialContexts', bankContextKey(scope), 'bankAccounts', ref.id);
 	if (ref.source === 'legacy' && scope.kind === 'personal') return doc(client.db, 'banks', ref.id);
@@ -83,17 +85,19 @@ export async function readBank(client: AccountClient, scope: BankScope, ref: Ban
 		);
 		requireBankReadEnvironment(client, scope);
 		const event = opening.data();
+		if (bank.migrated && bank.openingDate === null && !event) return bank;
+		const referenceOpening = Boolean(bank.legacyBankId || bank.migrated);
 		if (
 			!event ||
 			event.accountId !== ref.id ||
-			event.type !== (bank.legacyBankId ? 'reference' : 'opening') ||
-			(bank.legacyBankId && (event.confirmed !== true || event.pendingReviewed !== true)) ||
+			event.type !== (referenceOpening ? 'reference' : 'opening') ||
+			(referenceOpening && (event.confirmed !== true || event.pendingReviewed !== true)) ||
 			event.scopeKind !== scope.kind ||
 			event.scopeId !== scope.id ||
 			event.amountCents !== result.data().initialBalanceCents ||
 			event.schemaVersion !== 1 ||
-			event.createdBy !== result.data().createdBy ||
-			event.createdAt?.toMillis() !== result.data().createdAt?.toMillis() ||
+			(bank.migrated ? event.createdBy !== scope.id : event.createdBy !== result.data().createdBy ||
+				event.createdAt?.toMillis() !== result.data().createdAt?.toMillis()) ||
 			event.date?.toMillis() !== result.data().openingDate?.toMillis()
 		)
 			throw Error('banks/incompatible');
@@ -108,6 +112,15 @@ export async function readBankPage(
 	cursor?: string | null,
 ) {
 	requireBankReadEnvironment(client, scope);
+	if (usesCanonicalFinance(client.db.app.options.projectId)) {
+		if (source !== 'new') return { banks: [], nextCursor: null, issues: 0, unavailable: false, contextUnverified: false };
+		const constraints = [where('status', '==', status), orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(20)];
+		const accounts = collection(client.db, 'financialContexts', bankContextKey(scope), 'bankAccounts');
+		const page = await measureRead('accounts.canonical.page', () => getDocsFromServer(query(accounts, ...constraints)), result => result.size);
+		requireBankReadEnvironment(client, scope);
+		return { banks: page.docs.map(item => parseBank(item.id, 'new', item.data(), scope)), nextCursor: page.size === 20 ? page.docs.at(-1)!.id : null,
+			issues: 0, unavailable: false, contextUnverified: false };
+	}
 	if (source === 'new' && client.db.app.options.projectId === OFFICIAL_PROJECT_ID)
 		return { banks: [], nextCursor: null as string | null, issues: 0, unavailable: true, contextUnverified: false };
 	if (source === 'new') {
@@ -333,6 +346,13 @@ function validateReferenceInput(scope: BankScope, id: string, input: LegacyRefer
 export async function previewLegacyReference(client: AccountClient, scope: BankScope, id: string, input: LegacyReferenceInput) {
 	requireBankReadEnvironment(client, scope);
 	const value = validateReferenceInput(scope, id, input);
+	if (usesCanonicalFinance(client.db.app.options.projectId)) {
+		const bank = await readBank(client, scope, { id, source: 'new' });
+		if (!bank.migrated || bank.openingDate !== null || bank.status !== 'active' || bank.name !== value.name) throw Error('banks/reference-incompatible');
+		if (bank.referenceNotBefore && input.referenceAt < bank.referenceNotBefore) throw Error('banks/reference-before-migration');
+		return { accountId: id, amountCents: value.initialBalanceCents, referenceAt: new Date(input.referenceAt),
+			activationReady: financialLedgerAllowsWrites(client.db.app.options.projectId) };
+	}
 	const old = await getDocFromServer(doc(client.db, 'banks', id));
 	requireBankReadEnvironment(client, scope);
 	if (!old.exists()) throw Error('banks/not-found');
@@ -342,7 +362,7 @@ export async function previewLegacyReference(client: AccountClient, scope: BankS
 	// The published production rules do not expose the protected binding or the
 	// new account paths. A preview is informational and cannot authorize writes.
 	if (client.db.app.options.projectId === OFFICIAL_PROJECT_ID)
-		return { accountId: id, amountCents: value.initialBalanceCents, referenceAt: new Date(input.referenceAt), firstMovementAfterUtcDay: input.referenceAt.toISOString().slice(0, 10), activationReady: false };
+		return { accountId: id, amountCents: value.initialBalanceCents, referenceAt: new Date(input.referenceAt), activationReady: false };
 	if (!explicitPersonalReference(data)) {
 		const binding = await getDocFromServer(doc(client.db, '_bankScopes', id));
 		if (!verifiedPersonalBinding(data, binding.data(), scope.uid)) throw Error('banks/reference-context-unverified');
@@ -351,12 +371,35 @@ export async function previewLegacyReference(client: AccountClient, scope: BankS
 	const opening = await getDocFromServer(doc(client.db, 'financialContexts', bankContextKey(scope), 'accountOpenings', id));
 	requireBankEnvironment(client, scope);
 	if (account.exists() || opening.exists()) throw Error('banks/operation-conflict');
-	return { accountId: id, amountCents: value.initialBalanceCents, referenceAt: new Date(input.referenceAt), firstMovementAfterUtcDay: input.referenceAt.toISOString().slice(0, 10), activationReady: true };
+	return { accountId: id, amountCents: value.initialBalanceCents, referenceAt: new Date(input.referenceAt), activationReady: true };
 }
 
 export async function prepareLegacyReference(client: AccountClient, scope: BankScope, id: string, input: LegacyReferenceInput) {
 	requireBankEnvironment(client, scope);
 	const value = validateReferenceInput(scope, id, input);
+	if (usesCanonicalFinance(client.db.app.options.projectId)) {
+		const account = doc(client.db, 'financialContexts', bankContextKey(scope), 'bankAccounts', id);
+		const opening = doc(client.db, 'financialContexts', bankContextKey(scope), 'accountOpenings', id);
+		const date = Timestamp.fromDate(input.referenceAt);
+		await runTransaction(client.db, async tx => {
+			const [current, existing] = await Promise.all([tx.get(account), tx.get(opening)]);
+			requireBankEnvironment(client, scope);
+			if (!current.exists()) throw Error('banks/not-found');
+			const bank = parseBank(id, 'new', current.data(), scope), event = existing.data();
+			if (!bank.migrated || bank.status !== 'active' || bank.name !== value.name) throw Error('banks/reference-incompatible');
+			if (bank.referenceNotBefore && input.referenceAt < bank.referenceNotBefore) throw Error('banks/reference-before-migration');
+			if (event && event.type === 'reference' && event.amountCents === value.initialBalanceCents && event.date.isEqual(date) && event.reason === value.reason &&
+				Object.entries(validateMetadata(value)).every(([key, field]) => current.data()[key] === field)) return;
+			if (existing.exists() || bank.openingDate !== null) throw Error('banks/operation-conflict');
+			const { name: _name, ...metadata } = validateMetadata(value);
+			tx.update(account, { ...metadata, initialBalanceCents: value.initialBalanceCents, openingDate: date, revision: bank.revision + 1,
+				updatedBy: scope.uid, updatedAt: serverTimestamp() });
+			tx.set(opening, { schemaVersion: 1, accountId: id, scopeKind: scope.kind, scopeId: scope.id, type: 'reference', date,
+				amountCents: value.initialBalanceCents, reason: value.reason, confirmed: true, pendingReviewed: true,
+				createdBy: scope.uid, createdAt: serverTimestamp() });
+		});
+		return readBank(client, scope, { id, source: 'new' });
+	}
 	const referenceMillis = input.referenceAt.getTime();
 	const legacy = doc(client.db, 'banks', id), account = doc(client.db, 'financialContexts', bankContextKey(scope), 'bankAccounts', id),
 		opening = doc(client.db, 'financialContexts', bankContextKey(scope), 'accountOpenings', id);

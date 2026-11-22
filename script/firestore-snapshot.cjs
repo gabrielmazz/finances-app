@@ -36,6 +36,26 @@ function validate(snapshot) {
 	}
 	return snapshot;
 }
+function emulatorCollectionLister() {
+	const grpc = require('@grpc/grpc-js');
+	const { Type, Field } = require('protobufjs');
+	const request = new Type('ListCollectionIdsRequest').add(new Field('parent', 1, 'string'))
+		.add(new Field('pageSize', 2, 'int32')).add(new Field('pageToken', 3, 'string'));
+	const response = new Type('ListCollectionIdsResponse').add(new Field('collectionIds', 1, 'string', 'repeated'))
+		.add(new Field('nextPageToken', 2, 'string'));
+	const client = new grpc.Client('127.0.0.1:8089', grpc.credentials.createInsecure());
+	const metadata = new grpc.Metadata();
+	metadata.set('authorization', 'Bearer owner');
+	return {
+		list(parent, body) {
+			return new Promise((resolve, reject) => client.makeUnaryRequest('/google.firestore.v1.Firestore/ListCollectionIds',
+				value => Buffer.from(request.encode(value).finish()), bytes => response.toObject(response.decode(bytes)),
+				{ parent: decodeURIComponent(parent.slice(4)), ...body }, metadata, { deadline: Date.now() + 30_000 },
+				(error, result) => error ? reject(Error('Firestore collection discovery gRPC ' + error.code)) : resolve(result)));
+		},
+		close: () => client.close(),
+	};
+}
 function rest(projectId, token, local, {maxRequests = 10000, delayMs = 0} = {}) {
 	if (!/^[a-z][a-z0-9-]+$/.test(projectId)) throw Error('Invalid project');
 	if (local && !projectId.startsWith('demo-')) throw Error('Local snapshots require demo- project');
@@ -43,32 +63,51 @@ function rest(projectId, token, local, {maxRequests = 10000, delayMs = 0} = {}) 
 	const origin = local ? 'http://127.0.0.1:8089' : 'https://firestore.googleapis.com';
 	const root = `/v1/projects/${projectId}/databases/(default)/documents`;
 	let requests = 0;
+	let localLister;
 	return {
 		root,
+		close: () => localLister?.close(),
 		async request(method, path, body) {
-			if (++requests > maxRequests) throw Error('Request budget reached; no complete backup produced');
-			// The only remote POST permitted is metadata listing, which does not write data.
-			if (!local && method !== 'GET' && !(method === 'POST' && path.endsWith(':listCollectionIds')))
+			if (!local && method !== 'GET' && !(method === 'POST' && /:(listCollectionIds|runAggregationQuery)$/.test(path)))
 				throw Error('Production writes forbidden');
-			if(delayMs) await new Promise(resolve=>setTimeout(resolve,delayMs));
-			const response = await fetch(origin + path, {
-				method,
-				headers: { Authorization: `Bearer ${local ? 'owner' : token}`, 'Content-Type': 'application/json' },
-				body: body ? JSON.stringify(body) : undefined,
-				signal: AbortSignal.timeout(30000),
-			});
-			if (!response.ok) throw Error(`Firestore HTTP ${response.status}`);
-			return response.json();
+			// The emulator REST router mistakes a colon in a parent ID for a custom method.
+			if (local && method === 'POST' && path.endsWith(':listCollectionIds') && path.includes('%3A')) {
+				if (++requests > maxRequests) throw Error('Request budget reached; no complete backup produced');
+				localLister ??= emulatorCollectionLister();
+				return localLister.list(path.slice(0, -':listCollectionIds'.length), body);
+			}
+			for (let attempt = 0; ; attempt++) {
+				if (++requests > maxRequests) throw Error('Request budget reached; no complete backup produced');
+				if (delayMs || attempt) await new Promise(resolve => setTimeout(resolve, delayMs + attempt * 750));
+				let response;
+				try {
+					response = await fetch(origin + path, {
+						method,
+						headers: { Authorization: `Bearer ${local ? 'owner' : token}`, 'Content-Type': 'application/json' },
+						body: body ? JSON.stringify(body) : undefined,
+						signal: AbortSignal.timeout(30000),
+					});
+				} catch (error) {
+					if (local || attempt >= 2 || !['TimeoutError', 'TypeError'].includes(error?.name)) throw error;
+					continue;
+				}
+				if (response.ok) return response.json();
+				if (local || attempt >= 2 || ![502, 503, 504].includes(response.status)) throw Error(`Firestore HTTP ${response.status}`);
+				await response.body?.cancel();
+			}
 		},
 	};
 }
-async function exportSnapshot({ projectId, token = undefined, local = false, maxDocuments = 1000, maxBytes = 32*1024*1024, maxRequests = 10000, delayMs = 0 }) {
+async function exportSnapshot({ projectId, token = undefined, local = false, maxDocuments = 1000, maxBytes = 32*1024*1024, maxRequests = 10000, delayMs = 0, readTime = undefined, includeMetadata = Boolean(readTime) }) {
 	if (!Number.isSafeInteger(maxDocuments) || maxDocuments < 1 || maxDocuments > 50000)
 		throw Error('Set an explicit document budget between 1 and 50000');
 	if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>128*1024*1024||!Number.isSafeInteger(maxRequests)||maxRequests<1||maxRequests>100000||!Number.isSafeInteger(delayMs)||delayMs<0||delayMs>1000)throw Error('Invalid byte/request/rate budget');
 	const startedAt = new Date().toISOString();
+	if (readTime && (local || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3,6})?Z$/.test(readTime) || !Number.isFinite(Date.parse(readTime))))
+		throw Error('Invalid remote Firestore read time');
 	const api = rest(projectId, token, local, {maxRequests,delayMs});
 	const documents = [];
+	const collectionCounts = {};
 	let scannedDocuments = 0;
 	let bytes = 0;
 	async function walk(parent) {
@@ -77,8 +116,10 @@ async function exportSnapshot({ projectId, token = undefined, local = false, max
 			const collections = await api.request('POST', `${parent}:listCollectionIds`, {
 				pageSize: 100,
 				...(collectionToken ? { pageToken: collectionToken } : {}),
+				...(readTime ? { readTime } : {}),
 			});
 			for (const collection of collections.collectionIds || []) {
+				let count = 0;
 				let pageToken;
 				do {
 					const remaining = maxDocuments - scannedDocuments;
@@ -86,6 +127,7 @@ async function exportSnapshot({ projectId, token = undefined, local = false, max
 					const parameters = new URLSearchParams({
 						pageSize: String(Math.min(100, remaining)),
 						showMissing: 'true',
+						...(readTime ? { readTime } : {}),
 					});
 					if (pageToken) parameters.set('pageToken', pageToken);
 					const page = await api.request('GET', `${parent}/${encodeURIComponent(collection)}?${parameters}`);
@@ -96,7 +138,9 @@ async function exportSnapshot({ projectId, token = undefined, local = false, max
 						const prefix = api.root.slice(4) + '/';
 						if (!document.name.startsWith(prefix)) throw Error('Unexpected document namespace');
 						if (document.createTime) {
-							const record = {path:document.name.slice(prefix.length),fields:document.fields||{}};
+							const record = {path:document.name.slice(prefix.length),fields:document.fields||{},
+								...(includeMetadata ? { createTime: document.createTime, updateTime: document.updateTime } : {})};
+							count++;
 							bytes += Buffer.byteLength(JSON.stringify(record));
 							if(bytes > maxBytes)throw Error('Byte budget reached; no complete backup produced');
 							documents.push(record);
@@ -106,11 +150,24 @@ async function exportSnapshot({ projectId, token = undefined, local = false, max
 					}
 					pageToken = page.nextPageToken;
 				} while (pageToken);
+				if (readTime) {
+					const rows = await api.request('POST', `${parent}:runAggregationQuery`, {
+						readTime,
+						structuredAggregationQuery: {
+							structuredQuery: { from: [{ collectionId: collection }] },
+							aggregations: [{ alias: 'documents', count: {} }],
+						},
+					});
+					const aggregate = rows.find(row => row.result)?.result.aggregateFields?.documents?.integerValue;
+					if (aggregate !== String(count)) throw Error('Firestore collection count differs from paginated capture');
+					const relativeParent = parent.slice(api.root.length);
+					collectionCounts[`${relativeParent}/${encodeURIComponent(collection)}`.slice(1)] = count;
+				}
 			}
 			collectionToken = collections.nextPageToken;
 		} while (collectionToken);
 	}
-	await walk(api.root);
+	try { await walk(api.root); } finally { api.close(); }
 	documents.sort((a, b) => a.path.localeCompare(b.path));
 	const snapshot = {
 		version: 2,
@@ -118,7 +175,8 @@ async function exportSnapshot({ projectId, token = undefined, local = false, max
 		database: '(default)',
 		exportedAt: new Date().toISOString(),
 		startedAt,
-		pointInTime: false,
+		pointInTime: Boolean(readTime),
+		...(readTime ? { readTime, collectionCounts } : {}),
 		complete: true,
 		documentCount: documents.length,
 		serializedDocumentBytes: bytes,
@@ -134,9 +192,11 @@ function remapReferences(value, source, target) {
 }
 function compareSnapshots(source, restored, {remappedReferences = false} = {}) {
 	validate(source);validate(restored);
-	const expected = remappedReferences ? remapReferences(source.documents,`projects/${source.projectId}/databases/(default)/documents`,`projects/${restored.projectId}/databases/(default)/documents`) : source.documents;
+	// Firestore assigns its own create/update times on restore. Application timestamps live in fields.
+	const content = records => records.map(({path, fields}) => ({path, fields}));
+	const expected = remappedReferences ? remapReferences(content(source.documents),`projects/${source.projectId}/databases/(default)/documents`,`projects/${restored.projectId}/databases/(default)/documents`) : content(source.documents);
 	const byPath = records => [...records].sort((left,right)=>left.path.localeCompare(right.path));
-	const expectedHash=digest(byPath(expected)),restoredHash=digest(byPath(restored.documents));
+	const expectedHash=digest(byPath(expected)),restoredHash=digest(byPath(content(restored.documents)));
 	return {equal:expectedHash===restoredHash,sourceCount:source.documents.length,restoredCount:restored.documents.length,expectedHash,restoredHash};
 }
 async function restoreToEmulator(snapshot, targetProject, {remapInternalReferences = false} = {}) {
@@ -163,7 +223,7 @@ async function restoreToEmulator(snapshot, targetProject, {remapInternalReferenc
 	}
 	return snapshot.documents.length;
 }
-module.exports = { exportSnapshot, restoreToEmulator, validate, compareSnapshots };
+module.exports = { exportSnapshot, restoreToEmulator, validate, compareSnapshots, digest };
 if (require.main === module) {
 	(async () => {
 		const [action, projectId, file, budget, requestBudget, byteBudget] = process.argv.slice(2);

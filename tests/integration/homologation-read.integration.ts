@@ -7,13 +7,16 @@ import { prepareLegacyReference, previewLegacyReference, readBank, readBankPage 
 import { readCategory, readCategoryPage, readCategorySlice } from '../../firebase/categories';
 import { readHistoricalMovement, readMovementTimeline } from '../../firebase/movements';
 import { OFFICIAL_PROJECT_ID } from '../../firebase/config';
+import { financialReleaseRules } from '../../script/financial-release-rules.cjs';
 
 let env: RulesTestEnvironment;
 const project = 'demo-lumus-homologation';
 const uid = 'synthetic-owner';
 const scope = { kind: 'personal' as const, id: uid, uid };
 before(async () => {
-  env = await initializeTestEnvironment({ projectId: project, firestore: { host: '127.0.0.1', port: 8089, rules: readFileSync('security/stage03-published.rules', 'utf8') } });
+  const rules = process.env.LUMUS_TEST_TRANSITION === '1' ? financialReleaseRules().canary :
+    readFileSync('security/stage03-published.rules', 'utf8');
+  env = await initializeTestEnvironment({ projectId: project, firestore: { host: '127.0.0.1', port: 8089, rules } });
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     const personal = { personId: uid, groupId: null, financialGroupId: null, ledgerGroupId: null };

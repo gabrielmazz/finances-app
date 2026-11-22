@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { readCategoryPage } from '../../firebase/categories';
 import { readMovementTimeline } from '../../firebase/movements';
@@ -90,7 +90,7 @@ test('an admin cannot modify legacy records with a contradictory ledger group', 
   } finally { await env.cleanup(); }
 });
 
-test('explicitly personal legacy categories are listed without a discovery pointer', async () => {
+test('personal legacy category resolves by ID while unsafe discovery stays unavailable', async () => {
   const env = await initializeTestEnvironment({ projectId: 'demo-lumus-foundation', firestore: { host: '127.0.0.1', port: 8089, rules: readFileSync('firestore.rules', 'utf8') } });
   try {
     await env.withSecurityRulesDisabled(async context => {
@@ -100,7 +100,8 @@ test('explicitly personal legacy categories are listed without a discovery point
     const db = env.authenticatedContext('owner').firestore();
     const client = { db, auth: { currentUser: { uid: 'owner' } } } as unknown as Parameters<typeof readCategoryPage>[0];
     const result = await readCategoryPage(client, { kind: 'personal', id: 'owner', uid: 'owner' }, 'legacy');
-    if (result.items.length !== 1 || result.items[0].id !== 'personal') throw Error('Unexpected legacy categories');
+    if (!result.unavailable || result.items.length) throw Error('Legacy category discovery must stay closed');
+    await assertSucceeds(getDoc(doc(db, 'tags', 'personal')));
     await assertFails(getDoc(doc(db, 'tags', 'group')));
   } finally { await env.cleanup(); }
 });

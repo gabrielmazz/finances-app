@@ -8,14 +8,17 @@ const { createBank, readBank } = require('../../firebase/banks.ts');
 const { createCategory } = require('../../firebase/categories.ts');
 
 async function run() {
-  const app = initializeApp({ apiKey: 'demo-api-key', projectId: 'demo-lumus-foundation' });
+  const staging = process.env.LUMUS_BROWSER_FIREBASE === 'staging';
+  const app = initializeApp(staging ? require('../../firebase/staging-sdk.json') : { apiKey: 'demo-api-key', projectId: 'demo-lumus-foundation' });
   let browser;
   try {
     const auth = getAuth(app);
     const db = getFirestore(app);
-    connectAuthEmulator(auth, 'http://127.0.0.1:9098', { disableWarnings: true });
-    connectFirestoreEmulator(db, '127.0.0.1', 8089);
-    const email = `bank-operations-${randomUUID()}@lumus.test`, password = 'Demo-only123!';
+    if (!staging) {
+      connectAuthEmulator(auth, 'http://127.0.0.1:9098', { disableWarnings: true });
+      connectFirestoreEmulator(db, '127.0.0.1', 8089);
+    }
+    const email = `bank-operations-${randomUUID()}@lumus.test`, password = `A1-${randomUUID()}`;
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     const scope = { kind: 'personal', id: user.uid, uid: user.uid }, client = { db, auth };
     await setDoc(doc(db, 'users', user.uid), { name: 'Pessoa Teste', email, adminUser: false, createdAt: serverTimestamp() });
@@ -29,11 +32,12 @@ async function run() {
     await createCategory(client, scope, 'browserOpsCost000001', { ...category, name: 'Conta de teste', usageType: 'expense', isMandatoryGain: false, isMandatoryExpense: true });
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH });
+    const origin = staging ? 'http://127.0.0.1:4175' : 'http://127.0.0.1:4173';
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     page.setDefaultTimeout(30000);
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    const go = (path = '') => page.goto('http://127.0.0.1:4173/web' + path);
+    const go = (path = '') => page.goto(origin + '/web' + path);
     const button = name => page.getByRole('button', { name, exact: true }).last();
     const text = name => page.getByText(name, { exact: true }).last();
     const select = async (label, option) => {
@@ -48,12 +52,17 @@ async function run() {
     await button('Entrar').click();
     await page.waitForURL('**/web/home**');
 
-    async function post(type, name, cents, tag, expected) {
+    async function post(type, name, cents, tag, expected, time) {
       const gain = type === 'gain';
       const label = gain ? 'ganho' : 'despesa';
       await go(gain ? '/add-register-gain' : '/add-register-expenses');
       await page.getByLabel(`Nome ${gain ? 'do' : 'da'} ${label}`, { exact: true }).last().fill(name);
       await page.getByLabel(`Valor ${gain ? 'do' : 'da'} ${label}`, { exact: true }).last().fill(String(cents));
+      if (time) {
+        const field = page.getByLabel('Horário em São Paulo', { exact: true }).last();
+        await field.fill(time.replace(':', ''));
+        assert.equal(await field.inputValue(), time);
+      }
       if (gain) await text('Renda variável').click();
       await select(`Selecionar banco ${gain ? 'do' : 'da'} ${label}`, 'Banco de teste A');
       await select(`Escolher categoria de ${label}`, tag);
@@ -62,7 +71,7 @@ async function run() {
       await balance(bankA, expected);
     }
 
-    await post('gain', 'Receita de teste', 20000, 'Renda de teste', 120000);
+    await post('gain', 'Receita de teste', 20000, 'Renda de teste', 120000, '00:00');
     await post('expense', 'Despesa de teste', 8000, 'Conta de teste', 112000);
     await post('expense', 'Gasto obrigatório de teste', 5000, 'Conta de teste (gasto obrigatório)', 107000);
     await post('gain', 'Ganho obrigatório de teste', 10000, 'Renda de teste (ganho obrigatório)', 117000);
@@ -98,8 +107,40 @@ async function run() {
     await text('Transferência recebida de Banco de teste A.').waitFor();
     await go('/home');
     await page.getByText(/R\$\s*800,00/).first().waitFor();
+    if (staging) {
+      await page.getByText('Total ganho', { exact: true }).locator('..').getByText(/R\$\s*300,00/).waitFor();
+      await page.getByText('Total gasto', { exact: true }).locator('..').getByText(/R\$\s*130,00/).waitFor();
+    }
+    await go(statement(bankB));
+    await detail('Transferência entre bancos').click();
+    await page.getByLabel('Estornar Transferência entre bancos', { exact: true }).click();
+    await button('Estornar').click();
+    await text('Estorno confirmado.').waitFor();
+    await balance(bankA, 110000);
+    await balance(bankB, 50000);
+    await go(statement(bankA));
+    await detail('Saque em dinheiro').click();
+    await page.getByLabel('Estornar saque de Saque em dinheiro', { exact: true }).click();
+    await button('Estornar saque').click();
+    await text('Estorno confirmado.').waitFor();
+    await balance(bankA, 117000);
+
+    const savedSession = await page.context().storageState();
+    await page.context().close();
+    const reopened = await browser.newContext({ storageState: savedSession, viewport: { width: 390, height: 844 } });
+    const mobile = await reopened.newPage();
+    await mobile.goto(origin + '/web/profile');
+    await mobile.locator('#profile-id').waitFor();
+    assert.equal(await mobile.locator('#profile-id').inputValue(), user.uid);
+    await mobile.setViewportSize({ width: 1440, height: 1000 });
+    await mobile.getByRole('button', { name: 'Sair', exact: true }).first().click();
+    await mobile.getByTestId('logout-confirmation').getByRole('button', { name: 'Sair', exact: true }).click();
+    await mobile.waitForURL('**/web');
+    await mobile.goto(origin + '/web/profile');
+    await mobile.getByRole('button', { name: 'Entrar', exact: true }).waitFor();
+    assert.equal(new URL(mobile.url()).pathname, '/web');
     assert.deepEqual(pageErrors, []);
-    console.log('Login persistente, Home, extratos, receita, despesa, obrigatórios avulsos, transferência e saque verificados com Firestore Emulator. Saldos finais: 80000 / 80000 centavos.');
+    console.log(`Web em ${staging ? 'Spark de homologação' : 'emulador'}: login, reabertura, logout, Home, extrato e operações verificados. Saldos após estornos: 117000 / 50000 centavos.`);
   } finally {
     if (browser) await browser.close();
     await deleteApp(app);

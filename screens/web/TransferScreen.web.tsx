@@ -30,6 +30,7 @@ import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 
 import TransferIllustration from '../../assets/UnDraw/transferScreen.svg';
 
@@ -117,6 +118,7 @@ export default function TransferScreen() {
 	const [transferValueDisplay, setTransferValueDisplay] = React.useState('');
 	const [transferValueInCents, setTransferValueInCents] = React.useState<number | null>(null);
 	const [transferDate, setTransferDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
+	const [transferTime, setTransferTime] = React.useState('');
 	const [transferDescription, setTransferDescription] = React.useState<string | null>(null);
 	const { submit, isSubmitting, resetBankOperation } = useMovementSubmit();
 	const applyPostSubmit = usePostSubmitBehavior('transferScreen');
@@ -181,6 +183,7 @@ setSelectedTargetBankId(null);
 setTransferValueDisplay('');
 setTransferValueInCents(null);
 setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
+		setTransferTime('');
 setTransferDescription(null);
 }, [resetBankOperation]);
 
@@ -249,7 +252,7 @@ setTransferDescription(null);
 		if (isSubmitDisabled || !selectedSourceBankId || !selectedTargetBankId || transferValueInCents === null) return;
 		const [day, month, year] = transferDate.split('/');
 		try {
-			await submit({ operation: 'transfer', accountId: selectedSourceBankId, destinationAccountId: selectedTargetBankId, amountCents: transferValueInCents, date: `${year}-${month}-${day}`, explanation: transferDescription ?? '' });
+			await submit({ operation: 'transfer', accountId: selectedSourceBankId, destinationAccountId: selectedTargetBankId, amountCents: transferValueInCents, date: `${year}-${month}-${day}`, ...(transferTime ? { time: transferTime } : {}), explanation: transferDescription ?? '' });
 			if (!mounted.current) return;
 			showNotifierAlert({ type: 'success', description: 'Transferência registrada.', isDarkMode });
 			applyPostSubmit({ resetForm: resetTransferForm });
@@ -478,6 +481,8 @@ setTransferDescription(null);
 										placeholder="Selecione a data da transferência"
 										isDisabled={isTransferDateDisabled}
 									/>
+									<FinancialTimeField label="Horário em São Paulo" value={transferTime} onChange={setTransferTime}
+										isDisabled={isTransferDateDisabled} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 								</VStack>
 
 								<VStack className="mb-4">

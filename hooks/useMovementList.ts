@@ -1,7 +1,9 @@
 import React from 'react';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
+import { useSession } from '@/hooks/useSession';
 import { getFirebaseClient } from '@/firebase/client';
-import { readMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement, type TimelineCursor } from '@/firebase/movements';
+import { financialLedgerAllowsWrites, selectedFinancialProject } from '@/firebase/config';
+import { cancelBankOperation, readMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement, type TimelineCursor } from '@/firebase/movements';
 import { errorMessage } from '@/application/errors';
 import type { MovementRecord } from '@/types/bankMovements';
 
@@ -17,7 +19,10 @@ function dateBoundary(value: string, end = false): Date | undefined {
 
 export function useMovementList(accountId: string | null, start: string, end: string, enabled: boolean) {
   const accounts = useBankAccounts();
+  const { context } = useSession();
   const scope = accounts.scope;
+  const canWrite = financialLedgerAllowsWrites(selectedFinancialProject()) &&
+    (context?.kind === 'personal' || context?.role === 'admin');
   const identity = scope ? `${scope.uid}:${scope.kind}:${scope.id}:${accountId}:${start}:${end}:${enabled}` : '';
   const identityRef = React.useRef(identity); identityRef.current = identity;
   const [state, setState] = React.useState<{ identity: string; items: MovementRecord[]; cursor: TimelineCursor | null; issues: number; cashIncomplete: boolean; loading: boolean; error: string | null }>({ identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null });
@@ -60,15 +65,17 @@ export function useMovementList(accountId: string | null, start: string, end: st
     return () => { generation.current++; inFlight.current = false; };
   }, [identity, fetchPage]);
   React.useEffect(() => { if (enabled && accountId) void accounts.reload(); }, [enabled, accountId, accounts.reload]);
-  const cancel = React.useCallback(async (id: string) => {
+  const cancel = React.useCallback(async (record: MovementRecord) => {
     if (!scope) throw Error('movements/invalid-context');
+    if (!canWrite) throw Error('read-only/operation');
     const client = getFirebaseClient();
-    const movement = await readMovement(client, scope, id);
-    await updateMovement(client, scope, movement, null);
+    if (record.isBankTransfer || record.isCashRescue) await cancelBankOperation(client, scope, record.id);
+    else await updateMovement(client, scope, await readMovement(client, scope, record.id), null);
+    if (identityRef.current !== identity) return;
     await accounts.reload();
     generation.current++; inFlight.current = false;
     await fetchPage();
-  }, [scope, accounts.reload, fetchPage]);
+  }, [scope, canWrite, identity, accounts.reload, fetchPage]);
   const loadTransferDetails = React.useCallback(async (movement: MovementRecord) => {
     if (!scope || movement.storageSource !== 'new' || !movement.bankTransferPairId || !movement.bankTransferDirection) return;
     const version = generation.current;
@@ -82,5 +89,6 @@ export function useMovementList(accountId: string | null, start: string, end: st
     catch { update(null); }
   }, [scope, identity]);
   const visible = state.identity === identity ? state : { identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null };
-  return { ...visible, refresh: async () => { await accounts.reload(); await fetchPage(); }, loadMore: () => fetchPage(true), cancel, accounts, loadTransferDetails, transferNames: transferDetails.identity === identity ? transferDetails.names : {} };
+  return { ...visible, refresh: async () => { await accounts.reload(); await fetchPage(); }, loadMore: () => fetchPage(true),
+    cancel, canWrite, accounts, loadTransferDetails, transferNames: transferDetails.identity === identity ? transferDetails.names : {} };
 }

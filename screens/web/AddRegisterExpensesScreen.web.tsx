@@ -32,6 +32,7 @@ import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components
 import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
@@ -159,6 +160,7 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
+	const [expenseTime, setExpenseTime] = React.useState('');
 	const { submit, isSubmitting } = useMovementSubmit();
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
@@ -363,12 +365,12 @@ export default function AddRegisterExpensesScreen() {
 		if (!category) return;
 		const [day, month, year] = expenseDate.split('/');
 		try {
-			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined);
+			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, ...(expenseTime ? { time: expenseTime } : {}), explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined);
 			await reloadBanks();
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Despesa atualizada.' : 'Despesa cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseTime, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);
@@ -430,6 +432,7 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseValueCents(value);
 		setExpenseValueDisplay(formatCurrencyBRL(value));
 		setExpenseDate(formatDateToBR(normalizeDateValue(data.date) ?? new Date()));
+		setExpenseTime(typeof data.time === 'string' ? data.time : '');
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
 		setSelectedMovementTagName(typeof data.tagName === 'string' ? data.tagName : null);
@@ -662,6 +665,8 @@ export default function AddRegisterExpensesScreen() {
 														placeholder="Selecione a data da despesa"
 														isDisabled={isExpenseDateDisabled}
 													/>
+													<FinancialTimeField label="Horário em São Paulo" value={expenseTime} onChange={setExpenseTime}
+														isDisabled={isFormBusy} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 												</VStack>
 												<VStack className={webExpenseClassNames.fieldFull}>
 													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>

@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const {createHash} = require('node:crypto');
 const projectId = 'finances-app-e8685';
+const legacyRulesFile = 'security/stage03-published.rules';
 const hash = text=>createHash('sha256').update(text).digest('hex');
 function readonlyClient(token) {
 	if(!token)throw Error('Provide a short-lived OAuth token through GOOGLE_OAUTH_ACCESS_TOKEN');
@@ -49,7 +50,7 @@ async function inspectProduction(token,{includeCounts=true}={}) {
 	return {inspection:result,sdk};
 }
 function releaseManifest(inspection) {
-	const candidate=fs.readFileSync('firestore.rules','utf8');
+	const candidate=fs.readFileSync(legacyRulesFile,'utf8');
 	const containment=fs.readFileSync('security/containment.rules','utf8');
 	const candidateHash=hash(candidate);
 	const verified=inspection.publishedRules.sha256===candidateHash&&inspection.billingEnabled===false&&inspection.database.edition==='STANDARD'&&inspection.database.freeTier===true&&inspection.auth.emailPasswordEnabled;
@@ -60,7 +61,7 @@ function releaseManifest(inspection) {
 }
 function verifyLocalEvidence() {
 	const evidence=JSON.parse(fs.readFileSync('artifacts/security-stage03/rules-test-evidence.json','utf8'));
-	if(evidence.rulesSHA256!==hash(fs.readFileSync('firestore.rules'))||evidence.failed!==0||evidence.tested<80||!evidence.containmentPassed||evidence.containmentSHA256!==hash(fs.readFileSync('security/containment.rules')))throw Error('Current Rules need matching passing emulator evidence');
+	if(evidence.rulesSHA256!==hash(fs.readFileSync(legacyRulesFile))||evidence.failed!==0||evidence.tested<80||!evidence.containmentPassed||evidence.containmentSHA256!==hash(fs.readFileSync('security/containment.rules')))throw Error('Current Rules need matching passing emulator evidence');
 	const restore=JSON.parse(fs.readFileSync('artifacts/security-stage03/restoration-proof.json','utf8'));
 	if(!restore.equal||!restore.uidPreserved||!restore.internalReferenceResolvedLocally)throw Error('Isolated application recovery must pass');
 	const checks=JSON.parse(fs.readFileSync('artifacts/security-stage03/validation-summary.json','utf8'));
@@ -69,6 +70,8 @@ function verifyLocalEvidence() {
 }
 module.exports={inspectProduction,releaseManifest,readonlyClient,verifyLocalEvidence};
 if(require.main===module)(async()=>{
+	if(process.argv[2]==='verify'&&require('../firebase/production-readiness.json').financialSchemaVersion===2)
+		throw Error('Verify the canonical release with migration:financial and the approved manifest');
 	verifyLocalEvidence();
 	const {inspection,sdk}=await inspectProduction(process.env.GOOGLE_OAUTH_ACCESS_TOKEN,{includeCounts:process.argv[2]!=='verify'});
 	const manifest=releaseManifest(inspection);

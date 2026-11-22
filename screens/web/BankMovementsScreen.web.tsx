@@ -1,6 +1,7 @@
-import { hasAmbiguousMovementIds, isIncomeOrExpenseTotal } from '@/domain/movements';
+import { CASH_HISTORY_ID, hasAmbiguousMovementIds, isIncomeOrExpenseTotal } from '@/domain/movements';
 import { sumCents } from '@/domain/money';
 import { useMovementList } from '@/hooks/useMovementList';
+import { errorMessage as movementErrorMessage } from '@/application/errors';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 
 import type { MovementRecord } from '@/types/bankMovements';
@@ -936,7 +937,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	// A rota pode ser aberta pelo menu sem contexto. Mantemos a escolha local para
 	// carregar o extrato sem exigir um retorno à Home (ver [[Gerenciamento de Bancos]]).
 	const [selectedBankId, setSelectedBankId] = React.useState(bankId);
-	const movementList = useMovementList(selectedBankId, startDateInput, endDateInput, !isCashView && !recentMovements);
+	const movementList = useMovementList(isCashView ? CASH_HISTORY_ID : selectedBankId, startDateInput, endDateInput, !recentMovements);
 	const bankOptions: BankOption[] = movementList.accounts.active.items.filter(item => !item.blocked).map(item => ({ id: item.id, name: item.name, iconKey: item.institutionKey, colorHex: item.colorHex, description: item.source !== 'new' ? item.issue : undefined }));
 	const bankCurrentBalanceInCents = movementList.accounts.active.items.find(item => item.source === 'new' && item.id === selectedBankId)?.balanceInCents ?? null;
 	const movements: MovementRecord[] = recentMovements?.items ?? movementList.items;
@@ -1243,7 +1244,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		(movement: MovementRecord) => {
 			if (movement.isBalanceAdjustment) return movement.reversesAdjustmentId ? 'Este estorno cancela a diferença do ajuste original e preserva seu histórico.' : 'Diferença registrada para alinhar o saldo real do banco ao Lumus. Este valor não entra nos totais de ganhos ou gastos.';
 			if (movement.isFromMandatory) {
-				if (movement.storageSource === 'new' && !movement.recurringTemplateId) return movement.type === 'gain'
+				if (movement.storageSource === 'new' && !movement.historical && !movement.recurringTemplateId) return movement.type === 'gain'
 					? 'Recebimento registrado como ganho obrigatório.'
 					: 'Pagamento registrado como gasto obrigatório.';
 				return movement.type === 'gain'
@@ -1829,8 +1830,10 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 
 	const handleRequestMovementAction = React.useCallback(
 		async (action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
-			if (action === 'revert-cash-rescue' || movement.type === 'sync') { showFeatureUnavailable(); return; }
-			setPendingAction({ type: action === 'edit' ? 'edit-standard-movement' : 'delete-standard-movement', movement });
+			if (movement.type === 'sync') { showFeatureUnavailable(); return; }
+			if (action === 'revert-cash-rescue') setPendingAction({ type: 'revert-cash-rescue', movement });
+			else if (movement.isBankTransfer && action === 'delete') setPendingAction({ type: 'reverse-pair', movement });
+			else setPendingAction({ type: action === 'edit' ? 'edit-standard-movement' : 'delete-standard-movement', movement });
 		}, [],
 	);
 
@@ -1843,10 +1846,14 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 			else if (movement.type === 'expense') navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, { expenseId: movement.id });
 			return;
 		}
-		if (pendingAction.type !== 'delete-standard-movement') { showFeatureUnavailable(); return; }
+		const reversingBankOperation = pendingAction.type === 'reverse-pair' || pendingAction.type === 'revert-cash-rescue';
+		if (pendingAction.type !== 'delete-standard-movement' && !reversingBankOperation) { showFeatureUnavailable(); return; }
 		setIsProcessingAction(true);
-		try { await movementList.cancel(movement.id); setPendingAction(null); showScreenAlert('Movimentação removida.', 'success'); }
-		catch { showScreenAlert('Não foi possível remover a movimentação. Tente novamente.'); }
+		try {
+			await movementList.cancel(movement);
+			setPendingAction(null);
+			showScreenAlert(reversingBankOperation ? 'Estorno confirmado.' : 'Movimentação removida.', 'success');
+		} catch (error) { showScreenAlert(movementErrorMessage(error)); }
 		finally { setIsProcessingAction(false); }
 	}, [pendingAction, isProcessingAction, movementList.cancel, showScreenAlert]);
 
@@ -1883,11 +1890,10 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		}
 
 		if (pendingAction.type === 'revert-cash-rescue') {
-			const bankName = pendingAction.movement.cashRescueSourceBankName ?? 'não identificado';
 			return {
-				title: 'Reivindicar saque',
-				message: `Deseja reivindicar o saque realizado no banco ${bankName}?`,
-				confirmLabel: 'Reivindicar',
+				title: 'Estornar saque',
+				message: 'O valor do saque será devolvido ao saldo da conta.',
+				confirmLabel: 'Estornar saque',
 				confirmAction: 'primary' as const,
 			};
 		}
@@ -2156,14 +2162,15 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 							];
 							const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === user?.uid);
 							const canChangeAdjustmentRecord = false;
-							const canChangeMovementRecord = false;
-							const canReverseAccountPair = false;
-							const canEditMovement = !recentMovements && !movement.isBankTransfer && !movement.isCashRescue && !movement.recurringTemplateId && movement.storageSource === 'new' && movementList.items.some(item => item.id === movement.id && item.storageSource === 'new');
+							const canChangeMovement = movementList.canWrite && !recentMovements && !movement.historical && movement.storageSource === 'new';
+							const canChangeMovementRecord = canChangeMovement && movement.isCashRescue === true;
+							const canReverseAccountPair = canChangeMovement && movement.isBankTransfer === true;
+							const canEditMovement = canChangeMovement && !movement.isBankTransfer && !movement.isCashRescue && !movement.recurringTemplateId;
 							const usesUndoAction = canChangeMovementRecord || canChangeAdjustmentRecord || canReverseAccountPair || movement.isBalanceAdjustment ||
 								movement.isInvestmentDeposit ||
 								movement.isInvestmentRedemption ||
 								movement.isFinanceInvestmentSync;
-							const canDeleteMovement = canEditMovement;
+							const canDeleteMovement = canEditMovement || canReverseAccountPair;
 							const secondaryActionLabel = canChangeMovementRecord || canChangeAdjustmentRecord || canReverseAccountPair ? 'Estornar' : movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
 								? 'Desfazer aporte'
 								: movement.isInvestmentRedemption
@@ -2362,11 +2369,11 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 																			handleRequestMovementAction('revert-cash-rescue', movement)
 																		}
 																		accessibilityRole="button"
-																		accessibilityLabel={`Reivindicar saque de ${movement.name}`}
+												accessibilityLabel={`Estornar saque de ${movement.name}`}
 																		className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
 																	>
 																		<Icon as={RepeatIcon} size="sm" className="text-white" />
-																		<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+												<Text className="text-xs font-semibold text-white">Estornar</Text>
 																	</Pressable>
 																) : null}
 

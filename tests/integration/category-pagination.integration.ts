@@ -1,8 +1,8 @@
 import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { disableNetwork, doc, enableNetwork, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { assertFails, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import { disableNetwork, doc, enableNetwork, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { readCategorySlice } from '../../firebase/categories';
 import { getFirebaseDiagnostics } from '../../firebase/diagnostics';
 
@@ -25,11 +25,14 @@ before(async () => {
     legacy.set(doc(db, 'tags', 'old-1'), { personId: 'pager', name: 'Histórica', usageType: 'both' });
     legacy.set(doc(db, '_categoryScopes', 'old-1'), { scopeKind: 'personal', scopeId: 'pager' });
     legacy.set(doc(db, 'financialContexts', 'personal:pager', 'legacyCategoryIndex', 'old-1'), { tagId: 'old-1' });
+    legacy.set(doc(db, 'financialContexts', 'personal:pager', 'categories', 'old-1'), {
+      name: 'Histórica', scopeKind: 'personal', scopeId: 'pager', usageType: 'both', status: 'active', historicalSourcePath: 'tags/old-1',
+    });
     await legacy.commit();
   });
 });
 after(async () => { await env.cleanup(); });
-test('pages incrementally across more than 1000 new and legacy categories', async () => {
+test('pages incrementally across more than 1000 canonical categories, including migrated IDs', async () => {
   const client = { db: env.authenticatedContext('pager').firestore(), auth: { currentUser: { uid: 'pager' } } } as unknown as Parameters<typeof readCategorySlice>[0];
   const before = getFirebaseDiagnostics().operations['categories.page.new']?.documents ?? 0;
   const first = await readCategorySlice(client, scope, null, 'all');
@@ -46,6 +49,7 @@ test('pages incrementally across more than 1000 new and legacy categories', asyn
   assert.equal(new Set(ids).size, 1008);
   assert.equal(ids[0], 'id0000');
   assert.equal(ids.at(-1), 'old-1');
+  await assertFails(getDoc(doc(client.db, 'financialContexts', 'personal:pager', 'legacyCategoryIndex', 'old-1')));
 });
 test('filtered pages remain ordered and a connection failure does not advance the cursor', async () => {
   const db = env.authenticatedContext('pager').firestore();

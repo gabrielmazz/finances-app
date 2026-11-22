@@ -14,8 +14,8 @@ export function useMovementSubmit() {
   const { reload } = useBankAccounts();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const running = React.useRef(false);
-  const completedBankOperation = React.useRef<{ key: string; draft: string } | null>(null);
-  const resetBankOperation = React.useCallback(() => { completedBankOperation.current = null; }, []);
+  const completed = React.useRef<{ key: string; draft: string | null } | null>(null);
+  const resetBankOperation = React.useCallback(() => { completed.current = null; }, []);
   const submit = React.useCallback(async (value: MovementSubmission, existing: Movement | null = null, mandatory?: { id: string; installments: number }) => {
     if (!scope) throw Error('movements/invalid-context');
     if (running.current) throw Error('movements/in-progress');
@@ -34,8 +34,9 @@ export function useMovementSubmit() {
       const bankOperation = 'operation' in value;
       const kind = bankOperation ? value.operation : value.type;
       const key = `lumus:movement:v1:${scope.uid}:${scope.kind}:${scope.id}:${kind}`;
-      const draft = bankOperation ? JSON.stringify({ ...value, explanation: value.explanation.trim() }) : null;
-      if (draft && completedBankOperation.current?.key === key && completedBankOperation.current.draft === draft) throw Error('movements/already-registered');
+      const draft = JSON.stringify({ ...value, explanation: value.explanation.trim() });
+      if (completed.current?.key === key && (completed.current.draft === draft || completed.current.draft === null))
+        throw Error('movements/already-registered');
       const id = await bankIntentLock(key, async () => {
         const pending = await AsyncStorage.getItem(key);
         if (pending) return pending;
@@ -49,10 +50,13 @@ export function useMovementSubmit() {
       const saved = await (bankOperation
         ? value.operation === 'transfer' ? createBankTransfer(client, scope, id, value) : createCashWithdrawal(client, scope, id, value)
         : createMovement(client, scope, id, value)).catch(async error => {
-        if (bankOperation && error instanceof Error && error.message === 'movements/operation-conflict') await releaseIntent();
+        if (error instanceof Error && error.message === 'movements/operation-conflict') {
+          completed.current = { key, draft: null };
+          await releaseIntent();
+        }
         throw error;
       });
-      if (draft) completedBankOperation.current = { key, draft };
+      completed.current = { key, draft };
       await releaseIntent();
       if (bankOperation) await reload();
       return saved;

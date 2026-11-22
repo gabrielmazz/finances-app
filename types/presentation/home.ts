@@ -18,9 +18,9 @@ export type HomeBankBalanceCard = {
 export type HomeCashSummary = {
 	id: 'cash-transactions';
 	name: string;
-	balanceInCents: number;
-	currentMonthExpensesInCents: number;
-	currentMonthGainsInCents: number;
+	balanceInCents: null;
+	currentMonthExpensesInCents: number | null;
+	currentMonthGainsInCents: number | null;
 };
 
 export type HomeInvestmentsData = {

@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "rules": "security/financial-canonical.rules",
+    "indexes": "security/financial-canonical.indexes.json"
+  }
+}

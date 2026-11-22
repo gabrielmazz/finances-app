@@ -41,7 +41,7 @@ test('encrypted recovery preserves UID, financial values, hierarchy and typed re
 	const app=initializeApp({projectId:target,apiKey:'demo-api-key'},'recovery-app');
 	const client={auth:getAuth(app),db:getFirestore(app)};
 	connectAuthEmulator(client.auth,'http://127.0.0.1:9098',{disableWarnings:true});connectFirestoreEmulator(client.db,'127.0.0.1',8089);
-	const environment=await initializeTestEnvironment({projectId:target,firestore:{host:'127.0.0.1',port:8089,rules:fs.readFileSync('firestore.rules','utf8')}});
+	const environment=await initializeTestEnvironment({projectId:target,firestore:{host:'127.0.0.1',port:8089,rules:fs.readFileSync('security/stage03-published.rules','utf8')}});
 	try{
 		const keyFile=path.join(directory,'key'),file=path.join(directory,'snapshot.enc');fs.writeFileSync(keyFile,randomBytes(32),{mode:0o600});
 		writeEncryptedBackup(file,snapshot,keyFile);

@@ -8,7 +8,7 @@ versao: 3.0.0
 
 # Resgate de Caixa
 
-Na versão de teste, o formulário original debita em centavos uma conta ativa com saldo confirmado. O saque e o saldo são gravados na mesma transação. O extrato usa a identidade ciano de saque. O saque tem classificação própria e fica fora dos totais de receitas e despesas. A tentativa mantém o identificador até a confirmação. Edição, estorno e lançamento em uma carteira de Caixa seguem indisponíveis.
+Na versão de teste, o formulário original debita em centavos uma conta ativa com saldo confirmado. O saque e o saldo são gravados na mesma transação. O extrato usa a identidade ciano de saque. O saque tem classificação própria e fica fora dos totais de receitas e despesas. A tentativa mantém o identificador até a confirmação. O estorno de um saque novo devolve o valor à mesma conta e marca o lançamento como cancelado em um único commit. O saque cancelado fica preservado no Firestore. Lançamentos históricos em dinheiro sem banco podem ser consultados no extrato de dinheiro. A carteira permanece disponível para consulta do histórico, sem saldo próprio estimado.
 
 ## Arquivos de apresentação
 

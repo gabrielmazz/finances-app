@@ -18,7 +18,7 @@ Em 14/11/2026 foi gerado localmente `artifacts/mvp-1.0/Lumus-Financas-Teste-arm6
 
 Posteriormente, o titular confirmou em aparelho físico a instalação do MVP 1.0, login oficial, Home, bancos, categorias, extrato, paginação, sessão, logout e novo login. Essa homologação relatada não cobre o código do MVP 1.1 nem autoriza gravações financeiras.
 
-A publicação restrita de Rules foi autorizada e executada em 09/11/2026, com hash verificado no projeto existente. Nenhum Hosting/app foi distribuído. Registro em `docs/security-publication-20261109.md` e `artifacts/security-publication-20261109/`. Procedimento completo, matriz, hashes, monitoramento, interrupção e reversão em [[Segurança e Preparação para Produção]]. `firebase.production.json` aponta somente para `firestore.rules`; `firebase.containment.json` aponta para contenção de emergência, sem reabrir permissões.
+A publicação restrita de Rules foi autorizada e executada em 09/11/2026, com hash verificado no projeto existente. Nenhum Hosting/app foi distribuído. Registro em `docs/security-publication-20261109.md` e `artifacts/security-publication-20261109/`. Procedimento completo, matriz, hashes, monitoramento, interrupção e reversão em [[Segurança e Preparação para Produção]]. `firebase.production.json` aponta para a fonte publicada da Etapa 03. `firebase.containment.json` aponta para contenção de emergência.
 
 Verificações: `npm ci`, `npm run check`, `npm run test:integration`, export Web, navegador e bundles Android/iOS. Não distribuir builds locais/demo como produção. Perfis EAS preservam identidade; distribuição exige autorização e homologação separadas.
 
@@ -49,3 +49,13 @@ A revisão 1.5.1 (versionCode 4) usa o mesmo pacote e certificado de desenvolvim
 Em uma cópia de compilação, `npm run homologation:prebuild:android` gera o projeto nativo e `npm run homologation:build:android` compila o binário ARM64. O comando Gradle exige o pacote `com.gabrielmazz.lumusfinances.homologacao` e carrega o modo `production` e a chave pública do SDK antes de compilar com Metro. A assinatura usada para entregar o APK deve ser a chave local já usada no APK oficial anterior. Compare o certificado, o pacote e a versão após assinar. O build de desenvolvimento usa o pacote `com.gabrielmazz.lumusfinances.emulador`. A configuração dos dois modos é incorporada ao código pelo Expo SDK 58. [Variáveis de ambiente no Expo](https://docs.expo.dev/guides/environment-variables/)
 
 O APK oficial 1.5.2 permite login por e-mail e senha e consultas autorizadas. A homologação instalada depende de abrir a Home, conferir bancos, categorias e extrato, reiniciar o aplicativo e confirmar sessão, logout e novo login no aparelho. As ações financeiras permanecem disponíveis para teste no emulador. O [relatório da ativação](../docs/mvp15-ativacao.md) registra a validação das Rules e o estado do índice.
+
+## MVP 1.6.0-rc.1
+
+`npm run staging:prepare` confere SDK, Rules publicadas e Spark em `lumus-financas-hml`. `npm run staging:web` usa esse projeto isolado e `npm run staging:export` seguido de `npm run staging:serve` usa a Web exportada na porta 4175. `npm run staging:prebuild:android` e `npm run staging:build:android` geram o APK ARM64 de pacote `com.gabrielmazz.lumusfinances.hml`. As identidades e dados usados nesses fluxos são sintéticos. O modo oficial mantém a assinatura e o identificador do canal existente e continua em consulta até o corte. Consulte [[Migração Financeira Definitiva]] para a sequência e para os pré-requisitos de ativação.
+
+O registro de release em `firebase/production-readiness.json` só habilita o cliente canônico após verificação das Rules publicadas e do manifesto aplicado. A distribuição oficial depende das provas da janela e da validação de referências por conta. O [manifesto de revisão de 20/11](../docs/mvp160-conciliacao.md#manifesto-para-autorização) registra as condições pendentes.
+
+## MVP 1.6.0
+
+A exportação Web oficial e o APK ARM64 conservam o modo de consulta até a autorização e a verificação do corte. A versão estável usa o pacote `com.gabrielmazz.lumusfinances.homologacao`, o certificado do APK 1.5.2 e o versionCode 8. O canário aprovado abre leituras canônicas mantendo as antigas. O recibo verificado distingue o canário e o cliente com escrita financeira. As duas fontes e os índices previstos estão no [manifesto de corte](../docs/mvp160-corte.md). Ver [[Migração Financeira Definitiva]].

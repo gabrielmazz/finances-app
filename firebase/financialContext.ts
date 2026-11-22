@@ -5,6 +5,7 @@ import {
 	getDocFromServer,
 	getDocsFromServer,
 	limit,
+	onSnapshot,
 	orderBy,
 	query,
 	startAfter,
@@ -14,6 +15,7 @@ import {
 import type { AccountClient } from './profiles';
 import { measureRead } from './diagnostics';
 import { loadAuthorization } from './authorization';
+import { parseAuthorization } from '../domain/authorization';
 
 export type FinancialContext =
 	{ kind: 'personal'; sharedReadStatus?: 'authorized' | 'group-listed' | 'unverified' } | { kind: 'group'; groupId: string; role: 'admin' | 'member' };
@@ -51,6 +53,35 @@ export async function loadFinancialContext(
 	if (data?.status !== 'active')
 		throw new Error('context/access-denied');
 	return { kind: 'group', groupId, role };
+}
+
+export function watchFinancialGroup(
+	client: AccountClient,
+	uid: string,
+	groupId: string,
+	onRole: (role: 'admin' | 'member') => void,
+	onRevocation: () => void,
+) {
+	const active = () => client.auth.currentUser?.uid === uid;
+	const onError = (error: { code: string }) => {
+		if (active() && error.code === 'permission-denied') onRevocation();
+	};
+	const stopGrant = onSnapshot(doc(client.db, '_authorizations', uid), { includeMetadataChanges: true }, snapshot => {
+		if (!active() || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+		const data = snapshot.data();
+		try {
+			if (!data) throw Error('context/access-denied');
+			const role = parseAuthorization(data, data.generation).groups[groupId];
+			if (role !== 'admin' && role !== 'member') throw Error('context/access-denied');
+			onRole(role);
+		} catch {
+			onRevocation();
+		}
+	}, onError);
+	const stopGroup = onSnapshot(doc(client.db, 'financialGroups', groupId), { includeMetadataChanges: true }, snapshot => {
+		if (active() && !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites && snapshot.data()?.status !== 'active') onRevocation();
+	}, onError);
+	return () => { stopGrant(); stopGroup(); };
 }
 
 // Read-only compatibility probe. No balance reconstruction or full-history scan.

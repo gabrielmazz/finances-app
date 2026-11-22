@@ -12,7 +12,7 @@ describe('production preparation has no destructive API',()=>{
 		expect(()=>readonlyClient('')).toThrow('short-lived');
 	});
 	it('keeps production blocked until the exact tested source is actually published on Spark',()=>{
-		const digest=createHash('sha256').update(fs.readFileSync('firestore.rules')).digest('hex');
+		const digest=createHash('sha256').update(fs.readFileSync('security/stage03-published.rules')).digest('hex');
 		const inspection={publishedRules:{sha256:'old'},billingEnabled:false,database:{edition:'STANDARD',freeTier:true},auth:{emailPasswordEnabled:true},sdk:{appId:'existing',authDomain:'existing.firebaseapp.com'},checkedAt:new Date().toISOString()};
 		expect(releaseManifest(inspection).published).toBe(false);
 		expect(releaseManifest({...inspection,publishedRules:{sha256:digest}}).published).toBe(true);

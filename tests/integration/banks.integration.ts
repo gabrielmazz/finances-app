@@ -552,12 +552,9 @@ scenario('legacy incomplete and ambiguous records are explicitly blocked without
 			.set({ name: 'Ambiguous', personId: 'another-owner' });
 	});
 	const page = await readBankPage(owner, s, 'legacy', 'active');
-	assert.equal(page.issues, 1);
-	assert(
-		page.banks.some(
-			(bank) => bank.id === 'stage04incomplete' && bank.blocked && bank.balanceInCents === null,
-		),
-	);
+	assert.equal(page.unavailable, true);
+	assert.equal(page.contextUnverified, true);
+	assert.equal(page.banks.length, 0);
 	assert(!page.banks.some((bank) => bank.id === 'stage04ambiguous'));
 	await assert.rejects(readBank(owner, s, { id: 'stage04incomplete', source: 'legacy' }));
 	await assert.rejects(readBank(owner, s, { id: 'stage04ambiguous', source: 'legacy' }));
