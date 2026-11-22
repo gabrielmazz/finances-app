@@ -3,13 +3,12 @@
   "projectId": "finances-app-e8685",
   "appId": "1:909478123750:web:bfe59f4e4d9682d20a4327",
   "authDomain": "finances-app-e8685.firebaseapp.com",
-  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
-  "containmentSHA256": "4a8e4d4118b77304fa0df2303fabddad901607f0653298bc8ca6604df8082251",
-  "previousRulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
-  "verifiedAt": "2026-11-09T11:23:31.653Z",
-  "deployCommand": "npx -y firebase-tools@15.35.0 deploy --only firestore:rules --config firebase.production.json --project finances-app-e8685",
-  "containmentCommand": "npx -y firebase-tools@15.35.0 deploy --only firestore:rules --config firebase.containment.json --project finances-app-e8685",
+  "financialSchemaVersion": 2,
+  "migrationManifestSHA256": "cac026c02613b47ff75bb926eca9c73713f15626379ca69555a554aaa610084e",
+  "rulesSHA256": "7eddfa9a9f991ff322367bc79aa8ab4a2a94646e379ffa93f55bf46457cb362d",
+  "canonicalRulesSHA256": "7eddfa9a9f991ff322367bc79aa8ab4a2a94646e379ffa93f55bf46457cb362d",
+  "verifiedAt": "2026-11-22T15:23:42.068Z",
   "financialWritesEnabled": false,
   "published": true,
-  "requiresSpecificApproval": true
+  "releaseView": "canary"
 }

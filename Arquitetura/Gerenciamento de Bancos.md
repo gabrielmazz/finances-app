@@ -70,7 +70,7 @@ Nas Rules candidatas MVP 1.2.1, um `get` de banco ou movimentação legada por I
 
 Histórico do experimento descontinuado: o titular havia autorizado um índice de descoberta separado: `financialContexts/personal:{uid}/legacyBankReadIndex/{id}` aponta ao banco original, e `legacyMovementReadIndex` guarda ID original, origem, conta e data para paginação. Somente a conta pessoal correspondente lê esses índices; clientes não podem gravá-los. O leitor consulta o documento original com as Rules e ignora ponteiros divergentes ou sem autorização. O índice de banco não é `_bankScopes` e não autoriza abrir conta, gravar saldo ou efetuar movimentos. O comando de preparação foi removido e as Rules locais agora negam leitura desses ponteiros; registros com associação explícita a grupo não são indexados. A regra de leitura pessoal para metadados ausentes continua sendo uma exceção autorizada, não prova de que o registro nunca pertenceu a um grupo.
 
-Lançamentos da conta de referência devem ter data civil UTC posterior ao dia UTC do instante confirmado. Uma data anterior ou do mesmo dia é recusada no cliente e nas Rules inclusive em edição ou mudança entre contas. A restrição pode bloquear um dia adicional no horário de São Paulo, mas não permite presumir hora para um lançamento sem hora. IDs históricos já usados em receitas, despesas, transferências e saques não podem ser reutilizados na conta de referência; operações semanticamente iguais com IDs diferentes exigem conferência manual. O formulário de edição reutiliza os campos existentes para informar data e hora em São Paulo. No emulador oferece simulação e confirmação; na homologação oficial oferece somente prévia, sem verificar o vínculo nem permitir gravação. Nada foi gravado ou publicado no Firebase oficial.
+As regras iniciais da referência exigiam data posterior ao dia UTC da confirmação. A regra atual consta na seção da versão 1.6. A ativação usa o mesmo formulário de edição da conta.
 
 ### MVP 1.4 — retirada dos ponteiros experimentais
 
@@ -79,3 +79,9 @@ As origens `legacyBankReadIndex` e `legacyMovementReadIndex` não são mais cons
 A candidata também verifica o documento original ao consultar `_bankScopes`; após mudança de grupo não expõe o vínculo antigo. Como a listagem dessa coleção não é autorizada no emulador com a verificação, a descoberta das contas vinculadas fica indisponível e a tela sinaliza a fonte parcial. Isso bloqueia a ativação pela listagem.
 
 O MVP 1.5.1 acrescenta a consulta pontual pelo ID informado nas Configurações do emulador quando a fonte legada está indisponível. O formulário abre somente após a consulta autorizada. A consulta preserva o ID e encaminha ao fluxo de referência existente quando elegível. A listagem automática de documentos com associação ambígua depende de uma decisão sobre como revisar e manter os metadados de contexto.
+
+### MVP 1.6 — referência no modelo canônico
+
+O manifesto grava `referenceNotBefore` na conta migrada. O formulário existente e as Rules recusam referências anteriores a esse instante. A abertura registra o saldo confirmado no mesmo ID, sem reaplicar o histórico anterior. Uma conta ainda sem abertura fica protegida contra gravações de movimentações.
+
+Receitas, despesas, ciclos, transferências e saques aceitam o horário de São Paulo em `HH:MM`. A data civil permanece disponível para a consulta paginada e a hora informada fica em `occurredAt`. No dia da referência, somente um minuto posterior é aceito. A validação também protege a mudança de conta e confere as duas pontas de uma transferência. Uma data civil posterior admite o lançamento sem horário. Contas novas usam a própria data de abertura como primeiro dia elegível. Ver [[Migração Financeira Definitiva]].

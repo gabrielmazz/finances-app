@@ -49,9 +49,13 @@ export function useMandatoryList(type: MovementType) {
     }
   }, [focused, identity, scope, type]);
   React.useEffect(() => {
+    if (!scope) {
+      setState({ identity, page: null, tags: {}, loading: false, error: null });
+      return;
+    }
     if (focused) void load();
     return () => { request.current++; };
-  }, [focused, load]);
+  }, [focused, identity, load, scope]);
 
   const items = state.identity === identity ? state.page?.items : null;
   const rows = React.useMemo(() => {

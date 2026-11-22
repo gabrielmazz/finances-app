@@ -1,7 +1,7 @@
 import { collection, doc, documentId, getDocFromServer, getDocsFromServer, limit, orderBy, query, runTransaction, serverTimestamp, startAfter, where, type QueryConstraint } from 'firebase/firestore';
 import type { AccountClient } from './profiles';
 import { requireBankEnvironment, requireBankReadEnvironment, bankContextKey } from './banks';
-import { OFFICIAL_PROJECT_ID } from './config';
+import { OFFICIAL_PROJECT_ID, usesCanonicalFinance } from './config';
 import type { BankScope } from '../domain/banks';
 import { parseCategory, validateCategoryInput, type Category, type CategoryInput, type CategorySource } from '../domain/categories';
 import { isTagVisibleInMandatoryUsageList, isTagVisibleInRegularUsageList } from '../utils/tagUsage';
@@ -19,6 +19,7 @@ function contextCollection(client: AccountClient, scope: BankScope, name: string
 }
 function categoryRef(client: AccountClient, scope: BankScope, ref: CategoryRef) {
   requireCategoryEnvironment(client, scope);
+  if (usesCanonicalFinance(client.db.app.options.projectId) && ref.source !== 'new') throw Error('categories/not-found');
   if (client.db.app.options.projectId === OFFICIAL_PROJECT_ID && ref.source === 'group-root') throw Error('categories/ambiguous-owner');
   let byteLength = 0;
   try { byteLength = encodeURIComponent(ref.id).replace(/%[0-9a-f]{2}/gi, 'x').length; } catch { throw Error('categories/invalid-id'); }
@@ -43,7 +44,9 @@ export async function readCategory(client: AccountClient, scope: BankScope, ref:
 }
 export async function readCategoryPage(client: AccountClient, scope: BankScope, source: CategorySource, cursor?: string | null, pageSize = 20) {
   requireCategoryEnvironment(client, scope);
-  const official = client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
+  const canonical = usesCanonicalFinance(client.db.app.options.projectId);
+  const official = !canonical && client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
+  if (canonical && source !== 'new') return { items: [], issues: 0, unavailable: false, nextCursor: null };
   if ((official && source === 'new') || source === 'group-root') return { items: [], issues: 0, unavailable: true, nextCursor: null };
   const base = source === 'new' ? contextCollection(client, scope, 'categories')
     : source === 'legacy' && scope.kind === 'personal' ? collection(client.db, 'tags')
@@ -84,7 +87,8 @@ function matchesCategoryFilter(item: Category, filter: CategoryFilter) {
   return isTagVisibleInMandatoryUsageList(item, filter === 'mandatory-expense' ? 'expense' : 'gain');
 }
 export async function readCategorySlice(client: AccountClient, scope: BankScope, cursor: CategoryCursor | null, filter: CategoryFilter) {
-  const sources: CategorySource[] = scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
+  const sources: CategorySource[] = usesCanonicalFinance(client.db.app.options.projectId) ? ['new'] :
+    scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
   let sourceIndex = cursor?.sourceIndex ?? 0, after = cursor?.after ?? null, issues = 0, unavailable = cursor?.unavailable ?? false;
   const items: Category[] = [];
   let requests = 0;
@@ -106,6 +110,7 @@ export async function readCategorySlice(client: AccountClient, scope: BankScope,
   return { items, issues, unavailable, cursor: sourceIndex < sources.length ? { sourceIndex, after, unavailable } : null };
 }
 export async function resolveHistoricalCategory(client: AccountClient, scope: BankScope, id: string) {
+  if (usesCanonicalFinance(client.db.app.options.projectId)) return readCategory(client, scope, { id, source: 'new' });
   const official = client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
   const sources: CategorySource[] = official ? (scope.kind === 'personal' ? ['legacy'] : ['group-legacy']) : scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
   // Validate the original ID before constructing any document path.

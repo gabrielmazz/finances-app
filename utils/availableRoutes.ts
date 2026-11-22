@@ -1,4 +1,5 @@
 import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
+import { financialLedgerAllowsWrites, selectedFinancialProject } from '@/firebase/config';
 
 // A preferência local não habilita módulos cuja reconstrução ainda não terminou.
 const availableRoutes: ReadonlySet<RouteVisibilityKey> = new Set([
@@ -6,7 +7,8 @@ const availableRoutes: ReadonlySet<RouteVisibilityKey> = new Set([
 ]);
 
 export function isRebuiltRoute(key: RouteVisibilityKey): boolean {
-	if (key === 'transferScreen' || key === 'addRescue' || key === 'addMandatoryGains' || key === 'addMandatoryExpenses')
-		return process.env.EXPO_PUBLIC_FIREBASE_MODE === 'emulator';
+	if (key === 'transferScreen' || key === 'addRescue' || key === 'addMandatoryGains' || key === 'addMandatoryExpenses') {
+		return financialLedgerAllowsWrites(selectedFinancialProject());
+	}
 	return availableRoutes.has(key);
 }

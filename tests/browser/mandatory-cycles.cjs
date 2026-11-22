@@ -10,24 +10,29 @@ const { createCategory } = require('../../firebase/categories.ts');
 const { readMandatoryPage } = require('../../firebase/mandatory.ts');
 
 async function run() {
-  const app = initializeApp({ apiKey: 'demo-api-key', projectId: 'demo-lumus-foundation' });
+  const staging = process.env.LUMUS_BROWSER_FIREBASE === 'staging';
+  const app = initializeApp(staging ? require('../../firebase/staging-sdk.json') : { apiKey: 'demo-api-key', projectId: 'demo-lumus-foundation' });
   let browser, fixtures;
   try {
     const auth = getAuth(app), db = getFirestore(app);
-    connectAuthEmulator(auth, 'http://127.0.0.1:9098', { disableWarnings: true });
-    connectFirestoreEmulator(db, '127.0.0.1', 8089);
-    const email = `cycles-${randomUUID()}@lumus.test`, password = 'Demo-only123!';
+    if (!staging) {
+      connectAuthEmulator(auth, 'http://127.0.0.1:9098', { disableWarnings: true });
+      connectFirestoreEmulator(db, '127.0.0.1', 8089);
+    }
+    const email = `cycles-${randomUUID()}@lumus.test`, password = `A1-${randomUUID()}`;
     const { user: { uid } } = await createUserWithEmailAndPassword(auth, email, password);
     const scope = { kind: 'personal', id: uid, uid }, client = { db, auth };
     const bankId = 'browserCycleBank0001';
     const [legacyBank, legacyCategory, foreignBank] = Array.from({ length: 3 }, () => randomUUID().replace(/-/g, '').slice(0, 20));
-    fixtures = await initializeTestEnvironment({ projectId: 'demo-lumus-foundation', firestore: { host: '127.0.0.1', port: 8089 } });
-    await fixtures.withSecurityRulesDisabled(async context => {
-      const store = context.firestore();
-      await setDoc(doc(store, 'banks', legacyBank), { personId: uid, name: 'Conta histórica por ID', institutionName: 'Banco', bankIconKey: 'outro-banco', accountType: 'checking' });
-      await setDoc(doc(store, 'tags', legacyCategory), { personId: uid, name: 'Categoria histórica por ID' });
-      await setDoc(doc(store, 'banks', foreignBank), { personId: 'outro-titular', name: 'Outra conta sintética' });
-    });
+    if (!staging) {
+      fixtures = await initializeTestEnvironment({ projectId: 'demo-lumus-foundation', firestore: { host: '127.0.0.1', port: 8089 } });
+      await fixtures.withSecurityRulesDisabled(async context => {
+        const store = context.firestore();
+        await setDoc(doc(store, 'banks', legacyBank), { personId: uid, name: 'Conta histórica por ID', institutionName: 'Banco', bankIconKey: 'outro-banco', accountType: 'checking' });
+        await setDoc(doc(store, 'tags', legacyCategory), { personId: uid, name: 'Categoria histórica por ID' });
+        await setDoc(doc(store, 'banks', foreignBank), { personId: 'outro-titular', name: 'Outra conta sintética' });
+      });
+    }
     await setDoc(doc(db, 'users', uid), { name: 'Pessoa Teste', email, adminUser: false, createdAt: serverTimestamp() });
     await createBank(client, scope, bankId, { name: 'Banco de ciclos', institutionKey: 'outro-banco', institutionName: 'Banco', accountType: 'checking', colorHex: null, initialBalanceCents: 10000, openingDate: '2025-01-01', reason: '' });
     const category = { showInBothLists: false, iconFamily: null, iconName: null, iconStyle: null };
@@ -38,7 +43,7 @@ async function run() {
     page.setDefaultTimeout(25000);
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    const url = path => 'http://127.0.0.1:4173/web' + path;
+    const url = path => (staging ? 'http://127.0.0.1:4175/web' : 'http://127.0.0.1:4173/web') + path;
     const button = name => page.getByRole('button', { name, exact: true }).last();
     const label = name => page.getByLabel(name, { exact: true }).last();
     const text = value => page.getByText(value, { exact: true }).last();
@@ -70,6 +75,11 @@ async function run() {
         assert.equal((await readMandatoryPage(client, scope, type)).items[0].name, name);
       }
       await balance(10000);
+      if (staging) {
+        await page.goto(url('/home'));
+        await text('Curso mensal').waitFor();
+        await text('Bolsa mensal').waitFor();
+      }
       for (const [type, plural, name, cents] of [['expense','expenses','Curso mensal',7500], ['gain','gains','Bolsa mensal',13500]]) {
         const gain = type === 'gain';
         await page.goto(url('/mandatory-' + plural));
@@ -87,6 +97,11 @@ async function run() {
       await label('Desfazer pagamento de Curso mensal').click();
       await page.getByRole('button', { name: /^(Desfazer pagamento|Reivindicar)$/ }).last().click();
       await waitForLedger(16000, 'expense', false);
+      if (staging) {
+        assert.deepEqual(pageErrors, []);
+        console.log('Web no Spark de homologação: compromissos na Home, dois modelos, confirmação de ciclos e estorno.');
+        return;
+      }
       await page.goto(url('/home?tab=2'));
       await text('Bancos').click();
       await label('ID do banco antigo').fill(foreignBank);

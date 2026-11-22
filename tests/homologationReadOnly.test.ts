@@ -5,7 +5,16 @@ import { createBank, updateBank, archiveBank, newBankOperationId, requireBankRea
 import { createCategory, updateCategory, archiveCategory, newCategoryId, readCategory } from '../firebase/categories';
 import { createMovement, updateMovement, newMovementId, createBankTransfer, createCashWithdrawal, confirmMandatoryCycle, cancelMandatoryCycle } from '../firebase/movements';
 import { saveMandatoryTemplate, archiveMandatoryTemplate } from '../firebase/mandatory';
-import { readFirebaseConfig } from '../firebase/config';
+import { financialLedgerAllowsWrites, OFFICIAL_PROJECT_ID, STAGING_PROJECT_ID, readFirebaseConfig, usesCanonicalFinance } from '../firebase/config';
+import productionReadiness from '../firebase/production-readiness.json';
+
+jest.mock('../firebase/production-readiness.json', () => ({
+  ...jest.requireActual('../firebase/production-readiness.json'),
+  financialSchemaVersion: undefined,
+  migrationManifestSHA256: undefined,
+  canonicalRulesSHA256: undefined,
+  financialWritesEnabled: false,
+}));
 
 const scope = { kind: 'personal' as const, id: 'owner', uid: 'owner' };
 const client = { auth: { currentUser: { uid: 'owner' } }, db: { app: { options: { projectId: 'finances-app-e8685' } } } } as unknown as AccountClient;
@@ -44,4 +53,18 @@ it('never uses the emulator in official mode and refuses an unprotected group-ro
   expect(official.options.projectId).toBe('finances-app-e8685');
   expect(official).not.toHaveProperty('host');
   await expect(readCategory(client, { kind: 'group', id: 'group', uid: 'owner' }, { id: 'tag', source: 'group-root' })).rejects.toThrow('categories/ambiguous-owner');
+});
+
+it('requires the applied manifest and verified candidate Rules to select official canonical finance', () => {
+  const readiness = { ...productionReadiness, financialSchemaVersion: 2, financialWritesEnabled: false,
+    migrationManifestSHA256: 'a'.repeat(64), canonicalRulesSHA256: productionReadiness.rulesSHA256 };
+  expect(usesCanonicalFinance(STAGING_PROJECT_ID)).toBe(true);
+  expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID)).toBe(false);
+  expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, readiness)).toBe(true);
+  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, readiness)).toBe(false);
+  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, financialWritesEnabled: true })).toBe(true);
+  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, financialSchemaVersion: undefined, financialWritesEnabled: true })).toBe(false);
+  expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, { ...readiness, status: 'pending' })).toBe(false);
+  expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, { ...readiness, migrationManifestSHA256: '' })).toBe(false);
+  expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, { ...readiness, canonicalRulesSHA256: 'b'.repeat(64) })).toBe(false);
 });

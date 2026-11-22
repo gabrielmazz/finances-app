@@ -1,0 +1,454 @@
+--- Stage 03 publicada
++++ 1.6 Rules finais
+@@ -1,11 +1,5 @@
+ rules_version = '2';
+-// Stage 03 candidate, not published. Default deny; all financial writes remain denied.
+-// users/{uid}: legacy fields retained; clients create a minimal own profile or edit
+-// their own bounded name. Permission/relationship fields cannot be changed.
+-// _authorizations/{uid}: IAM-only {generation:string, enabled:bool, readOwners:list<=5,
+-// groups:map<=5}. Requires matching Auth custom claim lumusAccess, minted by IAM.
+-// Legacy profile/group membership fields alone never establish authorization.
+-// Financial documents: immutable legacy personId ownership, read only, pages <=20.
++// Candidata canônica do MVP 1.6. Homologação isolada antes do corte.
+ service cloud.firestore {
+   match /databases/{database}/documents {
+     function isAuthenticated() { return request.auth != null; }
+@@ -23,24 +17,403 @@
+         && data.groups is map && data.groups.size() <= 5;
+     }
+     function verifiedAuthorization() { return validAuthorization(authorization()); }
+-    function mayReadOwner(owner) {
+-      return isAuthenticated() && owner is string && (owner == request.auth.uid ||
+-        (hasAuthorityClaim() && verifiedAuthorization() && owner in authorization().readOwners));
+-    }
+     function hasGroupAccess(groupId) {
+       return hasAuthorityClaim() && verifiedAuthorization()
+         && authorization().groups.get(groupId, '') in ['admin', 'member'];
+     }
+-    function legacyCollection(name) {
+-      return name in ['banks','bankTransfers','cashRescues','expenses','financeInvestmentSyncs',
+-        'financeInvestments','gains','investmentCdiRates','mandatoryExpenses','mandatoryGains',
+-        'monthlyBalances','tags'];
+-    }
+     function isValidName(data) {
+       return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+         && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\x00-\\x1F\\x7F].*');
+     }
+     function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }
++    function boundedText(value, max) {
++      return value is string && value.size() > 0 && value.size() <= max
++        && value.matches('.*[^ ].*') && !value.matches('.*[\\x00-\\x1F\\x7F].*');
++    }
++    function validBankMetadata(data) {
++      return isValidName(data) && boundedText(data.institutionName,100)
++        && data.institutionKey is string && data.institutionKey.matches('^[a-z0-9-]{1,64}$')
++        && data.accountType in ['checking','savings','payment','cash']
++        && (data.colorHex == null || (data.colorHex is string && data.colorHex.matches('^#[a-fA-F0-9]{6}$')));
++    }
++    function contextId(key) { return key.split(':')[1]; }
++    function validContext(key) { return key.matches('^(personal|group):[A-Za-z0-9_-]{1,128}$'); }
++    function activeGroup(id) {
++      return get(/databases/$(database)/documents/financialGroups/$(id)).data.status == 'active';
++    }
++    function mayReadContext(key) {
++      return isAuthenticated() && validContext(key) &&
++        ((key.split(':')[0] == 'personal' && isOwner(contextId(key))) ||
++         (key.split(':')[0] == 'group' && hasGroupAccess(contextId(key)) && activeGroup(contextId(key))));
++    }
++    function canonicalFinancialWritesEnabled() { return true; }
++    function mayWriteContext(key) {
++      let parts = key.split(':');
++      return canonicalFinancialWritesEnabled() && isAuthenticated() && validContext(key)
++        && (parts[0] == 'personal' ? request.auth.uid == parts[1] : hasActiveGroupAdmin(parts[1]));
++    }
++    function hasActiveGroupAdmin(id) {
++      let grant = authorization();
++      return hasAuthorityClaim() && validAuthorization(grant) && grant.groups.get(id,'') == 'admin' && activeGroup(id);
++    }
++    function validAmount(value) { return value is int && value >= -9000000000000 && value <= 9000000000000; }
++    function validAccount(data,key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt','balanceCents','balanceRevision','lastMovementId','legacyBankId','historicalSourcePath','referenceNotBefore'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','institutionKey','institutionName','accountType','colorHex','initialBalanceCents','openingDate','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion is int && data.schemaVersion == 1 && data.scopeKind in ['personal','group']
++        && (!data.keys().hasAny(['legacyBankId']) || (data.scopeKind == 'personal' && data.legacyBankId is string && data.legacyBankId.matches('^[A-Za-z0-9]{20}$')))
++        && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
++        && validBankMetadata(data) && validAmount(data.initialBalanceCents)
++        && (!data.keys().hasAny(['referenceNotBefore']) || (data.keys().hasAny(['historicalSourcePath'])
++          && data.referenceNotBefore is timestamp && data.openingDate >= data.referenceNotBefore))
++        && ((!data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])) ||
++          (data.keys().hasAll(['balanceCents','balanceRevision','lastMovementId']) && validAmount(data.balanceCents)
++            && data.balanceRevision is int && data.balanceRevision > 0 && data.balanceRevision <= 1000000000
++            && data.lastMovementId is string && data.lastMovementId.matches('^[A-Za-z0-9]{20}(-credit|-[0-9]{4}-(0[1-9]|1[0-2]))?$')))
++        && data.openingDate is timestamp && data.openingDate >= timestamp.date(1900,1,1) && data.openingDate <= request.time
++        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() <= 128
++        && data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() <= 128
++        && data.createdAt is timestamp && data.updatedAt is timestamp;
++    }
++    function validOpening(data,key,id) {
++      return data.keys().hasOnly(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt','confirmed','pendingReviewed'])
++        && data.keys().hasAll(['schemaVersion','accountId','scopeKind','scopeId','type','amountCents','date','reason','createdBy','createdAt'])
++        && data.schemaVersion is int && data.schemaVersion == 1 && data.accountId == id
++        && ((data.type == 'opening' && !data.keys().hasAny(['confirmed','pendingReviewed']))
++          || (data.type == 'reference' && data.confirmed == true && data.pendingReviewed == true))
++        && data.scopeKind in ['personal','group'] && data.scopeId is string && data.scopeId.size() > 0 && data.scopeId.size() <= 128 && key == data.scopeKind + ':' + data.scopeId
++        && validAmount(data.amountCents) && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time
++        && data.reason is string && data.reason.size() <= 500 && !data.reason.matches('.*[\\x00-\\x1F\\x7F].*')
++        && ((data.amountCents >= 0 && data.reason == '') || (data.amountCents < 0 && boundedText(data.reason,500) && data.reason.size() >= 3))
++        && data.createdBy == request.auth.uid && data.createdAt == request.time;
++    }
++    function validCategory(data, key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','nameKey','historicalSourcePath','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
++        && isValidName(data) && (data.usageType in ['expense','gain','both'] || (data.usageType == null && data.keys().hasAny(['historicalSourcePath'])))
++        && data.isMandatoryExpense is bool && data.isMandatoryGain is bool && data.showInBothLists is bool
++        && (data.usageType != 'expense' || !data.isMandatoryGain)
++        && (data.usageType != 'gain' || !data.isMandatoryExpense)
++        && (data.iconFamily == null || boundedText(data.iconFamily,100))
++        && (data.iconName == null || boundedText(data.iconName,100))
++        && (data.iconStyle == null || boundedText(data.iconStyle,100))
++        && (!data.keys().hasAny(['nameKey']) || (data.nameKey is string && data.nameKey.size() <= 1300))
++        && data.status in ['active','archived'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128)
++        && data.createdAt is timestamp && data.updatedAt is timestamp;
++    }
++    match /financialContexts/{key}/categories/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validCategory(request.resource.data,key)
++        && !request.resource.data.keys().hasAny(['nameKey','historicalSourcePath'])
++        && request.resource.data.status == 'active' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
++      allow update: if mayWriteContext(key) && validCategory(request.resource.data,key)
++        && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','usageType','isMandatoryExpense','isMandatoryGain','showInBothLists','iconFamily','iconName','iconStyle','status','revision','updatedBy','updatedAt'])
++        && (request.resource.data.status == 'active' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']));
++    }
++    function validMandatoryTemplate(data) {
++      return data.keys().hasOnly(['type','name','valueInCents','categoryId','categorySource','description','dueDay','usesBusinessDays',
++          'installmentTotal','installmentTotalValueInCents','installmentStartDate','installmentsCompleted','lastCycle',
++          'lastMovementDate','lastAmountCents','lastInstallments','isActive','revision','updatedBy','updatedAt','historicalSourcePath'])
++        && data.type in ['gain','expense'] && isValidName(data)
++        && validAmount(data.valueInCents) && data.valueInCents > 0
++        && data.description is string && data.description.size() <= 500
++        && data.categoryId is string && data.categoryId.size() > 0 && data.categoryId.size() <= 1500 && !data.categoryId.matches('.*/.*')
++        && data.categorySource == 'new'
++        && data.usesBusinessDays is bool && data.dueDay is int && data.dueDay >= 1 && data.dueDay <= (data.usesBusinessDays ? 23 : 31)
++        && data.isActive is bool && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && data.installmentsCompleted is int && data.installmentsCompleted >= 0
++        && validMandatoryInstallments(data)
++        && data.updatedBy == request.auth.uid && data.updatedAt == request.time;
++    }
++    function validMandatoryInstallments(data) {
++      return data.installmentTotal == null
++        ? data.installmentTotalValueInCents == null && data.installmentStartDate == null && data.installmentsCompleted == 0
++        : data.installmentTotal is int && data.installmentTotal >= 1 && data.installmentTotal <= 360
++          && data.installmentsCompleted <= data.installmentTotal
++          && validAmount(data.installmentTotalValueInCents)
++          && data.valueInCents * data.installmentTotal <= data.installmentTotalValueInCents
++          && (data.valueInCents + 1) * data.installmentTotal > data.installmentTotalValueInCents
++          && data.installmentStartDate is timestamp && data.installmentStartDate == data.installmentStartDate.date()
++          && data.installmentStartDate >= timestamp.date(1900,1,1);
++    }
++    function mandatoryCategory(data,key) {
++      return movementCategory({'type': data.type, 'isFromMandatory': true, 'categoryId': data.categoryId,
++        'categorySource': data.categorySource, 'scopeKind': key.split(':')[0], 'scopeId': contextId(key)},key);
++    }
++    function cycleKey(date) {
++      return string(date.year()) + '-' + (date.month() < 10 ? '0' : '') + string(date.month());
++    }
++    function cycleNumber(cycle) {
++      return int(cycle.split('-')[0]) * 12 + int(cycle.split('-')[1]);
++    }
++    function validMandatoryConfirmation(before,after,movement) {
++      let count = movement.installmentCount;
++      let completed = before.installmentsCompleted + count;
++      return after.lastMovementDate == movement.date && after.lastAmountCents == movement.amountCents
++        && count is int && count > 0 && after.lastInstallments == count
++        && (before.lastCycle == null || cycleNumber(after.lastCycle) >= cycleNumber(before.lastCycle))
++        && (before.installmentTotal == null
++          ? count == 1 && after.installmentsCompleted == 0 && movement.amountCents == before.valueInCents
++          : completed <= before.installmentTotal && after.installmentsCompleted == completed
++            && cycleNumber(after.lastCycle) >= cycleNumber(cycleKey(before.installmentStartDate))
++            && movement.amountCents == (completed == before.installmentTotal
++              ? before.installmentTotalValueInCents - before.installmentsCompleted * before.valueInCents
++              : count * before.valueInCents));
++    }
++    function validMandatoryCycleChange(before,after,key,id) {
++      let movementId = id + '-' + after.lastCycle;
++      let path = /databases/$(database)/documents/financialContexts/$(key)/movements/$(movementId);
++      let movement = getAfter(path).data;
++      let existing = exists(path);
++      return after.diff(before).affectedKeys().hasOnly(['revision','updatedBy','updatedAt','lastCycle','lastMovementDate','lastAmountCents','lastInstallments','installmentsCompleted'])
++        && movement.recurringTemplateId == id && after.lastCycle == cycleKey(movement.date)
++        && (existing ? movement.revision == get(path).data.revision + 1 : movement.revision == 0)
++        && (movement.status == 'posted'
++          ? (!existing || get(path).data.status == 'cancelled') && validMandatoryConfirmation(before,after,movement)
++          : existing && get(path).data.status == 'posted' && movement.status == 'cancelled'
++            && before.lastCycle == after.lastCycle && before.lastMovementDate == movement.date
++            && after.lastMovementDate == null && after.lastAmountCents == null && after.lastInstallments == 0
++            && after.installmentsCompleted == before.installmentsCompleted - (before.installmentTotal == null ? 0 : before.lastInstallments));
++    }
++    match /financialContexts/{key}/mandatoryTemplates/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$')
++        && validMandatoryTemplate(request.resource.data) && mandatoryCategory(request.resource.data,key)
++        && !request.resource.data.keys().hasAny(['historicalSourcePath'])
++        && request.resource.data.revision == 0 && request.resource.data.isActive && request.resource.data.installmentsCompleted == 0
++        && request.resource.data.lastCycle == null && request.resource.data.lastMovementDate == null
++        && request.resource.data.lastAmountCents == null && request.resource.data.lastInstallments == 0;
++      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastCycle','lastMovementDate'])
++        && mayWriteContext(key) && resource.data.isActive && validMandatoryTemplate(request.resource.data)
++        && request.resource.data.type == resource.data.type && request.resource.data.revision == resource.data.revision + 1
++        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive','revision','updatedBy','updatedAt']) && !request.resource.data.isActive
++          || request.resource.data.isActive &&
++            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','valueInCents','categoryId','categorySource','description',
++              'dueDay','usesBusinessDays','installmentTotal','installmentTotalValueInCents','installmentStartDate','revision','updatedBy','updatedAt'])
++            && (resource.data.installmentsCompleted == 0 || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['installmentTotal','installmentTotalValueInCents','installmentStartDate']))
++            && mandatoryCategory(request.resource.data,key));
++      // Only the ledger mutation in the same commit can authorize a cycle change.
++      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastCycle','lastMovementDate'])
++        && mayWriteContext(key) && resource.data.isActive && request.resource.data.revision == resource.data.revision + 1
++        && request.resource.data.revision <= 1000000000 && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.updatedAt == request.time && validMandatoryCycleChange(resource.data,request.resource.data,key,id);
++    }
++    function linkedMandatoryMovement(data,key,id) {
++      let path = /databases/$(database)/documents/financialContexts/$(key)/mandatoryTemplates/$(data.recurringTemplateId);
++      let before = get(path).data;
++      let after = getAfter(path).data;
++      let cycle = cycleKey(data.date);
++      return data.recurringTemplateId is string && data.recurringTemplateId.matches('^[A-Za-z0-9]{20}$')
++        && id == data.recurringTemplateId + '-' + cycle && data.date == data.date.date()
++        && data.isFromMandatory == true && data.installmentCount is int
++        && before.isActive && after.revision == before.revision + 1 && after.lastCycle == cycle
++        && (data.status == 'posted'
++          ? after.lastMovementDate == data.date && (before.lastCycle != after.lastCycle || before.lastMovementDate == null)
++            && data.type == before.type && data.name == before.name && data.categoryId == before.categoryId && data.categorySource == before.categorySource
++          : before.lastCycle == after.lastCycle && before.lastMovementDate == data.date && after.lastMovementDate == null);
++    }
++    function validOccurrence(data) {
++      return !data.keys().hasAny(['occurredAt'])
++        || (data.occurredAt is timestamp && data.occurredAt <= request.time
++          && data.occurredAt.nanos() == 0 && data.occurredAt.seconds() % 60 == 0
++          && (data.date == (data.occurredAt - duration.value(3,'h')).date()
++            || (data.date < timestamp.date(2020,1,1) && data.date == (data.occurredAt - duration.value(2,'h')).date())));
++    }
++    function earliestMovementStart(day) {
++      // UTC-02 was possible in São Paulo during historical daylight saving time.
++      return day + duration.value(day < timestamp.date(2020,1,1) ? 2 : 3,'h');
++    }
++    function validMovement(data,key) {
++      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','occurredAt','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt','operation','transferId','isFromMandatory','recurringTemplateId','installmentCount'])
++        && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
++        && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
++        && isValidName(data) && data.type in ['gain','expense'] && validAmount(data.amountCents) && data.amountCents > 0
++        && data.accountId is string && data.accountId.matches('^[A-Za-z0-9]{20}$')
++        && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= request.time && validOccurrence(data)
++        && data.explanation is string && data.explanation.size() <= 500 && data.explanation.matches('[^\\x00-\\x1F\\x7F]*')
++        && data.paymentFormats is list && data.paymentFormats.size() <= 1 && data.paymentFormats.hasOnly(['Variable','External'])
++        && (data.type != 'expense' || data.paymentFormats.size() == 0)
++        && data.status in ['posted','cancelled'] && data.revision is int && data.revision >= 0 && data.revision <= 1000000000
++        && boundedText(data.createdBy,128) && boundedText(data.updatedBy,128) && data.createdAt is timestamp && data.updatedAt is timestamp
++        && (data.keys().hasAny(['operation']) ? !data.keys().hasAny(['categoryId','categorySource','isFromMandatory','recurringTemplateId','installmentCount']) && data.paymentFormats.size() == 0 && data.date == data.date.date()
++          : !data.keys().hasAny(['transferId']) && (!data.keys().hasAny(['isFromMandatory']) || data.isFromMandatory == true) && data.categoryId is string && data.categoryId.size() > 0 && data.categoryId.size() <= 1500
++            && !data.categoryId.matches('.*/.*') && data.categorySource == 'new');
++    }
++    function validTransferPair(data,key,id,outgoing,creating) {
++      let counterpartId = outgoing ? data.transferId + '-credit' : data.transferId;
++      let pair = /databases/$(database)/documents/financialContexts/$(key)/movements/$(counterpartId);
++      let other = getAfter(pair).data;
++      return data.transferId is string && data.transferId.matches('^[A-Za-z0-9]{20}$')
++        && id == (outgoing ? data.transferId : data.transferId + '-credit')
++        && data.type == (outgoing ? 'expense' : 'gain')
++        && other.operation == (outgoing ? 'transfer-in' : 'transfer-out') && other.status == data.status
++        && (creating ? !exists(pair) : get(pair).data.status == 'posted' && other.revision == get(pair).data.revision + 1)
++        && other.transferId == data.transferId && other.accountId != data.accountId
++        && other.amountCents == data.amountCents && other.date == data.date && other.explanation == data.explanation
++        && other.get('occurredAt',null) == data.get('occurredAt',null);
++    }
++    function validMovementOperation(data,key,id) {
++      return !data.keys().hasAny(['operation']) ? movementCategory(data,key)
++        && (data.keys().hasAny(['recurringTemplateId','installmentCount'])
++          ? linkedMandatoryMovement(data,key,id) : id.matches('^[A-Za-z0-9]{20}$'))
++        : data.operation == 'cash-withdrawal' ? id.matches('^[A-Za-z0-9]{20}$') && data.type == 'expense' && !data.keys().hasAny(['transferId'])
++        : data.operation in ['transfer-in','transfer-out'] && validTransferPair(data,key,id,data.operation == 'transfer-out',true);
++    }
++    function categoryMatchesMovement(category,data) {
++      return category.get('usageType',null) in [data.type,'both']
++        && (!data.get('isFromMandatory',false)
++          || (data.type == 'gain' ? category.get('isMandatoryGain',false) : category.get('isMandatoryExpense',false)) == true);
++    }
++    function movementCategory(data,key) {
++      let category = getAfter(/databases/$(database)/documents/financialContexts/$(key)/categories/$(data.categoryId)).data;
++      return data.categorySource == 'new' && category.status == 'active' && categoryMatchesMovement(category,data);
++    }
++    function preparedAccount(data) {
++      return data.openingDate is timestamp && validAmount(data.initialBalanceCents);
++    }
++    function afterAccountReference(key,data) {
++      let account = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
++      let occurred = data.get('occurredAt',earliestMovementStart(data.date));
++      return preparedAccount(account) && data.date == data.date.date()
++        && (account.keys().hasAny(['legacyBankId','historicalSourcePath'])
++          ? occurred > account.openingDate && occurred <= request.time
++          : data.date >= account.openingDate.date());
++    }
++    function movementEffect(data,accountId) {
++      return data.status == 'posted' && data.accountId == accountId ? (data.type == 'gain' ? data.amountCents : -data.amountCents) : 0;
++    }
++    function accountChangedForMovement(key,accountId,movementId) {
++      let path = /databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(accountId);
++      let before = get(path).data;
++      let after = getAfter(path).data;
++      return before.status == 'active' && preparedAccount(before) && after.lastMovementId == movementId
++        && after.balanceRevision == before.get('balanceRevision',0) + 1;
++    }
++    function validMovementBalanceUpdate(key,accountId) {
++      let id = request.resource.data.lastMovementId;
++      let path = /databases/$(database)/documents/financialContexts/$(key)/movements/$(id);
++      let after = getAfter(path).data;
++      let existing = exists(path);
++      let before = existing ? get(path).data : {};
++      let oldEffect = existing ? movementEffect(before,accountId) : 0;
++      let newEffect = movementEffect(after,accountId);
++      return preparedAccount(resource.data) && (!existing || !before.keys().hasAny(['historicalSourcePath']))
++        && (existing ? after.revision == before.revision + 1 : after.revision == 0)
++        && (newEffect != 0 || oldEffect != 0)
++        && (after.get('operation','') == '' ||
++          (after.status == 'posted' ? after.type != 'expense' : after.operation != 'transfer-in') ||
++          request.resource.data.balanceCents >= 0)
++        && request.resource.data.balanceRevision == resource.data.get('balanceRevision',0) + 1
++        && request.resource.data.balanceCents == resource.data.get('balanceCents',resource.data.initialBalanceCents) + newEffect - oldEffect;
++    }
++    function validReferencePreparation(key,id,before,after) {
++      let openingPath = /databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id);
++      let opening = getAfter(openingPath).data;
++      let changes = after.diff(before).affectedKeys();
++      return before.status == 'active' && before.keys().hasAny(['historicalSourcePath'])
++        && !before.keys().hasAny(['openingDate','initialBalanceCents','balanceCents','balanceRevision','lastMovementId'])
++        && changes.hasOnly(['openingDate','initialBalanceCents','institutionKey','institutionName','accountType','colorHex','revision','updatedBy','updatedAt'])
++        && after.revision == before.revision + 1 && after.updatedBy == request.auth.uid && after.updatedAt == request.time
++        && (!before.keys().hasAny(['referenceNotBefore']) || opening.date >= before.referenceNotBefore)
++        && validBankMetadata(after) && !exists(openingPath) && opening.type == 'reference'
++        && opening.amountCents == after.initialBalanceCents && opening.date == after.openingDate;
++    }
++    match /financialContexts/{key}/movements/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      // A linked entry requires an authorized bank balance update in the same
++      // transaction. The bank rule checks the caller and the amount delta.
++      allow create: if mayWriteContext(key)
++        && validMovement(request.resource.data,key)
++        && request.resource.data.status == 'posted' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
++        && validMovementOperation(request.resource.data,key,id) && afterAccountReference(key,request.resource.data)
++        && accountChangedForMovement(key,request.resource.data.accountId,id);
++      allow update: if !resource.data.keys().hasAny(['operation','recurringTemplateId','historicalSourcePath']) && mayWriteContext(key) && afterAccountReference(key,resource.data) && afterAccountReference(key,request.resource.data)
++        && validMovement(request.resource.data,key) && resource.data.status == 'posted'
++        && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','amountCents','accountId','categoryId','categorySource','date','occurredAt','explanation','paymentFormats','status','revision','updatedBy','updatedAt'])
++        && (request.resource.data.status == 'posted' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']))
++        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['categoryId','categorySource']) || movementCategory(request.resource.data,key))
++        && accountChangedForMovement(key,resource.data.accountId,id)
++        && (request.resource.data.accountId == resource.data.accountId || accountChangedForMovement(key,request.resource.data.accountId,id));
++      allow update: if resource.data.keys().hasAny(['operation']) && !resource.data.keys().hasAny(['historicalSourcePath'])
++        && mayWriteContext(key) && resource.data.status == 'posted' && request.resource.data.status == 'cancelled'
++        && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.revision <= 1000000000
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])
++        && (resource.data.operation == 'cash-withdrawal' ||
++          (resource.data.operation in ['transfer-out','transfer-in'] &&
++            validTransferPair(request.resource.data,key,id,resource.data.operation == 'transfer-out',false)))
++        && afterAccountReference(key,resource.data) && accountChangedForMovement(key,resource.data.accountId,id);
++      allow update: if resource.data.keys().hasAny(['recurringTemplateId']) && !resource.data.keys().hasAny(['historicalSourcePath']) && mayWriteContext(key)
++        && validMovement(request.resource.data,key)
++        && request.resource.data.revision == resource.data.revision + 1
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && linkedMandatoryMovement(request.resource.data,key,id)
++        && (resource.data.status == 'posted'
++          ? request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])
++          : resource.data.status == 'cancelled' && request.resource.data.status == 'posted'
++            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt','name','amountCents','accountId','categoryId','categorySource','date','occurredAt','explanation','paymentFormats','installmentCount'])
++            && movementCategory(request.resource.data,key))
++        && afterAccountReference(key,request.resource.data)
++        && accountChangedForMovement(key,request.resource.data.accountId,id);
++    }
++    match /financialContexts/{key}/bankAccounts/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$')
++        && validAccount(request.resource.data,key) && !request.resource.data.keys().hasAny(['balanceCents','balanceRevision','lastMovementId'])
++        && request.resource.data.status == 'active' && request.resource.data.revision == 0
++        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
++        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
++        && !request.resource.data.keys().hasAny(['legacyBankId','historicalSourcePath'])
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.type == 'opening'
++        && !exists(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id))
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.accountId == id
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.amountCents == request.resource.data.initialBalanceCents
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/accountOpenings/$(id)).data.date == request.resource.data.openingDate;
++      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','institutionKey','institutionName','accountType','colorHex','status','revision','updatedBy','updatedAt'])
++        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['revision']) && mayWriteContext(key) && resource.data.status == 'active' && request.resource.data.revision == resource.data.revision + 1
++        && validAccount(request.resource.data,key)
++        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
++        && ((request.resource.data.status == 'active'
++          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','institutionKey','institutionName','accountType','colorHex','revision','updatedBy','updatedAt'])
++          && request.resource.data.diff(resource.data).affectedKeys().hasAny(['name','institutionKey','institutionName','accountType','colorHex']))
++        || (request.resource.data.status == 'archived' && !resource.data.keys().hasAny(['legacyBankId']) && resource.data.get('balanceCents',resource.data.initialBalanceCents) == 0
++          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])));
++      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAll(['openingDate','initialBalanceCents']) &&
++        mayWriteContext(key) && key == 'personal:' + request.auth.uid && validReferencePreparation(key,id,resource.data,request.resource.data);
++      allow update: if mayWriteContext(key) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balanceCents','balanceRevision','lastMovementId']) && resource.data.status == 'active'
++        && validAmount(request.resource.data.balanceCents) && request.resource.data.balanceRevision is int
++        && request.resource.data.balanceRevision > 0 && request.resource.data.balanceRevision <= 1000000000
++        && request.resource.data.lastMovementId is string && request.resource.data.lastMovementId.matches('^[A-Za-z0-9]{20}(-credit|-[0-9]{4}-(0[1-9]|1[0-2]))?$')
++        && validMovementBalanceUpdate(key,id);
++    }
++    match /financialContexts/{key}/accountOpenings/{id} {
++      allow get: if mayReadContext(key);
++      allow list: if mayReadContext(key) && request.query.limit <= 20;
++      allow create: if mayWriteContext(key) && id.matches('^[A-Za-z0-9]{20}$') && validOpening(request.resource.data,key,id)
++        && ((request.resource.data.type == 'opening' && !exists(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)))
++          || (request.resource.data.type == 'reference' && key == 'personal:' + request.auth.uid
++            && get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.keys().hasAny(['historicalSourcePath'])
++            && !get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.keys().hasAny(['openingDate','initialBalanceCents'])))
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.initialBalanceCents == request.resource.data.amountCents
++        && getAfter(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(id)).data.openingDate == request.resource.data.date;
++    }
++    match /financialGroups/{groupId} {
++      allow get: if hasGroupAccess(groupId) && resource.data.status == 'active';
++    }
+     match /users/{uid} {
+       allow get: if isOwner(uid);
+       allow create: if isOwner(uid) && isValidUser(request.resource.data)
+@@ -55,25 +428,9 @@
+         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+         && request.resource.data.updatedAt == request.time;
+     }
+-    match /financialGroups/{groupId} {
+-      allow get: if hasGroupAccess(groupId) && resource.data.status == 'active';
+-      match /{collection}/{id} {
+-        allow get: if collection in ['accounts','movements','monthlyBalances','tags']
+-          && hasGroupAccess(groupId)
+-          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';
+-        allow list: if request.query.limit <= 20
+-          && collection in ['accounts','movements','monthlyBalances','tags'] && hasGroupAccess(groupId)
+-          && get(/databases/$(database)/documents/financialGroups/$(groupId)).data.status == 'active';
+-      }
+-    }
+     match /_authorizations/{uid} {
+       allow get: if isOwner(uid) && hasAuthorityClaim() && validAuthorization(resource.data);
+     }
+-    match /{collection}/{id} {
+-      allow get: if legacyCollection(collection) && mayReadOwner(resource.data.personId);
+-      allow list: if legacyCollection(collection) && request.query.limit <= 20
+-        && mayReadOwner(resource.data.personId);
+-    }
+     match /{document=**} { allow read, write: if false; }
+   }
+ }

@@ -25,7 +25,8 @@ const output=path.join(os.homedir(),'.cache/lumus-homologation/web');
 	const env={...process.env,EXPO_NO_DOTENV:'1',EXPO_NO_CLIENT_ENV_VARS:'0',EXPO_PUBLIC_FIREBASE_MODE:'production',EXPO_PUBLIC_FIREBASE_API_KEY:config.apiKey,EXPO_PUBLIC_FIREBASE_EMULATOR_HOST:'',LUMUS_HOMOLOGATION:'1'};
 	if(action==='serve-web'||action==='serve-web-lan'){
 		const host=action==='serve-web-lan'?'0.0.0.0':'127.0.0.1';
-		require('./serve_web.cjs').createWebServer(output).listen(4174,host,()=>console.log(`Homologation UI: ${host}:4174/web (real Firebase, read-only client; no Hosting deployment)`));return;
+		const mode=readiness.financialWritesEnabled?'movimentações habilitadas':'modo de consulta';
+		require('./serve_web.cjs').createWebServer(output).listen(4174,host,()=>console.log(`Web oficial em http://${host}:4174/web (${mode})`));return;
 	}
 	const cli=path.join(repo,'node_modules/expo/bin/cli');
 	const args=action==='export-web'?['export','--platform','web','--output-dir',output]:action==='native'?['start','--go','--lan','--port','8088']:action==='web'?['start','--web','--host','localhost','--port','8088']:action==='prebuild-android'?['prebuild','--platform','android','--no-install']:null;

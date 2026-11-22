@@ -44,7 +44,7 @@ test('reference permits only post-cutover movements and preserves atomic balance
 	await createCategory(client, scope, costTag, { ...cat, usageType: 'expense' });
 	const gain = { name: 'Receita', type: 'gain' as const, amountCents: 50000, accountId: id, categoryId: gainTag, categorySource: 'new' as const, date: '2025-01-02', explanation: '', paymentFormats: [] };
 	const cost = { ...gain, name: 'Despesa', type: 'expense' as const, amountCents: 20000, categoryId: costTag };
-	await assert.rejects(createMovement(client, scope, 'referenceOldDate0001', { ...gain, date: '2025-01-01' }), /before-reference/);
+	await assert.rejects(createMovement(client, scope, 'referenceOldDate0001', { ...gain, date: '2025-01-01' }), /reference-time-required/);
 	await env.withSecurityRulesDisabled(async c => setDoc(doc(c.firestore(), 'gains', 'referenceHistory0001'), { personId: uid, groupId: null, financialGroupId: null, ledgerGroupId: null, bankId: id, valueInCents: 50000 }));
 	await assert.rejects(createMovement(client, scope, 'referenceHistory0001', gain));
 	const first = await createMovement(client, scope, 'referenceMoveGain001', gain);
@@ -136,7 +136,8 @@ test('missing legacy context needs a protected binding; clients cannot grant it'
 	await assert.rejects(prepareLegacyReference(client, scope, legacy, input));
 	await assertFails(setDoc(doc(db, '_bankScopes', legacy), { scopeKind: 'personal', scopeId: uid }));
 	await env.withSecurityRulesDisabled(async c => setDoc(doc(c.firestore(), '_bankScopes', legacy), { scopeKind: 'personal', scopeId: uid }));
-	assert.ok((await readBoundLegacyBankPage(client, scope, 'active')).banks.some(item => item.id === legacy));
+	assert.equal((await readBoundLegacyBankPage(client, scope, 'active')).unavailable, true);
+	assert.equal((await getDoc(doc(db, '_bankScopes', legacy))).exists(), true);
 	await assertFails(getDocs(query(collection(db, '_bankScopes'), limit(20))));
 	await assertFails(getDocs(query(collection(env.unauthenticatedContext().firestore(), '_bankScopes'), limit(20))));
 	assert.equal((await previewLegacyReference(client, scope, legacy, input)).accountId, legacy);
@@ -180,7 +181,7 @@ test('missing legacy context needs a protected binding; clients cannot grant it'
 	await assert.rejects(readMovementTimeline(client, scope, null, timelineStart, timelineEnd, null, [legacy, 'referenceNewBank0001']));
 });
 
-test('protected personal bindings are paginated without reading other owners', async () => {
+test('protected bindings require exact IDs and deny listing and foreign reads', async () => {
 	const owner = 'reference-page-owner', localScope = { kind: 'personal' as const, id: owner, uid: owner };
 	await env.withSecurityRulesDisabled(async c => {
 		const store = c.firestore(), batch = writeBatch(store);
@@ -194,12 +195,12 @@ test('protected personal bindings are paginated without reading other owners', a
 	const db = env.authenticatedContext(owner).firestore();
 	const client = { db, auth: { currentUser: { uid: owner } } } as unknown as Parameters<typeof readBoundLegacyBankPage>[0];
 	const first = await readBoundLegacyBankPage(client, localScope, 'active');
-	assert.equal(first.banks.length, 20);
-	assert.ok(first.nextCursor);
-	const second = await readBoundLegacyBankPage(client, localScope, 'active', first.nextCursor);
-	assert.equal(second.banks.length, 1);
-	assert.equal(second.nextCursor, null);
-	assert.equal(new Set([...first.banks, ...second.banks].map(bank => bank.id)).size, 21);
+	assert.equal(first.unavailable, true);
+	assert.equal(first.banks.length, 0);
+	assert.equal(first.nextCursor, null);
+	const last = 'page' + String(20).padStart(16, '0');
+	assert.equal((await getDoc(doc(db, '_bankScopes', last))).exists(), true);
+	await assertFails(getDoc(doc(env.authenticatedContext('other').firestore(), '_bankScopes', last)));
 });
 
 test('transfers enforce both reference cutoffs and recheck a revoked counterparty on read', async () => {
@@ -223,9 +224,10 @@ test('transfers enforce both reference cutoffs and recheck a revoked counterpart
 	await prepareLegacyReference(client, scope, second, { ...input, referenceAt: nextDate, initialBalanceCents: 50000 });
 	await createBank(client, scope, regular, { ...metadata, initialBalanceCents: 10000, openingDate: '2025-01-01', reason: '' });
 	const transfer = { accountId: first, destinationAccountId: second, amountCents: 7000, date: '2025-01-03', explanation: '' };
-	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02' }), /before-reference/);
+	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02' }), /reference-time-required/);
+	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02', time: '09:00' }), /before-reference/);
 	await assert.rejects(createBankTransfer(client, scope, historicalId, { ...transfer, accountId: regular }));
-	await createBankTransfer(client, scope, id, transfer);
+	await createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02', time: '09:01' });
 	assert.equal((await readBank(client, scope, { id: first, source: 'new' })).balanceInCents, 93000);
 	assert.equal((await readBank(client, scope, { id: second, source: 'new' })).balanceInCents, 57000);
 	assert.equal(await readTransferCounterpartyName(client, scope, id, 'outgoing'), metadata.name);

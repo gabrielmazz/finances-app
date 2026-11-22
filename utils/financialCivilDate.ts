@@ -9,6 +9,16 @@ const parts = (date: Date) => {
 	return [value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second')] as const;
 };
 
+export function financialDateKey(instant: Date): number {
+	const [year, month, day] = parts(instant);
+	return Date.UTC(year, month, day);
+}
+
+export function financialTime(instant: Date): string {
+	const [, , , hours, minutes] = parts(instant);
+	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 /** Calendar adapter for pure calculators whose Date getters use the device timezone. */
 export const toFinancialCivilDate = (instant: Date): Date => {
 	const [year, month, day, hour, minute, second] = parts(instant);

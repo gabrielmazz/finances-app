@@ -53,6 +53,7 @@ import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components
 import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
@@ -208,6 +209,7 @@ export default function AddRegisterGainScreen() {
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
 	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
+	const [gainTime, setGainTime] = React.useState('');
 
 	const { submit, isSubmitting } = useMovementSubmit();
 
@@ -596,12 +598,12 @@ export default function AddRegisterGainScreen() {
 		if (!category) return;
 		const [day, month, year] = gainDate.split('/');
 		try {
-			await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement, linkedMandatoryGainId ? { id: linkedMandatoryGainId, installments: templateData?.installmentsToAdvance ?? 1 } : undefined);
+			await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, ...(gainTime ? { time: gainTime } : {}), explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement, linkedMandatoryGainId ? { id: linkedMandatoryGainId, installments: templateData?.installmentsToAdvance ?? 1 } : undefined);
 			await reloadBanks();
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Receita atualizada.' : 'Receita cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryGainId, templateData?.installmentsToAdvance, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, linkedMandatoryGainId, templateData?.installmentsToAdvance, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainTime, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
 
 	React.useEffect(() => {
 		if (!existingMovement) return;
@@ -613,6 +615,7 @@ export default function AddRegisterGainScreen() {
 
 		const normalizedDate = normalizeDateValue(data.date) ?? new Date();
 		setGainDate(formatDateToBR(normalizedDate));
+		setGainTime(typeof data.time === 'string' ? data.time : '');
 
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
@@ -805,6 +808,8 @@ export default function AddRegisterGainScreen() {
 										placeholder="Selecione a data do ganho"
 										isDisabled={isFormBusy || gainValueCents === null || gainValueCents === 0 || gainName.trim().length === 0}
 									/>
+									<FinancialTimeField label="Horário em São Paulo" value={gainTime} onChange={setGainTime}
+										isDisabled={isFormBusy} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 								</VStack>
 
 								<VStack className="mb-4">

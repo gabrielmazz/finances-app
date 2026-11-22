@@ -151,6 +151,5 @@ test('legacy bank access cannot survive removal from a group just because of cre
   await assertFails(getDoc(doc(db, 'banks', 'legacy-group-bank')));
   await assertFails(updateDoc(doc(db, 'banks', 'legacy-group-bank'), { name: 'Tentativa', bankIconKey: 'outro-banco', institutionName: 'Banco', accountType: 'checking', colorHex: null, metadataRevision: 1, updatedBy: 'legacy-creator', updatedAt: serverTimestamp() }));
   await assertFails(getDocs(query(collection(db, 'banks'), where('personId', '==', 'legacy-creator'), limit(20))));
-  const scoped = await assertSucceeds(getDocs(query(collection(db, 'banks'), where('personId', '==', 'legacy-creator'), where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null), limit(20))));
-  assert.deepEqual(scoped.docs.map(item => item.id), ['legacy-personal-bank']);
+  await assertFails(getDocs(query(collection(db, 'banks'), where('personId', '==', 'legacy-creator'), where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null), limit(20))));
 });

@@ -809,11 +809,11 @@ export default function HomeScreen() {
 												const monthlyExpenseInCents =
 													item.kind === 'cash'
 														? item.currentMonthExpensesInCents
-														: currentMonthExpensesByBankId[item.id] ?? 0;
+														: overview.monthly ? currentMonthExpensesByBankId[item.id] ?? 0 : null;
 												const monthlyGainInCents =
 													item.kind === 'cash'
 														? item.currentMonthGainsInCents
-														: currentMonthGainsByBankId[item.id] ?? 0;
+														: overview.monthly ? currentMonthGainsByBankId[item.id] ?? 0 : null;
 												const cardPalette = buildBankCardPalette(
 													item.kind === 'cash' ? CASH_CARD_COLOR : item.colorHex,
 													isDarkMode,
@@ -873,7 +873,7 @@ export default function HomeScreen() {
 																				className="font-semibold"
 																				style={{ color: cardPalette.expenseColor }}
 																			>
-																				Indisponível
+																				{monthlyExpenseInCents === null ? 'Indisponível' : formatCurrencyBRL(monthlyExpenseInCents)}
 																			</Text>
 																		</VStack>
 
@@ -888,7 +888,7 @@ export default function HomeScreen() {
 																				className="font-semibold"
 																				style={{ color: cardPalette.gainColor }}
 																			>
-																				Indisponível
+																				{monthlyGainInCents === null ? 'Indisponível' : formatCurrencyBRL(monthlyGainInCents)}
 																			</Text>
 																		</VStack>
 																	</HStack>

@@ -157,21 +157,17 @@ test('concurrent profile transactions detect stale edits and preserve legacy per
 	assert.deepEqual(saved.relatedIdUsers, [users.outsider]);
 });
 
-test('bounded own-bank query reads legacy documents; no foreign records or financial mutation', async () => {
+test('legacy bank discovery denied by candidate; own ID readable without finance mutation', async () => {
 	const c = client('bank-page');
 	await login(c, 'legacy@lumus.test', DEMO_PASSWORD);
-	const page = await readOwnBankPage(c, users.legacy);
-	assert.deepEqual(
-		page.banks.map((bank) => bank.id),
-		['fixture-legacy-bank'],
-	);
-	assert.equal(page.nextCursor, null);
+	await assertFails(readOwnBankPage(c, users.legacy));
+	assert.equal((await getDocFromServer(doc(c.db, 'banks', 'fixture-legacy-bank'))).id, 'fixture-legacy-bank');
 	await assertFails(getDocFromServer(doc(c.db, 'banks', 'fixture-other-bank')));
 	await assertFails(setDoc(doc(c.db, 'banks', 'new-bank'), { personId: users.legacy, name: 'Bank' }));
 	await assertFails(
 		setDoc(doc(c.db, 'expenses', 'new-expense'), { personId: users.legacy, valueInCents: 1 }),
 	);
-	assert.ok(getFirebaseDiagnostics().operations['banks.page'].documents >= 1);
+	assert.equal(getFirebaseDiagnostics().operations['banks.page']?.documents ?? 0, 0);
 	assert.equal(getFirebaseDiagnostics().firestoreListeners, 0);
 });
 

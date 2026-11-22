@@ -1,6 +1,6 @@
 {
   "name": "finances-app",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -35,6 +35,14 @@
     "homologation:native": "node script/homologation.cjs native",
     "homologation:prebuild:android": "node script/homologation.cjs prebuild-android",
     "homologation:build:android": "node script/homologation.cjs build-android",
+    "migration:financial": "tsx script/financial-migration.ts",
+    "staging:prepare": "tsx script/staging.ts prepare",
+    "staging:web": "tsx script/staging.ts web",
+    "staging:export": "tsx script/staging.ts export-web",
+    "staging:serve": "tsx script/staging.ts serve-web",
+    "staging:test": "tsx script/staging.ts test",
+    "staging:prebuild:android": "tsx script/staging.ts prebuild-android",
+    "staging:build:android": "tsx script/staging.ts build-android",
     "backup:verify:local": "node script/verify-private-backups.cjs",
     "test:banks:browser": "node tests/browser/banks.cjs",
     "emulators:seed:banks": "node --require ./script/integration-network.cjs --import tsx script/stage04-seed.ts"
@@ -133,6 +141,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.0",
+    "@grpc/grpc-js": "1.14.7",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.2",
@@ -147,6 +156,7 @@
     "postcss": "^8.5.26",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
+    "protobufjs": "7.6.6",
     "react-native-svg-transformer": "^1.5.2",
     "test-renderer": "^1.2.0",
     "tsx": "4.23.15",

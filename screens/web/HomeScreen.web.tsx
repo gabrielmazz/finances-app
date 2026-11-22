@@ -252,8 +252,8 @@ const BankCard = ({
 	item: WebBankItem;
 	hidden: boolean;
 	dark: boolean;
-	monthlyExpenses: number;
-	monthlyGains: number;
+	monthlyExpenses: number | null;
+	monthlyGains: number | null;
 }) => {
 	const palette = buildBankCardPalette(
 		item.kind === "cash" ? CASH_CARD_COLOR : item.colorHex,
@@ -299,7 +299,7 @@ const BankCard = ({
 								Gastos
 							</Text>
 							<Text className={webStyles.bankFooterValue} style={{ color: palette.expenseColor }}>
-								Indisponível
+								{monthlyExpenses === null ? 'Indisponível' : formatCurrency(monthlyExpenses, hidden)}
 							</Text>
 						</View>
 						<View className={webStyles.bankFooterRight}>
@@ -307,7 +307,7 @@ const BankCard = ({
 								Ganhos
 							</Text>
 							<Text className={webStyles.bankFooterValue} style={{ color: palette.gainColor }}>
-								Indisponível
+								{monthlyGains === null ? 'Indisponível' : formatCurrency(monthlyGains, hidden)}
 							</Text>
 						</View>
 					</View>
@@ -385,22 +385,7 @@ export default function HomeScreen() {
 	);
 	const expensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const gainsByBankId = overview.data.currentMonthGainsByBankId;
-	const monthlyTotals = React.useMemo(
-		() => ({
-			expensesInCents:
-				Object.values(expensesByBankId).reduce((total, value) => total + value, 0) +
-				(overview.data.cashSummary?.currentMonthExpensesInCents ?? 0),
-			gainsInCents:
-				Object.values(gainsByBankId).reduce((total, value) => total + value, 0) +
-				(overview.data.cashSummary?.currentMonthGainsInCents ?? 0),
-		}),
-		[
-			expensesByBankId,
-			gainsByBankId,
-			overview.data.cashSummary?.currentMonthExpensesInCents,
-			overview.data.cashSummary?.currentMonthGainsInCents,
-		],
-	);
+	const monthlyTotals = overview.monthly;
 	const expenseHistory = overview.data.expenseHistoryLastThreeMonths;
 	const hasExpenseHistory = expenseHistory.some(
 		(month) => Object.values(month.dailyExpensesInCents).some(value => value !== 0),
@@ -421,16 +406,16 @@ export default function HomeScreen() {
 				monthlyExpenses={
 					item.kind === "cash"
 						? item.currentMonthExpensesInCents
-						: (expensesByBankId[item.id] ?? 0)
+						: monthlyTotals ? expensesByBankId[item.id] ?? 0 : null
 				}
 				monthlyGains={
 					item.kind === "cash"
 						? item.currentMonthGainsInCents
-						: (gainsByBankId[item.id] ?? 0)
+						: monthlyTotals ? gainsByBankId[item.id] ?? 0 : null
 				}
 			/>
 		),
-		[expensesByBankId, gainsByBankId, isDarkMode, shouldHideValues],
+		[expensesByBankId, gainsByBankId, isDarkMode, monthlyTotals, shouldHideValues],
 	);
 
 	React.useEffect(() => {
@@ -708,7 +693,7 @@ export default function HomeScreen() {
 													Total ganho
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
-													Indisponível
+											{monthlyTotals ? formatCurrency(monthlyTotals.gains, shouldHideValues) : 'Indisponível'}
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -739,7 +724,7 @@ export default function HomeScreen() {
 													Total gasto
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
-													Indisponível
+											{monthlyTotals ? formatCurrency(monthlyTotals.expenses, shouldHideValues) : 'Indisponível'}
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -853,7 +838,7 @@ export default function HomeScreen() {
 											</InfoTip>
 										</View>
 									</View>
-									{overview.loading && upcomingMandatoryItems.length === 0 ? (
+									{overview.mandatoryLoading ? (
 										<View className={`${webStyles.mandatoryColumns} ${compact ? webStyles.mandatoryColumnsCompact : ''}`}>
 											<Skeleton
 												className={webStyles.mandatorySkeleton}
@@ -866,9 +851,9 @@ export default function HomeScreen() {
 												highlightColor={skeletonHighlightColor}
 											/>
 										</View>
-									) : overview.error || overview.historyError ? (
+									) : overview.error || overview.mandatoryError ? (
 										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-												{overview.error || overview.historyError}
+											{overview.error || overview.mandatoryError}
 										</Text>
 									) : (
 										<View className={`${webStyles.mandatoryColumns} ${compact ? webStyles.mandatoryColumnsCompact : ''}`}>
@@ -886,6 +871,9 @@ export default function HomeScreen() {
 											/>
 										</View>
 									)}
+									{overview.mandatoryIncomplete ? (
+										<Text className={webStyles.inlineError}>Abra Ganhos obrigatórios ou Gastos obrigatórios para consultar todos.</Text>
+									) : null}
 								</View>
 
 								<BankMovementsScreen

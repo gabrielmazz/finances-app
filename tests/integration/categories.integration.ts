@@ -104,7 +104,7 @@ test('category operations persist while legacy IDs and references survive archiv
   assert.equal(renamed.name, 'Deslocamento');
   const legacy = await readCategory(client, scope, { source: 'legacy', id: 'historic-id' });
   assert.equal(legacy.usageType, 'both');
-  assert.ok((await readCategoryPage(client, scope, 'legacy')).items.some(item => item.id === 'historic-id'));
+  assert.equal((await readCategoryPage(client, scope, 'legacy')).unavailable, true);
   assert.equal((await archiveCategory(client, scope, legacy)).status, 'archived');
   assert.equal((await resolveHistoricalCategory(client, scope, 'historic-id')).status, 'archived');
   await assert.rejects(resolveHistoricalCategory(client, scope, 'unknown-id'), /not-found/);
@@ -142,7 +142,8 @@ test('group categories require verified membership and admin authority', async (
   const groupScope = { kind: 'group' as const, id: 'family', uid: 'admin' };
   const historic = await readCategory(groupClient, groupScope, { source: 'group-root', id: 'historic.group.id' });
   assert.equal(historic.usageType, 'both');
-  assert.ok((await readCategoryPage(groupClient, groupScope, 'group-root')).items.some(item => item.id === 'historic.group.id'));
+  assert.equal((await readCategoryPage(groupClient, groupScope, 'group-root')).unavailable, true);
+  assert.ok((await readCategoryPage(groupClient, groupScope, 'new')).items.some(item => item.id === 'groupcategory0000001'));
   const nested = await readCategory(groupClient, groupScope, { source: 'group-legacy', id: 'nested-legacy' });
   const renamed = await updateCategory(groupClient, groupScope, nested, { name: 'Moradia', usageType: 'expense', isMandatoryExpense: false, isMandatoryGain: false, showInBothLists: false, iconFamily: null, iconName: null, iconStyle: null });
   assert.equal(renamed.id, 'nested-legacy');
@@ -180,6 +181,7 @@ test('legacy and new categories may share the same name while preserving their I
   assert.equal(mixed.filter(result => result.status === 'fulfilled').length, 2);
   const legacyPage = await readCategoryPage(client, scope, 'legacy');
   const newPage = await readCategoryPage(client, scope, 'new');
-  assert.equal([...legacyPage.items, ...newPage.items].filter(item => item.name === 'Novo nome' && item.status === 'active').length, 2);
-  assert.equal(legacyPage.items.some(item => item.id === 'legacy-race-c'), true);
+  assert.equal(legacyPage.unavailable, true);
+  assert.equal(newPage.items.filter(item => item.name === 'Novo nome' && item.status === 'active').length, 1);
+  assert.equal((await resolveHistoricalCategory(client, scope, 'legacy-race-c')).name, 'Novo nome');
 });

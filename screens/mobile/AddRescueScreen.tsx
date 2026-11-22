@@ -30,6 +30,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 
 import AddRescueIllustration from '../../assets/UnDraw/addRescue.svg';
 
@@ -112,6 +113,7 @@ export default function AddRescueScreen() {
 	const [rescueValueDisplay, setRescueValueDisplay] = React.useState('');
 	const [rescueValueInCents, setRescueValueInCents] = React.useState<number | null>(null);
 	const [rescueDate, setRescueDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
+	const [rescueTime, setRescueTime] = React.useState('');
 	const [rescueDescription, setRescueDescription] = React.useState<string | null>(null);
 	const { submit, isSubmitting, resetBankOperation } = useMovementSubmit();
 	const applyPostSubmit = usePostSubmitBehavior('addRescue');
@@ -195,6 +197,7 @@ setSelectedBankId(null);
 setRescueValueDisplay('');
 setRescueValueInCents(null);
 setRescueDate(formatDateToBR(toFinancialCivilDate(new Date())));
+		setRescueTime('');
 setRescueDescription(null);
 }, [resetBankOperation]);
 
@@ -245,7 +248,7 @@ setRescueDescription(null);
 		if (isSubmitDisabled || !selectedBankId || rescueValueInCents === null) return;
 		const [day, month, year] = rescueDate.split('/');
 		try {
-			await submit({ operation: 'cash-withdrawal', accountId: selectedBankId, amountCents: rescueValueInCents, date: `${year}-${month}-${day}`, explanation: rescueDescription ?? '' });
+			await submit({ operation: 'cash-withdrawal', accountId: selectedBankId, amountCents: rescueValueInCents, date: `${year}-${month}-${day}`, ...(rescueTime ? { time: rescueTime } : {}), explanation: rescueDescription ?? '' });
 			if (!mounted.current) return;
 			showScreenAlert('Saque registrado.', 'success');
 			applyPostSubmit({ resetForm: resetRescueForm });
@@ -381,6 +384,8 @@ setRescueDescription(null);
 										placeholder="Selecione a data do saque"
 										isDisabled={isRescueDateDisabled}
 									/>
+									<FinancialTimeField label="Horário em São Paulo" value={rescueTime} onChange={setRescueTime}
+										isDisabled={isRescueDateDisabled} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 								</VStack>
 
 								<VStack className="mb-4">

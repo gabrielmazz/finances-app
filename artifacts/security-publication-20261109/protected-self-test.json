@@ -8,6 +8,7 @@
   "profilesInterpreted": 2,
   "foreignProfilesDenied": 2,
   "ownBankQueriesPassed": true,
+  "rulesUsed": "stage03-published",
   "uidPathsPreserved": true,
   "internalReferencesRemapped": true,
   "sourceSHA256": "73c011b1f50416c02710447f71e27700f57b8ad7433f8e65fc0dc99db3d73c64",

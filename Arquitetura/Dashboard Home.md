@@ -14,6 +14,8 @@ O projeto oficial permanece em homologação financeira somente leitura. O índi
 
 ## Arquivos de apresentação
 
+No contexto canônico, o resumo do mês usa a mesma consulta paginada do extrato. O cálculo inclui receitas, despesas e ciclos confirmados. Transferências e saques têm histórico e efeito no saldo bancário próprios. Se o mês não estiver completo dentro do limite de leitura, o total aparece como indisponível. O cartão de transações em dinheiro aparece para quem tem histórico sem banco e abre o extrato paginado existente. O saldo da carteira permanece indisponível. Na Web, Próximos compromissos lista os ciclos pendentes dos modelos ativos, considerando vencimento, parcelas concluídas e última confirmação. As consultas do resumo são feitas em páginas e atualizadas quando a Home volta ao foco.
+
 HomeScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.

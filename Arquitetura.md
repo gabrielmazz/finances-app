@@ -46,6 +46,17 @@ Atualizar o documento do módulo e este Active Context quando comportamento/arqu
 
 ## Active Context
 
+- 2026-11-22, migração 1.6.0 aplicada e conferida em produção. O manifesto `cac026c02613b47ff75bb926eca9c73713f15626379ca69555a554aaa610084e` resultou em 829 criações, 987 origens preservadas e 22 exceções intactas. Os dois índices estão em `READY`. A transição mantém operações financeiras bloqueadas até a validação das sessões oficiais. Ver [[Migração Financeira Definitiva]] e [manifesto de corte](docs/mvp160-corte.md).
+
+- 2026-11-22, preparação da 1.6.0. A nova captura reproduziu as 987 origens e o Auth. A restauração isolada conferiu os 829 destinos do manifesto atualizado, com 22 exceções preservadas. O formulário original aceita horário de São Paulo com precisão de minuto para lançar após a referência no mesmo dia. As sessões oficiais, a ativação por titular e a primeira movimentação real dependem do corte autorizado. Ver [[Migração Financeira Definitiva]] e [manifesto de corte](docs/mvp160-corte.md).
+
+- 2026-11-20, MVP 1.6.0-rc.2. A captura atual e o ensaio isolado conferiram 987 origens preservadas, 830 transformações de origem e 829 destinos. O manifesto propõe preservar 22 exceções identificadas pelo hash. O canário mantém leituras dos clientes atuais e abre a consulta canônica antes da liberação. Estornos bancários, totais do mês, próximos compromissos e extrato em dinheiro foram ligados à interface existente. As duas fases de Rules, os dois índices e as referências das contas aguardam o corte autorizado. Ver [[Migração Financeira Definitiva]] e [manifesto de corte](docs/mvp160-corte.md).
+
+- 2026-11-20, conciliação da 1.6.0. Os 987 documentos oficiais foram capturados e restaurados com prova de integridade. Os dois logins foram verificados e os contextos pessoais foram preservados. A revisão associou os lançamentos confirmados à conta utilizada, com a autoria original. A simulação passou de 852 para 22 pendências, sem ajuste de saldo. O corte depende de conciliar as referências restantes e aprovar o manifesto. Ver [[Migração Financeira Definitiva]] e [Conciliação de 20/11](docs/mvp160-conciliacao.md).
+
+- 2026-11-18, MVP 1.6.0-rc.1. Captura oficial criptografada e restauração de 987 documentos conferidas. A simulação mantém 852 documentos em revisão, com 38 associações de bancos e categorias sem evidência independente. O projeto Spark isolado usa a candidata canônica para validação com dados sintéticos. Produção permanece em consulta até a resolução das associações e a autorização do corte. Ver [[Migração Financeira Definitiva]].
+
+
 - 2026-11-18, MVP 1.5.2. O build Android de homologação usa o Firebase oficial e o mesmo identificador dos APKs oficiais de teste anteriores. O build de desenvolvimento usa o identificador do emulador. A Web oficial e o Android oficial autenticam contas existentes e mantêm as ações financeiras bloqueadas; o emulador conserva os fluxos financeiros. A validação de ativação continua descrita em [[Processo de Release]] e `docs/mvp15-ativacao.md`.
 
 - 2026-11-17, MVP 1.5.1 local. Os formulários originais gerenciam modelos obrigatórios e confirmam pagamentos e recebimentos por ciclo em uma transação com o saldo. As Configurações abrem registros legados por ID informado e as páginas de categorias revalidam cada registro antes da entrega. A descoberta legada automática continua condicionada a uma fonte de autorização consultável e revisada. Produção permanece bloqueada. Ver [[Despesas Fixas]], [[Receitas Fixas]] e `docs/mvp15-ativacao.md`.

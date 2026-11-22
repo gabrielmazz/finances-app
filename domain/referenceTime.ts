@@ -1,5 +1,5 @@
 /** Interpret the bank statement's civil time in São Paulo, independent of device timezone. */
-export function referenceInstant(date: string, time: string): Date {
+export function referenceInstant(date: string, time: string, now = Date.now()): Date {
 	if (!date) throw Error('banks/reference-date-required');
 	if (!time) throw Error('banks/reference-time-required');
 	const day = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
@@ -19,6 +19,6 @@ export function referenceInstant(date: string, time: string): Date {
 		if (+parts.year === y && +parts.month === m && +parts.day === d && +parts.hour === h && +parts.minute === min) matches.push(instant);
 	}
 	if (matches.length !== 1) throw Error('banks/reference-time-ambiguous');
-	if (matches[0] > Date.now()) throw Error('banks/reference-time-future');
+	if (matches[0] > now) throw Error('banks/reference-time-future');
 	return new Date(matches[0]);
 }

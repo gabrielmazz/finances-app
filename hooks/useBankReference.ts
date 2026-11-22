@@ -1,5 +1,6 @@
 import React from 'react';
 import { getFirebaseClient } from '@/firebase/client';
+import { financialLedgerAllowsWrites, selectedFinancialProject, usesCanonicalFinance } from '@/firebase/config';
 import { prepareLegacyReference, previewLegacyReference, type LegacyReferenceInput } from '@/firebase/banks';
 import { errorMessage } from '@/application/errors';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
@@ -17,8 +18,12 @@ export function useBankReference(bank: BankAccount | null, metadata: BankMetadat
 	const identity = accounts.scope && bank ? `${accounts.scope.uid}:${accounts.scope.kind}:${accounts.scope.id}:${bank.source}:${bank.id}` : null;
 	const currentIdentity = React.useRef(identity);
 	currentIdentity.current = identity;
-	const writable = process.env.EXPO_PUBLIC_FIREBASE_MODE === 'emulator';
-	const available = ['emulator', 'production'].includes(process.env.EXPO_PUBLIC_FIREBASE_MODE || '') && accounts.scope?.kind === 'personal' && bank?.source === 'legacy' && !bank.blocked && bank.status === 'active';
+	const mode = process.env.EXPO_PUBLIC_FIREBASE_MODE;
+	const project = selectedFinancialProject();
+	const canonical = usesCanonicalFinance(project);
+	const writable = financialLedgerAllowsWrites(project);
+	const eligible = canonical ? bank?.migrated && bank.openingDate === null : bank?.source === 'legacy';
+	const available = ['emulator', 'staging', 'production'].includes(mode || '') && accounts.scope?.kind === 'personal' && bank && eligible && !bank.blocked && bank.status === 'active';
 	React.useEffect(() => { setEditing(false); setBalance(Number.NaN); setReferenceDate(''); setReferenceTime(''); setReason(''); setPreview(null); setError(null); }, [identity]);
 	async function simulate() {
 		if (!available || !accounts.scope || !bank || locked.current) return;

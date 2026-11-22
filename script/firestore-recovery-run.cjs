@@ -93,7 +93,7 @@ async function recover(snapshot, input) {
 	}
 }
 
-module.exports = {protectedProcess, privateDirectory, rootCounts};
+module.exports = {protectedProcess, privateDirectory, rootCounts, recover};
 if (require.main === module) (async () => {
 	process.umask(0o077);
 	const action = process.argv[2];

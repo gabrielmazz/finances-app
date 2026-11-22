@@ -30,6 +30,9 @@ export type BankAccount = BankRef & {
 	issue: string | null;
 	blocked?: boolean;
 	legacyBankId?: string;
+	migrated?: boolean;
+	referenceAt?: Date;
+	referenceNotBefore?: Date;
 };
 export const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
 	{ value: 'checking', label: 'Conta corrente' },
@@ -106,13 +109,17 @@ export function parseBank(
 ): BankAccount {
 	if (!validId(id) || !validId(scope.id) || !validId(scope.uid)) throw Error('banks/incompatible');
 	if (source === 'new') {
-		validateMetadata(data as BankMetadata);
+		const migrated = typeof data.historicalSourcePath === 'string' && data.historicalSourcePath.length > 0;
+		const pending = migrated && data.initialBalanceCents === undefined && data.openingDate === undefined &&
+			data.balanceCents === undefined && data.balanceRevision === undefined && data.lastMovementId === undefined;
+		const unknownType = pending && data.accountType === 'unknown';
+		const metadata = validateMetadata({ ...data, accountType: unknownType ? 'checking' : data.accountType } as BankMetadata);
 		if (
 			data.schemaVersion !== 1 ||
 			(data.legacyBankId !== undefined && (data.legacyBankId !== id || scope.kind !== 'personal')) ||
 			data.scopeKind !== scope.kind ||
 			data.scopeId !== scope.id ||
-			!validCents(data.initialBalanceCents) ||
+			(!pending && !validCents(data.initialBalanceCents)) ||
 			(data.balanceCents !== undefined && !validCents(data.balanceCents)) ||
 			!['active', 'archived'].includes(data.status) ||
 			!Number.isSafeInteger(data.revision) ||
@@ -121,20 +128,25 @@ export function parseBank(
 			!validId(data.updatedBy) ||
 			typeof data.createdAt?.toDate !== 'function' ||
 			typeof data.updatedAt?.toDate !== 'function' ||
-			typeof data.openingDate?.toDate !== 'function'
+			(data.referenceNotBefore !== undefined && (!migrated || typeof data.referenceNotBefore?.toDate !== 'function')) ||
+			(!pending && typeof data.openingDate?.toDate !== 'function')
 		)
 			throw Error('banks/incompatible');
 		return {
 			id,
 			source,
 			scope,
-			...validateMetadata(data as BankMetadata),
-			balanceInCents: data.balanceCents ?? data.initialBalanceCents,
-			openingDate: data.openingDate.toDate().toISOString().slice(0, 10),
+			...metadata,
+			accountType: unknownType ? 'unknown' : metadata.accountType,
+			balanceInCents: pending ? null : data.balanceCents ?? data.initialBalanceCents,
+			openingDate: pending ? null : data.openingDate.toDate().toISOString().slice(0, 10),
 			status: data.status,
 			revision: data.revision,
 			...(data.legacyBankId === id ? { legacyBankId: id } : {}),
-			issue: null,
+			...(migrated ? { migrated: true } : {}),
+			...(!pending && (migrated || data.legacyBankId === id) ? { referenceAt: data.openingDate.toDate() } : {}),
+			...(data.referenceNotBefore ? { referenceNotBefore: data.referenceNotBefore.toDate() } : {}),
+			issue: pending ? 'Defina o saldo de referência para registrar movimentações.' : null,
 		};
 	}
 	if (

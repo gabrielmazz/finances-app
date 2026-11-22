@@ -12,7 +12,7 @@ function readKey(file) {
 	return key;
 }
 function encryptPayload(snapshot,key,format) {
-	if(!['lumus-firestore-encrypted-v1','lumus-auth-encrypted-v1'].includes(format))throw Error('Unsupported encrypted format');
+	if(!['lumus-firestore-encrypted-v1','lumus-auth-encrypted-v1','lumus-migration-encrypted-v1'].includes(format))throw Error('Unsupported encrypted format');
 	const nonce=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,nonce,{authTagLength:16});
 	const header={format,algorithm:'AES-256-GCM'};
 	cipher.setAAD(Buffer.from(JSON.stringify(header)));
@@ -20,7 +20,7 @@ function encryptPayload(snapshot,key,format) {
 	return {...header,nonce:nonce.toString('base64'),tag:cipher.getAuthTag().toString('base64'),ciphertext:ciphertext.toString('base64')};
 }
 function decryptPayload(envelope,key,format) {
-	if(!['lumus-firestore-encrypted-v1','lumus-auth-encrypted-v1'].includes(format)||envelope.format!==format||envelope.algorithm!=='AES-256-GCM')throw Error('Unsupported encrypted backup');
+	if(!['lumus-firestore-encrypted-v1','lumus-auth-encrypted-v1','lumus-migration-encrypted-v1'].includes(format)||envelope.format!==format||envelope.algorithm!=='AES-256-GCM')throw Error('Unsupported encrypted backup');
 	const nonce=Buffer.from(envelope.nonce,'base64'),tag=Buffer.from(envelope.tag,'base64');
 	if(nonce.length!==12||tag.length!==16)throw Error('Invalid encryption nonce or authentication tag');
 	const decipher=createDecipheriv('aes-256-gcm',key,nonce,{authTagLength:16});
