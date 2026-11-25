@@ -6,7 +6,8 @@ import { initializeTestEnvironment, assertFails, type RulesTestEnvironment } fro
 import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, startAfter, updateDoc, where, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { createBank, prepareLegacyReference, previewLegacyReference, readBank, readBankPage, readBoundLegacyBankPage } from '../../firebase/banks';
 import { createCategory } from '../../firebase/categories';
-import { createBankTransfer, createMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement } from '../../firebase/movements';
+import { cancelBankOperation, cancelMandatoryCycle, confirmMandatoryCycle, createBankTransfer, createCashWithdrawal, createMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement } from '../../firebase/movements';
+import { readMandatoryTemplate, saveMandatoryTemplate } from '../../firebase/mandatory';
 
 let env: RulesTestEnvironment;
 const uid = 'reference-owner', scope = { kind: 'personal' as const, id: uid, uid }, id = 'referenceLegacy00001';
@@ -34,7 +35,7 @@ test('explicitly confirmed reference keeps the legacy document and is idempotent
 	assert.deepEqual((await getDoc(doc(db, 'banks', id))).data(), before);
 });
 
-test('reference permits only post-cutover movements and preserves atomic balances', async () => {
+test('reference reconciles historical and current movements without changing the opening', async () => {
 	const db = env.authenticatedContext(uid).firestore();
 	const client = { db, auth: { currentUser: { uid } } } as unknown as Parameters<typeof prepareLegacyReference>[0];
 	const second = 'referenceNewBank0001', gainTag = 'referenceGainTag0001', costTag = 'referenceCostTag0001';
@@ -44,7 +45,13 @@ test('reference permits only post-cutover movements and preserves atomic balance
 	await createCategory(client, scope, costTag, { ...cat, usageType: 'expense' });
 	const gain = { name: 'Receita', type: 'gain' as const, amountCents: 50000, accountId: id, categoryId: gainTag, categorySource: 'new' as const, date: '2025-01-02', explanation: '', paymentFormats: [] };
 	const cost = { ...gain, name: 'Despesa', type: 'expense' as const, amountCents: 20000, categoryId: costTag };
-	await assert.rejects(createMovement(client, scope, 'referenceOldDate0001', { ...gain, date: '2025-01-01' }), /reference-time-required/);
+	await assert.rejects(createMovement(client, scope, 'referenceOldDate0001', { ...gain, date: '2025-01-01' }), /reference-confirmation-required/);
+	const retroactive = { ...gain, date: '2024-12-31' };
+	const saved = await createMovement(client, scope, 'referenceRetro000001', retroactive);
+	assert.equal((await createMovement(client, scope, saved.id, retroactive)).id, saved.id);
+	assert.equal((await readBank(client, scope, { id, source: 'new' })).balanceInCents, 100000);
+	await updateMovement(client, scope, saved, null);
+	assert.equal((await readBank(client, scope, { id, source: 'new' })).balanceInCents, 100000);
 	await env.withSecurityRulesDisabled(async c => setDoc(doc(c.firestore(), 'gains', 'referenceHistory0001'), { personId: uid, groupId: null, financialGroupId: null, ledgerGroupId: null, bankId: id, valueInCents: 50000 }));
 	await assert.rejects(createMovement(client, scope, 'referenceHistory0001', gain));
 	const first = await createMovement(client, scope, 'referenceMoveGain001', gain);
@@ -52,15 +59,19 @@ test('reference permits only post-cutover movements and preserves atomic balance
 	const expense = await createMovement(client, scope, 'referenceMoveCost001', cost);
 	assert.equal((await readBank(client, scope, { id, source: 'new' })).balanceInCents, 130000);
 	const malicious = writeBatch(db), context = `personal:${uid}`;
+	const account = doc(db, 'financialContexts', context, 'bankAccounts', id);
+	const revision = (await getDoc(account)).data()!.balanceRevision;
 	malicious.update(doc(db, 'financialContexts', context, 'movements', expense.id), { date: Timestamp.fromDate(new Date('2025-01-01T00:00:00Z')), revision: 1, updatedBy: uid, updatedAt: serverTimestamp() });
-	malicious.update(doc(db, 'financialContexts', context, 'bankAccounts', id), { balanceCents: 130000, balanceRevision: 3, lastMovementId: expense.id });
+	malicious.update(account, { balanceCents: 130000, balanceRevision: revision + 1, lastMovementId: expense.id });
 	await assertFails(malicious.commit());
 	const forgedId = 'referenceForged00001', forged = writeBatch(db);
 	forged.set(doc(db, 'financialContexts', context, 'movements', forgedId), { schemaVersion: 1, scopeKind: 'personal', scopeId: uid, ...gain, amountCents: 100, date: Timestamp.fromDate(new Date('2025-01-01T00:00:00Z')), status: 'posted', revision: 0, createdBy: uid, updatedBy: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-	forged.update(doc(db, 'financialContexts', context, 'bankAccounts', id), { balanceCents: 130100, balanceRevision: 3, lastMovementId: forgedId });
+	forged.update(account, { balanceCents: 130100, balanceRevision: revision + 1, lastMovementId: forgedId });
 	await assertFails(forged.commit());
-	await assert.rejects(updateMovement(client, scope, expense, { ...cost, date: '2024-12-31' }), /before-reference/);
-	const edit = await updateMovement(client, scope, expense, { ...cost, amountCents: 30000 });
+	const historicalEdit = await updateMovement(client, scope, expense, { ...cost, date: '2024-12-31' });
+	assert.equal(historicalEdit.referenceTreatment, 'historical');
+	assert.equal((await getDoc(account)).data()?.balanceCents, 150000);
+	const edit = await updateMovement(client, scope, historicalEdit, { ...cost, amountCents: 30000 });
 	assert.equal((await readBank(client, scope, { id, source: 'new' })).balanceInCents, 120000);
 	await updateMovement(client, scope, first, null);
 	assert.equal((await readBank(client, scope, { id, source: 'new' })).balanceInCents, 70000);
@@ -76,6 +87,43 @@ test('reference permits only post-cutover movements and preserves atomic balance
 	await assertFails(updateDoc(doc(db, 'financialContexts', `personal:${uid}`, 'accountOpenings', id), { amountCents: 1 }));
 	const historical = await getDoc(doc(db, 'gains', 'referenceHistory0001'));
 	assert.equal(historical.data()?.valueInCents, 50000);
+});
+
+test('same-day choices preserve the confirmed balance and survive editing, withdrawal, and cycle cancellation', async () => {
+	const db = env.authenticatedContext(uid).firestore();
+	const client = { db, auth: { currentUser: { uid } } } as unknown as Parameters<typeof prepareLegacyReference>[0];
+	const account = doc(db, 'financialContexts', `personal:${uid}`, 'bankAccounts', id);
+	const opening = doc(db, 'financialContexts', `personal:${uid}`, 'accountOpenings', id);
+	const openingBefore = (await getDoc(opening)).data();
+	const balance = async () => (await getDoc(account)).data()!.balanceCents;
+	const initial = await balance();
+	const sameDay = { name: 'Receita', type: 'gain' as const, amountCents: 300, accountId: id, categoryId: 'referenceGainTag0001', categorySource: 'new' as const, date: '2025-01-01', explanation: '', paymentFormats: [] };
+	const included = await createMovement(client, scope, 'referenceIncluded001', { ...sameDay, referenceTreatment: 'included' });
+	assert.deepEqual(await createMovement(client, scope, included.id, sameDay), included);
+	await assert.rejects(createMovement(client, scope, included.id, { ...sameDay, referenceTreatment: 'after' }), /operation-conflict/);
+	const edited = await updateMovement(client, scope, included, { ...sameDay, explanation: 'Conferida', amountCents: 500 });
+	assert.equal(edited.referenceTreatment, 'included');
+	assert.equal(await balance(), initial);
+	const added = await createMovement(client, scope, 'referenceAfter000001', { ...sameDay, referenceTreatment: 'after' });
+	assert.equal(await balance(), initial + 300);
+	await updateMovement(client, scope, added, null);
+	await updateMovement(client, scope, edited, null);
+	const withdrawal = await createCashWithdrawal(client, scope, 'referenceWithdraw001', { ...sameDay, amountCents: initial + 1, referenceTreatment: 'included' });
+	await cancelBankOperation(client, scope, withdrawal);
+	await assert.rejects(createCashWithdrawal(client, scope, 'referenceWithdraw002', { ...sameDay, amountCents: initial + 1, referenceTreatment: 'after' }), /insufficient-balance/);
+	assert.equal(await balance(), initial);
+	const templateId = 'referenceCycle000001', categoryId = 'referenceFixed000001';
+	await createCategory(client, scope, categoryId, { name: 'Fixa', usageType: 'expense', isMandatoryGain: false, isMandatoryExpense: true, showInBothLists: false, iconFamily: null, iconName: null, iconStyle: null });
+	await saveMandatoryTemplate(client, scope, templateId, { name: 'Despesa fixa', type: 'expense', valueInCents: 200, categoryId,
+		categorySource: 'new', description: '', dueDay: 1, usesBusinessDays: false, installmentTotal: null, installmentTotalValueInCents: null, installmentStartDate: null }, null);
+	const cycle = { ...sameDay, name: 'Despesa fixa', type: 'expense' as const, categoryId, amountCents: 200 };
+	await assert.rejects(confirmMandatoryCycle(client, scope, templateId, cycle), /reference-confirmation-required/);
+	await confirmMandatoryCycle(client, scope, templateId, { ...cycle, referenceTreatment: 'included' });
+	await cancelMandatoryCycle(client, scope, templateId, '2025-01', (await readMandatoryTemplate(client, scope, templateId)).revision);
+	assert.equal(await balance(), initial);
+	await confirmMandatoryCycle(client, scope, templateId, { ...cycle, referenceTreatment: 'after' });
+	assert.equal(await balance(), initial - 200);
+	assert.deepEqual((await getDoc(opening)).data(), openingBefore);
 });
 
 test('missing confirmations, other owners and ambiguous contexts do not create a reference', async () => {
@@ -224,16 +272,19 @@ test('transfers enforce both reference cutoffs and recheck a revoked counterpart
 	await prepareLegacyReference(client, scope, second, { ...input, referenceAt: nextDate, initialBalanceCents: 50000 });
 	await createBank(client, scope, regular, { ...metadata, initialBalanceCents: 10000, openingDate: '2025-01-01', reason: '' });
 	const transfer = { accountId: first, destinationAccountId: second, amountCents: 7000, date: '2025-01-03', explanation: '' };
-	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02' }), /reference-time-required/);
+	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02' }), /reference-confirmation-required/);
 	await assert.rejects(createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02', time: '09:00' }), /before-reference/);
 	await assert.rejects(createBankTransfer(client, scope, historicalId, { ...transfer, accountId: regular }));
-	await createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02', time: '09:01' });
+	await createBankTransfer(client, scope, id, { ...transfer, date: '2025-01-02', destinationReferenceTreatment: 'included' });
 	assert.equal((await readBank(client, scope, { id: first, source: 'new' })).balanceInCents, 93000);
-	assert.equal((await readBank(client, scope, { id: second, source: 'new' })).balanceInCents, 57000);
+	assert.equal((await readBank(client, scope, { id: second, source: 'new' })).balanceInCents, 50000);
 	assert.equal(await readTransferCounterpartyName(client, scope, id, 'outgoing'), metadata.name);
 	const from = new Date('2025-01-01T00:00:00Z'), to = new Date('2025-01-05T00:00:00Z');
 	const page = await readMovementTimeline(client, scope, null, from, to, null, [first, second]);
 	assert.deepEqual(page.items.filter(item => item.bankTransferPairId === id).map(item => item.bankTransferDirection).sort(), ['incoming', 'outgoing']);
+	await cancelBankOperation(client, scope, id);
+	assert.equal((await readBank(client, scope, { id: first, source: 'new' })).balanceInCents, 100000);
+	assert.equal((await readBank(client, scope, { id: second, source: 'new' })).balanceInCents, 50000);
 	await env.withSecurityRulesDisabled(async c => deleteDoc(doc(c.firestore(), '_bankScopes', second)));
 	await assert.rejects(readTransferCounterpartyName(client, scope, id, 'outgoing'));
 	await assertFails(getDoc(doc(db, 'financialContexts', 'personal:' + owner, 'movements', id + '-credit')));

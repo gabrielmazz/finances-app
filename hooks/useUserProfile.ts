@@ -1,6 +1,8 @@
 import { errorMessage } from '@/application/errors';
 import { getFirebaseClient } from '@/firebase/client';
 import { saveProfileName } from '@/firebase/profiles';
+import { listFinancialGroups, type FinancialGroup } from '@/firebase/financialContext';
+import { useIsFocused } from 'expo-router';
 import { validateProfileName } from '@/domain/profile';
 import { useSession } from './useSession';
 import * as Clipboard from 'expo-clipboard';
@@ -49,9 +51,6 @@ export function useUserProfile() {
 		accessSummary: null as { isAdmin: boolean; monitoredRecordsCount: number } | null,
 		accessSummaryLoading: false,
 		accessSummaryError: true,
-		relatedUsers: [] as { id: string; name: string }[],
-		relatedUsersLoading: false,
-		relatedUsersError: true,
 		name,
 		changeName,
 		nameError: name ? validateProfileName(name) : null,
@@ -103,4 +102,44 @@ export function useUserProfile() {
 			void session.reload();
 		},
 	};
+}
+
+export function useLinkedFinancialContexts() {
+	const { user, context, selectFinancialGroup } = useSession();
+	const uid = user?.uid;
+	const groupId = context?.kind === 'group' ? context.groupId : null;
+	const role = context?.kind === 'group' ? context.role : null;
+	const focused = useIsFocused();
+	const [groups, setGroups] = React.useState<FinancialGroup[] | null>(null);
+	const [loadError, setLoadError] = React.useState(false);
+	const [selectError, setSelectError] = React.useState(false);
+	const [switching, setSwitching] = React.useState(false);
+	const [revision, reload] = React.useReducer(value => value + 1, 0);
+
+	React.useEffect(() => {
+		if (!uid || !focused) return;
+		let active = true;
+		setGroups(null);
+		setLoadError(false);
+		void listFinancialGroups(getFirebaseClient(), uid).then(
+			items => { if (active) setGroups(items); },
+			() => { if (active) setLoadError(true); },
+		);
+		return () => { active = false; };
+	}, [uid, focused, revision, groupId, role]);
+
+	async function select(id: string | null) {
+		setSwitching(true);
+		setSelectError(false);
+		try {
+			await selectFinancialGroup(id);
+		} catch {
+			setSelectError(true);
+			reload();
+		} finally {
+			setSwitching(false);
+		}
+	}
+
+	return { uid, groupId, groups, loadError, selectError, switching, select, reload };
 }

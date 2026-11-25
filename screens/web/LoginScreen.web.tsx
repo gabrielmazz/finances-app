@@ -458,7 +458,7 @@ export default function LoginScreen() {
 												Desenvolvido por Gabriel Mazzuco
 											</Text>
 
-											<Text className={`${helperText} text-center text-xs`}>Versão 1.6.0</Text>
+											<Text className={`${helperText} text-center text-xs`}>Versão 1.7.1</Text>
 										</VStack>
 									</VStack>
 								</View>

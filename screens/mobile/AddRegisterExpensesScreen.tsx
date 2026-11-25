@@ -39,7 +39,6 @@ import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components
 import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
-import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 import { useFocusEffect,useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
@@ -211,8 +210,7 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const [expenseTime, setExpenseTime] = React.useState('');
-	const { submit, isSubmitting } = useMovementSubmit();
+	const { submit, isSubmitting, canWrite, referenceDialog } = useMovementSubmit();
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
@@ -403,7 +401,7 @@ export default function AddRegisterExpensesScreen() {
 
 	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
 	const isBankSelectionRequired = !moneyFormat;
-	const isFormBusy = isLoadingExisting || isSubmitting || !isMovementReady;
+	const isFormBusy = !canWrite || isLoadingExisting || isSubmitting || !isMovementReady;
 	const hasExpenseName = expenseName.trim().length > 0;
 	const hasExpenseValue = expenseValueCents !== null && expenseValueCents > 0;
 	const isSubmitDisabled =
@@ -551,12 +549,12 @@ export default function AddRegisterExpensesScreen() {
 		if (!category) return;
 		const [day, month, year] = expenseDate.split('/');
 		try {
-			await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, ...(expenseTime ? { time: expenseTime } : {}), explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined);
+			if (!(await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined))) return;
 			await reloadBanks();
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Despesa atualizada.' : 'Despesa cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseTime, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
 
 	const handleCloseMandatoryExpenseSuggestionModal = React.useCallback(() => {
 		setMandatoryExpenseSuggestion(null);
@@ -595,7 +593,7 @@ export default function AddRegisterExpensesScreen() {
 
 		const normalizedDate = normalizeDateValue(data.date) ?? new Date();
 		setExpenseDate(formatDateToBR(normalizedDate));
-		setExpenseTime(typeof data.time === 'string' ? data.time : '');
+
 
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
@@ -704,6 +702,7 @@ export default function AddRegisterExpensesScreen() {
 			edges={['left', 'right', 'bottom']}
 			style={{ backgroundColor: surfaceBackground }}
 		>
+			{referenceDialog}
 			<StatusBar
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
@@ -796,8 +795,6 @@ export default function AddRegisterExpensesScreen() {
 										placeholder="Selecione a data da despesa"
 										isDisabled={isExpenseDateDisabled}
 									/>
-									<FinancialTimeField label="Horário em São Paulo" value={expenseTime} onChange={setExpenseTime}
-										isDisabled={isFormBusy} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 								</VStack>
 
 								<VStack className="mb-4">

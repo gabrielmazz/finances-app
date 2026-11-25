@@ -19,3 +19,5 @@ O formulário de despesa bancária permite registrar um pagamento avulso como ga
 AddMandatoryExpensesScreen / MandatoryExpensesListScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+O pagamento do ciclo usa a data financeira. Quando a data coincide com a referência da conta escolhida, a confirmação determina o efeito sobre o saldo. A baixa do ciclo, a movimentação e a atualização do banco continuam atômicas. Ver [[Gerenciamento de Bancos]].

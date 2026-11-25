@@ -1,8 +1,7 @@
 import React from 'react';
+import { useIsFocused } from 'expo-router';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
-import { useSession } from '@/hooks/useSession';
 import { getFirebaseClient } from '@/firebase/client';
-import { financialLedgerAllowsWrites, selectedFinancialProject } from '@/firebase/config';
 import { cancelBankOperation, readMovement, readMovementTimeline, readTransferCounterpartyName, updateMovement, type TimelineCursor } from '@/firebase/movements';
 import { errorMessage } from '@/application/errors';
 import type { MovementRecord } from '@/types/bankMovements';
@@ -17,12 +16,12 @@ function dateBoundary(value: string, end = false): Date | undefined {
   return result;
 }
 
-export function useMovementList(accountId: string | null, start: string, end: string, enabled: boolean) {
+export function useMovementList(accountId: string | null, start: string, end: string, requested: boolean) {
   const accounts = useBankAccounts();
-  const { context } = useSession();
+  const focused = useIsFocused();
+  const enabled = requested && focused;
   const scope = accounts.scope;
-  const canWrite = financialLedgerAllowsWrites(selectedFinancialProject()) &&
-    (context?.kind === 'personal' || context?.role === 'admin');
+  const canWrite = accounts.canWrite;
   const identity = scope ? `${scope.uid}:${scope.kind}:${scope.id}:${accountId}:${start}:${end}:${enabled}` : '';
   const identityRef = React.useRef(identity); identityRef.current = identity;
   const [state, setState] = React.useState<{ identity: string; items: MovementRecord[]; cursor: TimelineCursor | null; issues: number; cashIncomplete: boolean; loading: boolean; error: string | null }>({ identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null });
@@ -38,8 +37,8 @@ export function useMovementList(accountId: string | null, start: string, end: st
     if (more && (previous.identity !== identity || !previous.cursor)) return;
     const version = generation.current;
     inFlight.current = true;
-    if (!more) setTransferDetails({ identity, names: {} });
-    setState(current => ({ identity, items: more && current.identity === identity ? current.items : [], cursor: more ? current.cursor : null, issues: more ? current.issues : 0, cashIncomplete: more && current.cashIncomplete, loading: true, error: null }));
+    // Keep the expanded rows during refreshes of the same authorized query.
+    setState(current => ({ identity, items: current.identity === identity ? current.items : [], cursor: more ? current.cursor : null, issues: more ? current.issues : 0, cashIncomplete: more && current.cashIncomplete, loading: true, error: null }));
     try {
       const client = getFirebaseClient();
       const page = await readMovementTimeline(client, scope, accountId, from, to, more ? previous.cursor : null);
@@ -47,7 +46,6 @@ export function useMovementList(accountId: string | null, start: string, end: st
       if (version !== generation.current || identityRef.current !== identity) return;
       setState(current => {
         const merged = more ? [...new Map([...current.items, ...items].map(item => [`${item.storageSource}:${item.id}`, item])).values()] : items;
-        merged.sort((left, right) => (right.date?.getTime() ?? 0) - (left.date?.getTime() ?? 0) || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0) || ((left.storageSource ?? '') < (right.storageSource ?? '') ? -1 : (left.storageSource ?? '') > (right.storageSource ?? '') ? 1 : 0));
         return { identity, items: merged, cursor: page.cursor, issues: (more ? current.issues : 0) + page.issues, cashIncomplete: (more && current.cashIncomplete) || page.cashIncomplete, loading: false, error: null };
       });
     } catch (error) {
@@ -60,10 +58,13 @@ export function useMovementList(accountId: string | null, start: string, end: st
   }, [scope, accountId, start, end, enabled, identity]);
   React.useEffect(() => {
     generation.current++; inFlight.current = false;
-    setState({ identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null });
+    setState(current => current.identity === identity ? current : {
+      identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null,
+    });
     void fetchPage();
     return () => { generation.current++; inFlight.current = false; };
-  }, [identity, fetchPage]);
+  }, [identity, fetchPage, enabled ? accounts.ledgerRevision : 0]);
+  React.useEffect(() => { setTransferDetails({ identity, names: {} }); }, [identity]);
   React.useEffect(() => { if (enabled && accountId) void accounts.reload(); }, [enabled, accountId, accounts.reload]);
   const cancel = React.useCallback(async (record: MovementRecord) => {
     if (!scope) throw Error('movements/invalid-context');
@@ -78,9 +79,8 @@ export function useMovementList(accountId: string | null, start: string, end: st
   }, [scope, canWrite, identity, accounts.reload, fetchPage]);
   const loadTransferDetails = React.useCallback(async (movement: MovementRecord) => {
     if (!scope || movement.storageSource !== 'new' || !movement.bankTransferPairId || !movement.bankTransferDirection) return;
-    const version = generation.current;
     const update = (name: string | null) => {
-      if (version === generation.current && identityRef.current === identity) {
+      if (identityRef.current === identity) {
         setTransferDetails(current => ({ identity, names: { ...(current.identity === identity ? current.names : {}), [movement.id]: name } }));
       }
     };

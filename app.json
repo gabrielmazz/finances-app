@@ -3,7 +3,7 @@
     "name": "Lumus Finanças",
     "slug": "finances-app",
     "scheme": "financesapp",
-    "version": "1.6.0",
+    "version": "1.7.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/lumusIcon.png",
@@ -18,7 +18,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.gabrielmazz.lumusfinances",
-      "versionCode": 8
+      "versionCode": 12
     },
     "web": {
       "favicon": "./assets/Logo/Icon.png",

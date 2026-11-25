@@ -33,7 +33,6 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
-import FinancialTimeField from '@/components/uiverse/shared/financial-time-field';
 
 import TransferIllustration from '../../assets/UnDraw/transferScreen.svg';
 
@@ -121,12 +120,12 @@ export default function TransferScreen() {
 	const [transferValueDisplay, setTransferValueDisplay] = React.useState('');
 	const [transferValueInCents, setTransferValueInCents] = React.useState<number | null>(null);
 	const [transferDate, setTransferDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const [transferTime, setTransferTime] = React.useState('');
 	const [transferDescription, setTransferDescription] = React.useState<string | null>(null);
-	const { submit, isSubmitting, resetBankOperation } = useMovementSubmit();
+	const { submit, isSubmitting, resetBankOperation, referenceDialog } = useMovementSubmit();
 	const applyPostSubmit = usePostSubmitBehavior('transferScreen');
-	const { personId, banks, isLoadingBanks, banksError, originBalanceInCents, isLoadingBalance,
-		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData, hasMore, loadMore } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
+	const parsedTransferDate = React.useMemo(() => parseDateFromBR(transferDate), [transferDate]);
+	const { personId, banks, mayAlreadyBeIncluded, isLoadingBanks, banksError, originBalanceInCents, isLoadingBalance,
+		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData, hasMore, loadMore } = useTransferFormData(selectedSourceBankId, selectedTargetBankId, parsedTransferDate);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const transferValueInputRef = React.useRef<import('react').ComponentRef<typeof TextInput> | null>(null);
@@ -199,19 +198,19 @@ setSelectedTargetBankId(null);
 setTransferValueDisplay('');
 setTransferValueInCents(null);
 setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
-		setTransferTime('');
 setTransferDescription(null);
 }, [resetBankOperation]);
 
 	React.useEffect(() => { resetTransferForm(); }, [personId, resetTransferForm]);
 
 	const hasInsufficientBalance =
+		!mayAlreadyBeIncluded &&
 		typeof originBalanceInCents === 'number' &&
 		typeof transferValueInCents === 'number' &&
 		transferValueInCents > originBalanceInCents;
 	const hasUnavailableBalance =
+		!mayAlreadyBeIncluded &&
 		typeof originBalanceInCents === 'number' && originBalanceInCents <= 0;
-	const parsedTransferDate = React.useMemo(() => parseDateFromBR(transferDate), [transferDate]);
 	const isBalanceValidationUnavailable =
 		selectedSourceBankId !== null && !isLoadingBalance && typeof originBalanceInCents !== 'number';
 
@@ -268,7 +267,7 @@ setTransferDescription(null);
 		if (isSubmitDisabled || !selectedSourceBankId || !selectedTargetBankId || transferValueInCents === null) return;
 		const [day, month, year] = transferDate.split('/');
 		try {
-			await submit({ operation: 'transfer', accountId: selectedSourceBankId, destinationAccountId: selectedTargetBankId, amountCents: transferValueInCents, date: `${year}-${month}-${day}`, ...(transferTime ? { time: transferTime } : {}), explanation: transferDescription ?? '' });
+			if (!(await submit({ operation: 'transfer', accountId: selectedSourceBankId, destinationAccountId: selectedTargetBankId, amountCents: transferValueInCents, date: `${year}-${month}-${day}`, explanation: transferDescription ?? '' }))) return;
 			if (!mounted.current) return;
 			showNotifierAlert({ type: 'success', description: 'Transferência registrada.', isDarkMode });
 			applyPostSubmit({ resetForm: resetTransferForm });
@@ -283,6 +282,7 @@ setTransferDescription(null);
 			edges={['left', 'right', 'bottom']}
 			style={{ backgroundColor: surfaceBackground }}
 		>
+			{referenceDialog}
 			<StatusBar
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
@@ -497,8 +497,6 @@ setTransferDescription(null);
 										placeholder="Selecione a data da transferência"
 										isDisabled={isTransferDateDisabled}
 									/>
-									<FinancialTimeField label="Horário em São Paulo" value={transferTime} onChange={setTransferTime}
-										isDisabled={isTransferDateDisabled} triggerClassName={fieldContainerClassName} inputClassName={inputField} />
 								</VStack>
 
 								<VStack className="mb-4">

@@ -133,7 +133,7 @@ export default function AddRegisterBankScreenWeb() {
 									<View className="w-full flex-row flex-wrap gap-4">
 										<VStack className={webExpenseClassNames.fieldFull}>
 											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome da conta</Text>
-											<Input isDisabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} isInvalid={Boolean(nameValidationError)} className={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}>
+											<Input isDisabled={isSubmitting||isLoadingBank||form.referenceRequired||(!isEditing&&!!form.saved)} isInvalid={Boolean(nameValidationError)} className={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}>
 												<InputField
 													ref={bankNameInputRef as any}
 													nativeID="bank-name"
@@ -149,7 +149,7 @@ export default function AddRegisterBankScreenWeb() {
 													}}
 													className={inputField}
 													onFocus={() => handleInputFocus('bank-name')}
-													onSubmitEditing={registerBank}
+													onSubmitEditing={form.referenceRequired ? undefined : registerBank}
 												/>
 											</Input>
 											{nameValidationError ? (
@@ -209,11 +209,11 @@ export default function AddRegisterBankScreenWeb() {
 										<BankOpeningBalanceFields valueInCents={openingBalanceInCents} onValueChange={setOpeningBalanceInCents}
 											reason={overdraftReason} onReasonChange={setOverdraftReason} disabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} />
 									) : null}
-									{isEditing ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
+									{isEditing ? <Text className={helperText}>{form.referenceRequired ? 'Confirme o saldo de referência para ativar a conta.' : 'Editar nome, ícone ou cor preserva o saldo e o histórico do banco.'}</Text> : null}
 
 									<BankFormFeedback error={form.error} saved={form.saved} isEditing={isEditing} busy={isSubmitting} onAnother={form.startAnother} canWrite={form.canWrite}/>
 									<BankReferenceControls bank={form.loadedBank} metadata={{ name: nameBank, institutionKey: selectedBankIconKey, institutionName: form.institutionName, accountType: form.accountType as import('@/domain/banks').AccountType, colorHex: selectedColor }} />
-                                <Button
+									{!form.referenceRequired && <Button
 										className={`${submitButtonClassName} web:mt-2 web:h-12`}
 										onPress={registerBank}
 										isDisabled={isSubmitting || isLoadingBank || !form.canWrite || (!isEditing&&!!form.saved) || Boolean(bankLoadError) || (isEditing && loadedBankId !== editingBankId && !bankLoadError)}
@@ -228,7 +228,7 @@ export default function AddRegisterBankScreenWeb() {
 												{isEditing ? 'Atualizar banco' : 'Registrar banco'}
 											</ButtonText>
 										)}
-									</Button>
+									</Button>}
 								</VStack>
 							</ScrollView>
 						</View>

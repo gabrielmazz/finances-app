@@ -15,3 +15,5 @@ Na versão de teste, o formulário original debita em centavos uma conta ativa c
 AddRescueScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+O saque usa a data financeira. A validação do saldo disponível se aplica ao novo efeito bancário. Saques já incluídos na referência e retroativos entram no histórico com efeito zero, conforme [[Gerenciamento de Bancos]].

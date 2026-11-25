@@ -2,9 +2,12 @@ import { validCents } from './money';
 import { validId } from './banks';
 import type { CategorySource } from './categories';
 import { referenceInstant } from './referenceTime';
+import { financialDateKey } from '../utils/financialCivilDate';
 
 export type MovementType = 'gain' | 'expense';
 export const CASH_HISTORY_ID = 'cash-transactions';
+export type ReferenceChoice = 'included' | 'after';
+type ReferenceTreatment = ReferenceChoice | 'historical';
 export type MovementInput = {
   name: string;
   type: MovementType;
@@ -14,6 +17,7 @@ export type MovementInput = {
   categorySource: CategorySource;
   date: string;
   time?: string;
+  referenceTreatment?: ReferenceTreatment;
   explanation: string;
   paymentFormats: ('Variable' | 'External')[];
   isFromMandatory?: true;
@@ -23,8 +27,8 @@ export type Movement = MovementInput & {
   status: 'posted' | 'cancelled';
   revision: number;
 };
-export type BankOperationInput = Pick<MovementInput, 'amountCents' | 'accountId' | 'date' | 'time' | 'explanation'>;
-export type BankTransferInput = BankOperationInput & { destinationAccountId: string };
+export type BankOperationInput = Pick<MovementInput, 'amountCents' | 'accountId' | 'date' | 'time' | 'referenceTreatment' | 'explanation'>;
+export type BankTransferInput = BankOperationInput & { destinationAccountId: string; destinationReferenceTreatment?: ReferenceChoice };
 export type BankLedgerInput = BankOperationInput & Pick<MovementInput, 'name' | 'type' | 'paymentFormats'> & (
   { operation: 'cash-withdrawal' } |
   { operation: 'transfer-out' | 'transfer-in'; transferId: string }
@@ -35,7 +39,8 @@ export type LedgerEntry = LedgerInput & Pick<Movement, 'id' | 'status' | 'revisi
 export function movementDate(value: string, now = Date.now()): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw Error('movements/invalid-date');
   const date = new Date(`${value}T00:00:00.000Z`);
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value || date.getUTCFullYear() < 1900 || date.getTime() > now) throw Error('movements/invalid-date');
+  const today = now === Number.POSITIVE_INFINITY ? now : financialDateKey(new Date(now));
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value || date.getUTCFullYear() < 1900 || date.getTime() > today) throw Error('movements/invalid-date');
   return date;
 }
 
@@ -56,7 +61,8 @@ export function validateMovement(input: MovementInput, now = Date.now()): Moveme
   if (typeof input.categoryId !== 'string' || !input.categoryId || input.categoryId.includes('/') || input.categoryId === '.' || input.categoryId === '..' || !['new', 'legacy', 'group-root', 'group-legacy'].includes(input.categorySource)) throw Error('movements/invalid-category');
   if (!Array.isArray(input.paymentFormats) || input.paymentFormats.length > 1 || input.paymentFormats.some(value => value !== 'Variable' && value !== 'External') || (input.type === 'expense' && input.paymentFormats.length)) throw Error('movements/invalid-format');
   if (input.isFromMandatory !== undefined && input.isFromMandatory !== true) throw Error('movements/invalid-category');
-  return { ...input, ...value, name };
+  return { ...value, name, type: input.type, categoryId: input.categoryId, categorySource: input.categorySource,
+    paymentFormats: input.paymentFormats, ...(input.isFromMandatory ? { isFromMandatory: true } : {}) };
 }
 
 export function validateBankOperation(input: BankOperationInput, now = Date.now()): BankOperationInput {
@@ -64,13 +70,16 @@ export function validateBankOperation(input: BankOperationInput, now = Date.now(
   if (!validId(input.accountId)) throw Error('movements/invalid-account');
   movementDate(input.date, now);
   if (input.time !== undefined) movementInstant(input.date, input.time, now);
+  if (input.referenceTreatment !== undefined && !['included', 'after', 'historical'].includes(input.referenceTreatment)) throw Error('movements/invalid-reference-treatment');
   if (typeof input.explanation !== 'string' || input.explanation.length > 500 || /[\x00-\x1f\x7f]/.test(input.explanation)) throw Error('movements/invalid-explanation');
   return { accountId: input.accountId, amountCents: input.amountCents, date: input.date,
-    ...(input.time !== undefined ? { time: input.time } : {}), explanation: input.explanation.trim() };
+    ...(input.time !== undefined ? { time: input.time } : {}),
+    ...(input.referenceTreatment !== undefined ? { referenceTreatment: input.referenceTreatment } : {}), explanation: input.explanation.trim() };
 }
 
-export function movementEffect(movement: Pick<Movement, 'accountId' | 'status' | 'type' | 'amountCents'> | null, accountId: string): number {
-  return movement && movement.status === 'posted' && movement.accountId === accountId ? (movement.type === 'gain' ? movement.amountCents : -movement.amountCents) : 0;
+export function movementEffect(movement: Pick<Movement, 'accountId' | 'status' | 'type' | 'amountCents' | 'referenceTreatment'> | null, accountId: string): number {
+  return movement && movement.status === 'posted' && movement.accountId === accountId && movement.referenceTreatment !== 'included' && movement.referenceTreatment !== 'historical'
+    ? (movement.type === 'gain' ? movement.amountCents : -movement.amountCents) : 0;
 }
 
 export function isIncomeOrExpenseTotal(item: { isBankTransfer?: boolean; isCashRescue?: boolean; isInvestmentDeposit?: boolean; isInvestmentRedemption?: boolean; isFinanceInvestment?: boolean; isFinanceInvestmentSync?: boolean; isBalanceAdjustment?: boolean }): boolean {

@@ -8,7 +8,11 @@ versao: 3.0.0
 
 # Gerenciamento de Usuários
 
-Formulário de vínculo, listas e diálogos de revisão estão preservados como interface. Convites, aceite, revogação, permissões e gestão de grupos estão indisponíveis. Não há conta fictícia nem implementação de autorização.
+Em Meu perfil, **Contas vinculadas** lista até cinco grupos previamente autorizados e ativos. O cliente exige o token Auth e a geração correspondente no grant protegido e verifica cada grupo no servidor. A seção identifica o contexto e o papel atual. Quando o documento protegido contém participantes informados, só o grupo selecionado mostra essa lista. A permissão efetiva continua no grant de cada titular.
+
+Na 1.7, abrir um grupo muda o contexto das telas financeiras. O papel **Administrador** permite gravar quando o ambiente está liberado. **Participante** permite consultar. Nas duas situações, cada titular mantém seu contexto pessoal acessível. A saída voluntária da visualização usa **Voltar às contas pessoais**. A revogação administrativa do grant ou o encerramento do grupo retorna automaticamente ao contexto pessoal e descarta os dados da tela anterior.
+
+No histórico do Git, o commit `594f2d2` registra o formulário **Vincular usuário**, com convite por ID, prévia, aceite pelo destinatário e revogação. O vínculo de pessoas era distinto da filiação a grupos. A 1.7 usa somente o contexto protegido atual para compartilhar finanças. O inventário oficial apresentou dois contextos pessoais e nenhum grupo ou grant protegido. Convite, aceite e saída com efeito em permissões oficiais dependem de autorização específica. O [roteiro da 1.7](../docs/mvp170-resultado.md) descreve a confirmação voluntária usando o modelo atual.
 
 ## Arquivos de apresentação
 

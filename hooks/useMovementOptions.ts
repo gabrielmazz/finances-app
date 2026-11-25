@@ -1,4 +1,5 @@
 import React from 'react';
+import { errorMessage } from '@/application/errors';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
 import { categorySupports, type CategorySource } from '@/domain/categories';
 import type { Movement, MovementInput, MovementType } from '@/domain/movements';
@@ -9,7 +10,8 @@ export function useMovementBanks() {
   const accounts = useBankAccounts();
   const writable = React.useMemo(() => accounts.active.items.filter(item => item.source === 'new' && !item.blocked && item.balanceInCents !== null), [accounts.active.items]);
   const banks = React.useMemo(() => writable.map(item => ({ id: item.id, name: item.name, iconKey: item.institutionKey, colorHex: item.colorHex })), [writable]);
-  return { accounts, banks, writable };
+  const optionsError = accounts.scopeError || (accounts.scope && !accounts.canWrite ? errorMessage(Error('read-only/operation')) : null) || accounts.active.error;
+  return { accounts, banks: accounts.canWrite ? banks : [], writable: accounts.canWrite ? writable : [], optionsError };
 }
 
 const MANDATORY_PREFIX = 'mandatory:';
@@ -23,7 +25,7 @@ export function movementCategorySelection(selection: string): Pick<MovementInput
 }
 
 export function useMovementOptions(type: MovementType, editing: Movement | null) {
-  const { accounts, banks } = useMovementBanks();
+  const { accounts, banks, optionsError } = useMovementBanks();
   const categories = useCategories(true, type);
   const tags = React.useMemo(() => categories.items.filter(item => categorySupports(item, type)).flatMap(item => {
     const tag = { id: `${item.source}:${item.id}`, name: item.name, usageType: item.usageType ?? undefined, iconFamily: item.iconFamily, iconName: item.iconName, iconStyle: item.iconStyle };
@@ -34,5 +36,5 @@ export function useMovementOptions(type: MovementType, editing: Movement | null)
     const mandatoryTag = { ...tag, id: MANDATORY_PREFIX + tag.id, name: `${tag.name} (${type === 'gain' ? 'ganho obrigatório' : 'gasto obrigatório'})` };
     return regular ? [tag, mandatoryTag] : [mandatoryTag];
   }), [categories.items, editing, type]);
-  return { scope: accounts.scope, banks, tags, optionsError: accounts.scopeError || accounts.active.error || categories.error, isLoadingBanks: accounts.active.loading && !accounts.active.items.length, isLoadingTags: categories.loading && !categories.items.length, loadMoreBanks: () => accounts.load('active', true), loadMoreTags: categories.loadMore, hasMoreTags: categories.hasMore, reloadTags: categories.reload, reloadBanks: accounts.reload };
+  return { scope: accounts.scope, banks, tags, optionsError: optionsError || categories.error, isLoadingBanks: accounts.active.loading && !accounts.active.items.length, isLoadingTags: categories.loading && !categories.items.length, loadMoreBanks: () => accounts.load('active', true), loadMoreTags: categories.loadMore, hasMoreTags: categories.hasMore, reloadTags: categories.reload, reloadBanks: accounts.reload };
 }

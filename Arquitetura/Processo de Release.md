@@ -59,3 +59,17 @@ O registro de release em `firebase/production-readiness.json` só habilita o cli
 ## MVP 1.6.0
 
 A exportação Web oficial e o APK ARM64 conservam o modo de consulta até a autorização e a verificação do corte. A versão estável usa o pacote `com.gabrielmazz.lumusfinances.homologacao`, o certificado do APK 1.5.2 e o versionCode 8. O canário aprovado abre leituras canônicas mantendo as antigas. O recibo verificado distingue o canário e o cliente com escrita financeira. As duas fontes e os índices previstos estão no [manifesto de corte](../docs/mvp160-corte.md). Ver [[Migração Financeira Definitiva]].
+
+## MVP 1.7.0
+
+Os dois titulares passaram em sessões independentes do canário. A release oficial de 23/11/2026 passou a usar a Web 1.7 no Hosting e as Rules finais do manifesto. O recibo canônico verificado habilita o formulário original para confirmar a referência de cada conta. As gravações bancárias dependem da autorização e da ativação da conta usada.
+
+O APK ARM64 usa Expo SDK 58.0.26 e versionCode 11, com o pacote e certificado da instalação oficial anterior. A geração do bundle precisa rodar de novo quando apenas o JSON do recibo muda. Confira o hash das Rules no bundle dentro do APK antes de distribuí-lo. O [relatório 1.7](../docs/mvp170-resultado.md) registra os binários, testes e confirmações que dependem dos titulares e do aparelho.
+
+## MVP 1.7.1
+
+As Rules canônicas foram publicadas em 23/11/2026, às 22h29 de São Paulo, e o hash ativo foi conferido. Em 24/11/2026, às 22h44, o Hosting publicou a Web 1.7.1. A verificação comparou o HTML e seis bundles com a exportação local e confirmou a versão no login em desktop e celular. O projeto continua no Spark com os dois índices canônicos em `READY`. [Web oficial](https://finances-app-e8685.web.app/web) · [Rules oficiais](../dist/mvp-1.7.1/official-rules.json) · [Verificação do Hosting](../dist/mvp-1.7.1/validation/hosting-verified.json)
+
+O APK oficial ARM64 usa versionCode 12 e o pacote `com.gabrielmazz.lumusfinances.homologacao`. A verificação conferiu o certificado da versão anterior, os alinhamentos ZIP e ELF de 16 KiB e o hash das Rules ativas no bundle. A execução em Android instalado permanece pendente porque o ADB não encontrou aparelho conectado. [APK oficial](../dist/mvp-1.7.1/Lumus-Financas-1.7.1-oficial-arm64.apk) · [Assinatura e SHA-256](../dist/mvp-1.7.1/validation/apk-signature.json) · [Conteúdo do APK](../dist/mvp-1.7.1/validation/apk-content.json)
+
+Passaram 183 testes unitários, 218 testes de integração e os fluxos Playwright nos emuladores com as Rules locais e canônicas. A suíte temporal passou em UTC e em São Paulo. [Resultado dos testes](../dist/mvp-1.7.1/validation/summary.json)

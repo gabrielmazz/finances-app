@@ -20,3 +20,5 @@ O extrato combina páginas novas e legadas em ordem por data, mantendo a origem 
 AddRegisterExpensesScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+Na 1.7.1, o cadastro e a edição usam a data civil de São Paulo. A edição no mesmo dia preserva o horário registrado e a criação original. A data ou conta nova é conciliada conforme [[Gerenciamento de Bancos]].

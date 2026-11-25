@@ -22,6 +22,7 @@ export type MovementRecord = {
 	valueInCents: number;
 	type: 'expense' | 'gain' | 'sync';
 	date: Date | null;
+	occurrenceTime?: string;
 	tagId?: string | null;
 	tagName?: string | null;
 	tagIconFamily?: string | null;

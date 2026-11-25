@@ -44,6 +44,7 @@ export function useBankAccountForm() {
 		[error, setError] = React.useState<string | null>(null),
 		[loadError, setLoadError] = React.useState<string | null>(null),
 		[nameValidationError, setNameValidationError] = React.useState<string | null>(null);
+	const referenceRequired = loaded?.migrated === true && loaded.openingDate === null;
 	const canWrite =
 		!!scope &&
 		(scope.kind === 'personal' || (session.context?.kind === 'group' && session.context.role === 'admin'));
@@ -123,7 +124,7 @@ export function useBankAccountForm() {
 			setSaved(null);
 	}, [ref, saved, nameBank, selectedBankIconKey, institutionName, accountType, selectedColor]);
 	const submit = async () => {
-		if (pending.current || !scope || !canWrite || (!ref && saved)) return;
+		if (pending.current || !scope || !canWrite || referenceRequired || (!ref && saved)) return;
 		const key = identity;
 		pending.current = true;
 		setSubmitting(true);
@@ -213,6 +214,7 @@ export function useBankAccountForm() {
 		bankLoadError: accounts.scopeError || loadError,
 		loadedBankId: isCurrent ? (loaded?.id ?? null) : null,
 		loadedBank: isCurrent ? loaded : null,
+		referenceRequired: isCurrent && referenceRequired,
 		editingBankId: id,
 		isEditing: !!ref,
 		retryBankLoad,

@@ -4,6 +4,8 @@ Leia este guia antes de alterar o projeto. O vault `Arquitetura/` descreve a bas
 
 ## Estado atual
 
+O Firebase oficial usa o modelo canônico da migração concluída em 22/11. A 1.7.1 registra movimentações pela data financeira de São Paulo e concilia as contas que têm saldo de referência confirmado. O recibo oficial vincula o cliente ao hash das Rules publicadas. Ver [[Migração Financeira Definitiva]] e [[Processo de Release]].
+
 Frontend Expo 58 / React Native 0.88 / React 19.3 / TypeScript 6. Fundação Firebase Spark reconstruída com SDK oficial: Auth, perfis, contexto de acesso e Rules locais testadas. Etapa 03 acrescenta autorização verificada, isolamento, exportação criptografada e recuperação isolada. Bancos, Saldo Inicial, Categorias e operações bancárias de receitas e despesas têm implementação local para o emulador; o extrato inclui o histórico legado cujo contexto e tipo possam ser comprovados; os demais formatos, a conciliação antiga e a homologação física permanecem pendentes. Ver [[Fundação Firebase Spark]] e [[Segurança e Preparação para Produção]].
 
 A entrada mantém os formulários existentes, agora integrados ao Auth emulator. Workspace exige sessão real no ambiente isolado. Fixtures sintéticas existem somente no emulador, por seed explícito; não criar identidade fictícia no frontend ou confirmar operações indisponíveis. Em 09/11, as Rules restritivas foram publicadas com autorização e o hash exato foi verificado. O cliente permite configuração produtiva explícita do mesmo projeto/app, sem fallback automático; o novo frontend não foi distribuído. Uma cópia real criptografada de 987 documentos Firestore foi restaurada em rede isolada com hashes iguais. Contas Auth têm agora cópia cifrada separada autorizada (três contas), com integridade verificada. Web real homologada com identidade autorizada; observação contínua das Rules comprovada. Estado atual e limites em [[Homologação e Recuperação da Etapa 03]].
@@ -34,7 +36,7 @@ Os antigos diretórios `backend`, `functions`, `services` e `repositories` foram
 - Usar tokens/classes de `design-system/`; não introduzir estilos visuais inline ou novas exceções sem necessidade de plataforma.
 - Preservar acessibilidade, foco, labels e responsividade. Campos e rascunhos não podem ser apagados por uma falsa confirmação.
 - Valores recebidos pelos modelos visuais continuam em centavos inteiros; máscaras de entrada e conversão de exibição não constituem cálculo de saldo ou transação.
-- Preservar UIDs, documentos e campos legados. Inspeção remota somente leitura, sem copiar PII para o repositório. Testes/fixtures apenas em projeto demo dos emuladores.
+- Preservar UIDs, documentos e campos legados. Inspeção oficial somente leitura, sem copiar PII para o repositório. Testes de gravação com dados sintéticos no projeto demo e no Spark isolado de homologação.
 - Ações remotas exigem autorização específica: a publicação de Rules de 09/11 foi autorizada e concluída. Nenhuma autorização para migrar, excluir ou alterar dados financeiros/contas/infraestrutura paga está implícita.
 - Diretriz permanente: usar exclusivamente recursos disponíveis no Firebase Spark gratuito, sem Blaze, faturamento, Cloud Functions ou Cloud Run. Minimizar consultas, gravações, listeners e carregamentos integrais; preservar dados e IDs. Testar no emulador antes de publicação e consultar a documentação oficial em caso de dúvida sobre custos ou cotas. Não criar dependência de recursos pagos; propor alternativa gratuita se uma funcionalidade segura não for viável no Spark.
 
@@ -45,6 +47,12 @@ Executar `npm run lint:styles` em mudanças de UI, tipos e os testes pertinentes
 Atualizar o documento do módulo e este Active Context quando comportamento/arquitetura mudar. Usar `[[wiki-links]]` e nomes de arquivo com espaços no vault. Preservar alterações do usuário e criar recuperação antes de remoções amplas.
 
 ## Active Context
+
+- 2026-11-24, entrega da 1.7.1. O Hosting oficial serve a Web atualizada. O APK ARM64 assinado usa o mesmo certificado da 1.7.0 e inclui o recibo das Rules ativas. A execução em aparelho Android continua pendente. Ver [[Processo de Release]].
+
+- 2026-11-23, 1.7.1. Os formulários financeiros pedem a data civil de São Paulo. As contas com saldo de referência conciliam pelo dia escolhido, com confirmação por conta no próprio dia e histórico retroativo sem efeito bancário. Home e extrato usam a mesma ordem por dia, criação e ID. Ver [[Gerenciamento de Bancos]], [[Dashboard Home]] e [[Processo de Release]].
+
+- 2026-11-23, versão 1.7.0. O perfil abre grupos verificados por claim e grant. O aplicativo retorna ao contexto pessoal ao perder o grupo e descarta as telas com dados do escopo anterior. Um listener de movimentação por contexto invalida saldo, Home e extrato após gravações confirmadas. As duas sessões oficiais do canário confirmaram os UIDs originais e o isolamento. A Web 1.7 substituiu o cliente legado no Hosting e as Rules finais do manifesto foram publicadas. Os três bancos são pessoais e cada titular confirma o saldo de referência da sua conta. Ver [[Gerenciamento de Usuários]], [[Dashboard Home]] e [relatório 1.7](docs/mvp170-resultado.md).
 
 - 2026-11-22, migração 1.6.0 aplicada e conferida em produção. O manifesto `cac026c02613b47ff75bb926eca9c73713f15626379ca69555a554aaa610084e` resultou em 829 criações, 987 origens preservadas e 22 exceções intactas. Os dois índices estão em `READY`. A transição mantém operações financeiras bloqueadas até a validação das sessões oficiais. Ver [[Migração Financeira Definitiva]] e [manifesto de corte](docs/mvp160-corte.md).
 

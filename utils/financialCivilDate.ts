@@ -14,9 +14,19 @@ export function financialDateKey(instant: Date): number {
 	return Date.UTC(year, month, day);
 }
 
+export function civilDateKey(date: Date): number {
+	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export function financialTime(instant: Date): string {
 	const [, , , hours, minutes] = parts(instant);
 	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function formatMovementDate(date: Date | null, occurrenceTime?: string): string {
+	if (!date) return 'Data indisponível';
+	const day = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+	return occurrenceTime ? `${day}, ${occurrenceTime}` : day;
 }
 
 /** Calendar adapter for pure calculators whose Date getters use the device timezone. */

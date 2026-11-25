@@ -55,7 +55,7 @@ export function useMandatoryList(type: MovementType) {
     }
     if (focused) void load();
     return () => { request.current++; };
-  }, [focused, identity, load, scope]);
+  }, [focused, identity, load, scope, focused ? accounts.ledgerRevision : 0]);
 
   const items = state.identity === identity ? state.page?.items : null;
   const rows = React.useMemo(() => {
@@ -83,6 +83,7 @@ export function useMandatoryList(type: MovementType) {
   async function change(id: string, action: 'delete' | 'reclaim') {
     const item = items?.find(value => value.id === id);
     if (!scope || !item) throw Error('mandatory/not-found');
+    if (!accounts.canWrite) throw Error('read-only/operation');
     const client = getFirebaseClient();
     if (action === 'delete') await archiveMandatoryTemplate(client, scope, item);
     else {

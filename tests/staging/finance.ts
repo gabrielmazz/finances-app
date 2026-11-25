@@ -6,11 +6,11 @@ import { createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, si
 import { collection, doc, getDocFromServer, getDocsFromServer, getFirestore, limit, query, updateDoc } from 'firebase/firestore';
 import { createBank, newBankOperationId, prepareLegacyReference, readBank, readBankPage, updateBank, archiveBank } from '../../firebase/banks';
 import { createCategory, newCategoryId, readCategoryPage } from '../../firebase/categories';
-import { cancelBankOperation, confirmMandatoryCycle, cancelMandatoryCycle, createBankTransfer, createCashWithdrawal, createMovement, hasCashHistory, newMovementId, readMovementTimeline, updateMovement } from '../../firebase/movements';
+import { cancelBankOperation, confirmMandatoryCycle, cancelMandatoryCycle, createBankTransfer, createCashWithdrawal, createMovement, hasCashHistory, newMovementId, readMovementTimeline, updateMovement, watchMovementChanges } from '../../firebase/movements';
 import { newMandatoryId, readMandatoryPage, readMandatoryTemplate, saveMandatoryTemplate } from '../../firebase/mandatory';
 import { readFirebaseConfig, STAGING_PROJECT_ID } from '../../firebase/config';
 import { loadProfile, saveProfileName } from '../../firebase/profiles';
-import { watchFinancialGroup } from '../../firebase/financialContext';
+import { listFinancialGroups, watchFinancialGroup } from '../../firebase/financialContext';
 import type { BankScope } from '../../domain/banks';
 import { CASH_HISTORY_ID, type MovementInput } from '../../domain/movements';
 
@@ -159,9 +159,9 @@ test('Firebase Spark real: operações, saldos, consultas e revogação com usu�
     const projectGroup = 'staging-group-' + run;
     const generation = 'staging-' + run;
     const s = (stringValue: string) => ({ stringValue });
-    const grant = (role: 'admin' | 'member', enabled = true) => ({ generation: s(generation), enabled: { booleanValue: enabled },
-      groups: { mapValue: { fields: { [projectGroup]: s(role) } } }, readOwners: { arrayValue: { values: [] } } });
-    await admin.set('financialGroups/' + projectGroup, { status: s('active') });
+    const grant = (role: 'admin' | 'member', included = true) => ({ generation: s(generation), enabled: { booleanValue: true },
+      groups: { mapValue: { fields: included ? { [projectGroup]: s(role) } : {} } }, readOwners: { arrayValue: { values: [] } } });
+    await admin.set('financialGroups/' + projectGroup, { status: s('active'), name: s('Grupo sintético') });
     await Promise.all([
       admin.set('_authorizations/' + ownerUid, grant('admin')), admin.set('_authorizations/' + otherUid, grant('member')),
       admin.grant(ownerUid, { lumusAccess: generation }), admin.grant(otherUid, { lumusAccess: generation }),
@@ -170,20 +170,45 @@ test('Firebase Spark real: operações, saldos, consultas e revogação com usu�
     const group: BankScope = { kind: 'group', id: projectGroup, uid: ownerUid }, member = { ...group, uid: otherUid };
     const groupId = newBankOperationId(owner, group);
     await createBank(owner, group, groupId, opening('Conta compartilhada', 777));
+    assert.equal((await listFinancialGroups(owner, ownerUid))[0].role, 'admin');
+    assert.equal((await listFinancialGroups(other, otherUid))[0].role, 'member');
     assert.equal((await readBank(other, member, { source: 'new', id: groupId })).balanceInCents, 777);
     await assert.rejects(createBank(other, member, newBankOperationId(other, member), opening('Sem permissão de edição', 0)), denied);
     const observed = Promise.withResolvers<'admin' | 'member'>();
     const revoked = Promise.withResolvers<void>();
     const stop = watchFinancialGroup(other, otherUid, projectGroup, observed.resolve, revoked.resolve);
     const deadline = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => reject(Error('A atualização do grupo não chegou pelo listener.')), 15_000);
+      const timer = setTimeout(() => reject(Error('A atualização do grupo não chegou pelo listener.')), 35_000);
       t.after(() => clearTimeout(timer));
     });
     t.after(stop);
     assert.equal(await Promise.race([observed.promise, deadline]), 'member');
+    const groupCategory = newCategoryId(owner, group);
+    await createCategory(owner, group, groupCategory, categoryData);
+    const listening = Promise.withResolvers<void>(), changed = Promise.withResolvers<void>();
+    const stopMovements = watchMovementChanges(other, member, initial => {
+      if (initial) listening.resolve();
+      else changed.resolve();
+    });
+    t.after(stopMovements);
+    try {
+      await Promise.race([listening.promise, deadline]);
+      const input = { ...gain, accountId: groupId, categoryId: groupCategory, amountCents: 123 };
+      const movementId = newMovementId(owner, group);
+      await createMovement(owner, group, movementId, input);
+      await Promise.race([changed.promise, deadline]);
+      const from = new Date(day + 'T00:00:00Z'), to = new Date(from.getTime() + 86_400_000);
+      for (const [client, scope] of [[owner, group], [other, member]] as const) {
+        assert.equal((await readBank(client, scope, { source: 'new', id: groupId })).balanceInCents, 900);
+        const page = await readMovementTimeline(client, scope, groupId, from, to);
+        assert.deepEqual(page.items.map(item => [item.id, item.valueInCents, item.personId]), [[movementId, 123, ownerUid]]);
+      }
+      await assert.rejects(createMovement(other, member, newMovementId(other, member), input), denied);
+    } finally { stopMovements(); }
     await admin.set('_authorizations/' + otherUid, grant('member', false));
     await Promise.race([revoked.promise, deadline]);
     stop();
+    assert.deepEqual(await listFinancialGroups(other, otherUid), []);
     await assert.rejects(readBank(other, member, { id: groupId, source: 'new' }), denied);
     await assert.rejects(getDocFromServer(doc(other.db, 'financialContexts', 'group:' + projectGroup, 'bankAccounts', groupId)), denied);
   });
@@ -209,13 +234,13 @@ test('Firebase Spark real: operações, saldos, consultas e revogação com usu�
     assert.equal((await prepareLegacyReference(owner, scope, id, reference)).balanceInCents, 10_000);
     const movementId = newMovementId(owner, scope);
     const input = { ...expense, accountId: id, amountCents: 999 };
-    await assert.rejects(createMovement(owner, scope, movementId, input), /reference-time-required/);
+    await assert.rejects(createMovement(owner, scope, movementId, input), /reference-confirmation-required/);
     await assert.rejects(createMovement(owner, scope, movementId, { ...input, time: '22:15' }), /before-reference/);
-    const movement = await createMovement(owner, scope, movementId, { ...input, time: '22:16' });
-    assert.deepEqual(await createMovement(owner, scope, movementId, { ...input, time: '22:16' }), movement);
+    const movement = await createMovement(owner, scope, movementId, { ...input, referenceTreatment: 'after' });
+    assert.deepEqual(await createMovement(owner, scope, movementId, { ...input, referenceTreatment: 'after' }), movement);
     const from = new Date(day + 'T00:00:00Z'), to = new Date(from.getTime() + 86_400_000);
     const statement = await readMovementTimeline(owner, scope, id, from, to);
-    assert.deepEqual(statement.items.map(item => [item.id, item.valueInCents, item.date?.getHours()]), [[movementId, 999, 22]]);
+    assert.deepEqual(statement.items.map(item => [item.id, item.valueInCents, item.date?.getDate()]), [[movementId, 999, Number(day.slice(-2))]]);
     assert.equal((await readBank(owner, scope, { source: 'new', id })).balanceInCents, 9001);
     await assert.rejects(readBank(other, otherScope, { source: 'new', id }), /not-found/);
   });

@@ -1,3 +1,4 @@
+import { formatMovementDate } from '@/utils/financialCivilDate';
 import { CASH_HISTORY_ID, hasAmbiguousMovementIds, isIncomeOrExpenseTotal } from '@/domain/movements';
 import { sumCents } from '@/domain/money';
 import { useMovementList } from '@/hooks/useMovementList';
@@ -193,20 +194,6 @@ const formatCurrencyBRLBase = (valueInCents: number) =>
 		currency: 'BRL',
 		minimumFractionDigits: 2,
 	}).format((valueInCents ?? 0) / 100);
-
-const formatMovementDate = (value: Date | null) => {
-	if (!value) {
-		return 'Data indisponível';
-	}
-
-	return new Intl.DateTimeFormat('pt-BR', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	}).format(value);
-};
 
 const extractDigits = (value: string) => value.replace(/\D/g, '');
 
@@ -865,7 +852,6 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 	const bankMovementsSheetClassName = webDashboardClassNames.webSheetCompact;
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
-		bankName?: string | string[];
 		cashView?: string | string[];
 		focusDate?: string | string[];
 	}>();
@@ -893,22 +879,6 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 		}
 		return bankId === 'cash' || bankId === 'cash-transactions';
 	}, [bankId, cashViewParam]);
-
-	const routeBankName = React.useMemo(() => {
-		if (isCashView) {
-			return 'Transações em dinheiro';
-		}
-		const value = Array.isArray(searchParams.bankName) ? searchParams.bankName[0] : searchParams.bankName;
-		if (!value) {
-			return 'Banco selecionado';
-		}
-
-		try {
-			return decodeURIComponent(value);
-		} catch {
-			return value;
-		}
-	}, [searchParams.bankName, isCashView]);
 
 	const { start, end } = React.useMemo(() => getMovementMonthBounds(searchParams.focusDate), [searchParams.focusDate]);
 
@@ -959,7 +929,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 
 	const bankName = isCashView
 		? 'Transações em dinheiro'
-		: selectedBankOption?.name ?? routeBankName;
+		: selectedBankOption?.name ?? 'Banco selecionado';
 	const [editingFinanceMovement, setEditingFinanceMovement] = React.useState<MovementRecord | null>(null);
 	const [editInvestmentName, setEditInvestmentName] = React.useState('');
 	const [editInvestmentInitialInput, setEditInvestmentInitialInput] = React.useState('');
@@ -1668,7 +1638,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 			id: movement.id,
 			name: movement.name,
 			typeLabel: resolveMovementTypeLabel(movement),
-			dateLabel: formatMovementDate(movement.date),
+			dateLabel: formatMovementDate(movement.date, movement.occurrenceTime),
 			tagLabel: getMovementTagLabel(movement),
 			sourceLabel: getMovementPrimarySourceLabel(movement),
 			description: getMovementDetailMessage(movement),
@@ -2088,13 +2058,15 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem')
 								: null;
 							const detailItems = [
+								...(movement.personId && movementList.accounts.scope?.kind === 'group'
+									? [{ label: 'Registrado por', value: movement.personId === user?.uid ? 'Você' : movement.personId }] : []),
 								{
 									label: 'Tipo',
 									value: resolveMovementTypeLabel(movement),
 								},
 								{
 									label: 'Data',
-									value: formatMovementDate(movement.date),
+									value: formatMovementDate(movement.date, movement.occurrenceTime),
 								},
 								{
 									label: 'Categoria',
