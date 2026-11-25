@@ -167,7 +167,7 @@ test('movement pages use stable cursors and exclude cancelled entries', async ()
         schemaVersion: 1, scopeKind: 'personal', scopeId: owner, name: `Página ${i}`, type: 'expense', amountCents: 1,
         accountId, categoryId: expenseTag, categorySource: 'new', date: Timestamp.fromDate(new Date('2025-03-10T00:00:00Z')),
         explanation: '', paymentFormats: [], status: i === 0 ? 'cancelled' : 'posted', revision: i === 0 ? 1 : 0,
-        createdBy: owner, updatedBy: owner, createdAt: now, updatedAt: now,
+        createdBy: owner, updatedBy: owner, createdAt: new Timestamp(now.seconds, Math.floor(i / 2) * 1000), updatedAt: now,
       });
     }
   });
@@ -181,6 +181,13 @@ test('movement pages use stable cursors and exclude cancelled entries', async ()
   assert.equal(second.cursor, null);
   assert.equal(new Set([...first.items, ...second.items].map(item => item.id)).size, 25);
   assert.ok([...first.items, ...second.items].every(item => item.status === 'posted'));
+  assert.deepEqual(first.items.slice(0, 4).map(item => item.id), [24, 25, 22, 23].map(i => `pageMovement${String(i).padStart(8, '0')}`));
+  const from = new Date('2025-03-10T00:00:00Z'), to = new Date('2025-03-11T00:00:00Z');
+  const statement = await readMovementTimeline(client, pageScope, accountId, from, to);
+  const home = await readMovementTimeline(client, pageScope, null, from, to, null, [accountId]);
+  const continuation = await readMovementTimeline(client, pageScope, accountId, from, to, statement.cursor);
+  assert.deepEqual(home.items.map(item => item.id), statement.items.map(item => item.id));
+  assert.deepEqual([...statement.items, ...continuation.items].map(item => item.id), [...first.items, ...second.items].map(item => item.id));
 });
 
 test('one transfer posts both ledger entries once and a cash withdrawal only debits its bank', async () => {

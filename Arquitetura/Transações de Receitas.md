@@ -20,3 +20,5 @@ O extrato combina páginas novas e legadas em ordem por data, mantendo a origem 
 AddRegisterGainScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+Na 1.7.1, o cadastro e a edição usam a data civil de São Paulo. O Firestore registra criação e atualização automaticamente. O extrato mostra a hora histórica quando existe um instante registrado. As contas de referência seguem a conciliação de [[Gerenciamento de Bancos]].

@@ -62,7 +62,8 @@ it('requires the applied manifest and verified candidate Rules to select officia
   expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID)).toBe(false);
   expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, readiness)).toBe(true);
   expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, readiness)).toBe(false);
-  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, financialWritesEnabled: true })).toBe(true);
+  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, releaseView: 'canary', financialWritesEnabled: true })).toBe(false);
+  expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, releaseView: 'canonical', financialWritesEnabled: true })).toBe(true);
   expect(financialLedgerAllowsWrites(OFFICIAL_PROJECT_ID, { ...readiness, financialSchemaVersion: undefined, financialWritesEnabled: true })).toBe(false);
   expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, { ...readiness, status: 'pending' })).toBe(false);
   expect(usesCanonicalFinance(OFFICIAL_PROJECT_ID, { ...readiness, migrationManifestSHA256: '' })).toBe(false);

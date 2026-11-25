@@ -1,4 +1,5 @@
 import { hasAmbiguousMovementIds, isIncomeOrExpenseTotal, movementEffect, validateMovement } from '../domain/movements';
+import { formatMovementDate } from '../utils/financialCivilDate';
 
 const input = { name: 'Mercado', type: 'expense' as const, amountCents: 20000, accountId: 'bank0000000000000001', categoryId: 'tag00000000000000001', categorySource: 'new' as const, date: '2025-03-10', explanation: '', paymentFormats: [] };
 
@@ -7,6 +8,20 @@ test('movements use positive integer cents and an unambiguous civil date', () =>
   expect(() => validateMovement({ ...input, amountCents: 1.5 })).toThrow();
   expect(() => validateMovement({ ...input, amountCents: 0 })).toThrow();
   expect(() => validateMovement({ ...input, date: '2025-02-30' })).toThrow();
+});
+
+test('the financial day changes at midnight in São Paulo', () => {
+  const beforeMidnight = Date.parse('2025-03-11T02:59:59Z');
+  const afterMidnight = Date.parse('2025-03-11T03:00:00Z');
+  expect(validateMovement(input, beforeMidnight).date).toBe('2025-03-10');
+  expect(() => validateMovement({ ...input, date: '2025-03-11' }, beforeMidnight)).toThrow('movements/invalid-date');
+  expect(validateMovement({ ...input, date: '2025-03-11' }, afterMidnight).date).toBe('2025-03-11');
+});
+
+test('the statement displays only a date unless an occurrence time exists', () => {
+  const day = new Date(2025, 2, 10);
+  expect(formatMovementDate(day)).toBe('10/03/2025');
+  expect(formatMovementDate(day, '22:16')).toBe('10/03/2025, 22:16');
 });
 
 test('posted gains and expenses affect only their own account; cancellation reverses the effect', () => {

@@ -1,7 +1,8 @@
 import React from 'react';
 import { getFirebaseClient } from '../firebase/client';
 import { readBank, readBankPage, readBoundLegacyBankPage } from '../firebase/banks';
-import { LOCAL_PROJECT_ID } from '../firebase/config';
+import { financialLedgerAllowsWrites, LOCAL_PROJECT_ID, selectedFinancialProject, usesCanonicalFinance } from '../firebase/config';
+import { watchMovementChanges } from '../firebase/movements';
 import type { BankAccount, BankScope } from '../domain/banks';
 import { sumCents } from '../domain/money';
 import { errorMessage } from '../application/errors';
@@ -36,6 +37,8 @@ const empty = (): PageState => ({
 type Store = {
 	scope: BankScope | null;
 	scopeError: string | null;
+	canWrite: boolean;
+	ledgerRevision: number;
 	active: PageState;
 	archived: PageState;
 	load(status: 'active' | 'archived', more?: boolean): Promise<void>;
@@ -64,6 +67,7 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 	);
 	const [state, setState] = React.useState({ active: empty(), archived: empty() });
 	const [stateIdentity, setStateIdentity] = React.useState<string | null>(null);
+	const [ledgerRevision, invalidateLedger] = React.useReducer(value => value + 1, 0);
 	const current = React.useRef(state);
 	current.current = state;
 	const generation = React.useRef(0),
@@ -164,6 +168,18 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 			await load('archived');
 		}
 	}, [load, identity]);
+	const project = selectedFinancialProject();
+	const ledgerOpen = financialLedgerAllowsWrites(project);
+	const canWrite = Boolean(scope && ledgerOpen && (scope.kind === 'personal' ||
+		(session.context?.kind === 'group' && session.context.role === 'admin')));
+	React.useEffect(() => {
+		if (!scope || !ledgerOpen || !usesCanonicalFinance(project)) return;
+		let active = true;
+		const stop = watchMovementChanges(getFirebaseClient(), scope, () => {
+			void reload().then(() => { if (active) invalidateLedger(); });
+		});
+		return () => { active = false; stop(); };
+	}, [scope, project, ledgerOpen, reload]);
 	const visible = stateIdentity === identity ? state : { active: empty(), archived: empty() };
 	let total: number | null = null;
 	if (
@@ -185,6 +201,8 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 		<Context.Provider
 			value={{
 				scope,
+				canWrite,
+				ledgerRevision,
 				scopeError:
 					session.contextError ||
 					session.error ||

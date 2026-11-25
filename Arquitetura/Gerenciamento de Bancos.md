@@ -8,7 +8,7 @@ versao: 4.0.0
 
 # Gerenciamento de Bancos
 
-Etapa 04 implementa cadastro, consulta, edição cadastral e arquivamento em ambiente Firebase Emulator. Nenhuma operação financeira produtiva está liberada: `requireBankEnvironment` exige o projeto `demo-lumus-foundation`, além da identidade e do contexto corretos. Não foram recuperados serviços da arquitetura abandonada.
+A etapa 04 introduziu cadastro, consulta, edição cadastral e arquivamento no Firebase Emulator. A versão 1.7 usa as Rules canônicas do Firebase oficial e exige a autorização do contexto e a abertura confirmada de cada conta para movimentar o saldo.
 
 ## Contas e origem do saldo
 
@@ -84,4 +84,12 @@ O MVP 1.5.1 acrescenta a consulta pontual pelo ID informado nas Configurações 
 
 O manifesto grava `referenceNotBefore` na conta migrada. O formulário existente e as Rules recusam referências anteriores a esse instante. A abertura registra o saldo confirmado no mesmo ID, sem reaplicar o histórico anterior. Uma conta ainda sem abertura fica protegida contra gravações de movimentações.
 
-Receitas, despesas, ciclos, transferências e saques aceitam o horário de São Paulo em `HH:MM`. A data civil permanece disponível para a consulta paginada e a hora informada fica em `occurredAt`. No dia da referência, somente um minuto posterior é aceito. A validação também protege a mudança de conta e confere as duas pontas de uma transferência. Uma data civil posterior admite o lançamento sem horário. Contas novas usam a própria data de abertura como primeiro dia elegível. Ver [[Migração Financeira Definitiva]].
+Na 1.7.1, receitas, despesas, ciclos, transferências e saques usam somente a data civil de São Paulo. A confirmação do saldo de referência continua registrando o instante informado pelo titular. Conta aberta sem referência usa a data da abertura como primeiro dia elegível.
+
+Uma data posterior à referência entra no saldo normalmente. No dia da referência, o formulário pergunta se o valor já estava incluído. As Rules exigem a escolha ou reconhecem o instante comprovado dos registros com horário. Um lançamento anterior fica no histórico com efeito zero no saldo. As duas pontas da transferência são avaliadas separadamente e gravadas na mesma transação. A edição reavalia a data e a conta. O cancelamento desfaz somente o efeito efetivamente aplicado. A abertura e o saldo original da referência são imutáveis.
+
+O campo `referenceTreatment` indica `historical` para retroativos, `included` para itens já incluídos no dia e `after` para novos efeitos no dia. Em referências anteriores a 2020, as Rules usam o corte mais tardio no intervalo em que UTC−02 e UTC−03 podem produzir dias diferentes. As referências oficiais a partir da captura de 2026 usam UTC−03. Ver [[Migração Financeira Definitiva]].
+
+### Versão 1.7
+
+As três contas oficiais usam os IDs migrados e o contexto pessoal de cada titular. O formulário original confirma a abertura com o recibo canônico ativo. Na edição de uma conta migrada com referência pendente, a ação de salvar o cadastro fica disponível após a confirmação da abertura. A conta `JYvu` foi ativada pelo titular A em 23/11/2026. `lbq5` e `YX8P` aguardam referências individuais. A soma apresentada como saldo geral exige saldos confirmados de todas as contas da lista. Os seletores de movimentação aceitam individualmente as contas ativas com saldo confirmado.

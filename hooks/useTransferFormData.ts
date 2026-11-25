@@ -1,11 +1,13 @@
+import { civilDateKey, financialDateKey } from '@/utils/financialCivilDate';
 import { useMovementBanks } from './useMovementOptions';
 
-export function useTransferFormData(originId: string | null, destinationId: string | null) {
-	const { accounts, banks, writable } = useMovementBanks();
+export function useTransferFormData(originId: string | null, destinationId: string | null, date: Date | null = null) {
+	const { accounts, banks, writable, optionsError: error } = useMovementBanks();
 	const { active } = accounts;
-	const error = accounts.scopeError || active.error;
 	const hasMore = !!(active.nextNew || active.nextLegacy || active.nextBound);
+	const originAccount = writable.find(bank => bank.id === originId);
 	return {
+		mayAlreadyBeIncluded: !!(date && originAccount?.referenceAt && civilDateKey(date) <= financialDateKey(originAccount.referenceAt)),
 		personId: accounts.scope?.uid ?? null,
 		banks,
 		isLoadingBanks: active.loading,
@@ -14,10 +16,10 @@ export function useTransferFormData(originId: string | null, destinationId: stri
 		reload: accounts.reload,
 		hasMore,
 		loadMore: () => accounts.load('active', true),
-		originBalanceInCents: writable.find(bank => bank.id === originId)?.balanceInCents ?? null,
+		originBalanceInCents: originAccount?.balanceInCents ?? null,
 		isLoadingBalance: active.loading && !!originId,
 		targetBalanceInCents: writable.find(bank => bank.id === destinationId)?.balanceInCents ?? null,
 		isLoadingTargetBalance: active.loading && !!destinationId,
-		needsBanks: active.loaded && !active.loading && !hasMore && banks.length < 2,
+		needsBanks: accounts.canWrite && active.loaded && !active.loading && !hasMore && banks.length < 2,
 	};
 }

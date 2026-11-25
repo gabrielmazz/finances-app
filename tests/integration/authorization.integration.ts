@@ -7,7 +7,7 @@ import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, terminat
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { setEmulatorClaims, DEMO_PASSWORD } from '../../script/emulator-fixtures';
 import { loadAuthorization } from '../../firebase/authorization';
-import { loadFinancialContext } from '../../firebase/financialContext';
+import { listFinancialGroups, loadFinancialContext } from '../../firebase/financialContext';
 import { loadProfile } from '../../firebase/profiles';
 
 const project='demo-lumus-foundation';
@@ -29,8 +29,9 @@ before(async()=>{
 		const db=context.firestore(),batch=db.batch();
 		batch.set(db.doc(`users/${member}`),{name:'Membro legado',financialGroupId:'authorization-group',adminUser:true});
 		batch.set(db.doc(`users/${outsider}`),{name:'Outro',financialGroupId:'authorization-group',adminUser:true,relatedIdUsers:[owner]});
-		batch.set(db.doc(`_authorizations/${member}`),{generation,enabled:true,readOwners:[owner],groups:{'authorization-group':'member'}});
-		batch.set(db.doc('financialGroups/authorization-group'),{status:'active',members:{[member]:'admin',[outsider]:'admin'}});
+		batch.set(db.doc(`_authorizations/${member}`),{generation,enabled:true,readOwners:[owner],groups:{'authorization-group':'member','inactive-group':'admin'}});
+		batch.set(db.doc('financialGroups/authorization-group'),{name:'Casa',status:'active',members:{[member]:'admin',[outsider]:'admin'}});
+		batch.set(db.doc('financialGroups/inactive-group'),{status:'archived'});
 		batch.set(db.doc('expenses/authorization-history'),{personId:owner,groupId:null,financialGroupId:null,ledgerGroupId:null,valueInCents:12345});
 		await batch.commit();
 	});
@@ -45,9 +46,11 @@ test('real emulator token + protected authorization governs access, not legacy p
 	assert.deepEqual(await loadFinancialContext(client,member,null),{kind:'personal',sharedReadStatus:'authorized'});
 	assert.equal((await loadProfile(client,member))?.profile.adminUser,false);
 	assert.deepEqual(await loadFinancialContext(client,member,'authorization-group'),{kind:'group',groupId:'authorization-group',role:'member'});
+	assert.deepEqual((await listFinancialGroups(client,member)).map(group => [group.groupId, group.name, group.role]), [['authorization-group','Casa','member']]);
 	assert.equal((await getDocFromServer(doc(client.db,'expenses','authorization-history'))).data()?.valueInCents,12345);
 	await signInWithEmailAndPassword(client.auth,'auth-outsider@lumus.test',DEMO_PASSWORD);
 	assert.equal(await loadAuthorization(client,outsider),null);
+	assert.deepEqual(await listFinancialGroups(client,outsider),[]);
 	await assert.rejects(loadFinancialContext(client,outsider,'authorization-group'),/context\/access-denied/);
 	await assert.rejects(getDocFromServer(doc(client.db,'expenses','authorization-history')),(e:any)=>e.code==='permission-denied');
 });

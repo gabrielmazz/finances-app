@@ -415,7 +415,6 @@ export default function HomeScreen() {
 		navigateToRoute(APP_ROUTE_PATHS.bankMovements, {
 			bankId: item.id,
 			bankSource: item.source,
-			bankName: encodeURIComponent(item.name),
 		});
 	}, []);
 

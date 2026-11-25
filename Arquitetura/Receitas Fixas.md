@@ -19,3 +19,5 @@ O formulário de ganho bancário permite registrar um recebimento avulso como ga
 AddMandatoryGainsScreen / MandatoryGainsListScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+O recebimento do ciclo usa a data financeira. Quando a data coincide com a referência da conta escolhida, a confirmação determina o efeito sobre o saldo. O recebimento do ciclo, a movimentação e a atualização do banco continuam atômicos. Ver [[Gerenciamento de Bancos]].

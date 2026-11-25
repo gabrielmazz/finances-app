@@ -8,10 +8,10 @@ import type { MovementRecord } from '@/types/bankMovements';
 
 type Account = { id: string; name: string; blocked?: boolean };
 
-export function useRecentMovements(scope: BankScope | null, accounts: Account[], ready: boolean) {
+export function useRecentMovements(scope: BankScope | null, accounts: Account[], ready: boolean, ledgerRevision = 0) {
   const [version, setVersion] = React.useState(0);
   const accountKey = JSON.stringify(accounts.filter(item => !item.blocked).map(item => [item.id, item.name]));
-  const identity = JSON.stringify([scope?.uid, scope?.kind, scope?.id, accountKey, ready, version]);
+  const identity = JSON.stringify([scope?.uid, scope?.kind, scope?.id, accountKey, ready, version, ledgerRevision]);
   const [state, setState] = React.useState<{ identity: string; items: MovementRecord[]; cashIncomplete: boolean; incomplete: boolean; loading: boolean; error: string | null }>({ identity, items: [], cashIncomplete: false, incomplete: false, loading: false, error: null });
   React.useEffect(() => {
     let active = true;
@@ -25,20 +25,13 @@ export function useRecentMovements(scope: BankScope | null, accounts: Account[],
       to.setUTCHours(0, 0, 0, 0); to.setUTCDate(to.getUTCDate() + 1);
       let cursor: TimelineCursor | null = null, cashIncomplete = false;
       let complete = false;
-      const day = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
       for (let page = 0; page < 3; page++) {
         const result = await readMovementTimeline(getFirebaseClient(), scope, null, from, to, cursor, [...banks.keys()]);
         if (!active) return;
         items.push(...result.items.map(item => ({ ...item, bankName: item.bankId ? banks.get(item.bankId) ?? null : null })));
         cashIncomplete ||= result.cashIncomplete;
         cursor = result.cursor;
-        items.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0) ||
-          (a.id === b.id ? 0 : a.id < b.id ? -1 : 1));
-        const sixth = items[5]?.date;
-        const boundary = result.items.at(-1)?.date;
-        // Historical instants can sort under the next UTC date. Read ahead when
-        // another page could still include an occurrence on the visible day.
-        complete = !cursor || !!(sixth && boundary && day(boundary) + 86_400_000 < day(sixth));
+        complete = !cursor || items.length >= 6;
         if (complete) break;
       }
       if (active) setState({ identity, items: items.slice(0, 6), cashIncomplete, incomplete: !complete, loading: false, error: null });

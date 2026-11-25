@@ -1,13 +1,13 @@
-import { collection, deleteField, doc, documentId, getDocFromServer, getDocsFromServer, limit, orderBy, query, runTransaction, serverTimestamp, startAfter, Timestamp, where, type QueryConstraint } from 'firebase/firestore';
+import { collection, deleteField, doc, documentId, getDocFromServer, getDocsFromServer, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, startAfter, Timestamp, where, type QueryConstraint } from 'firebase/firestore';
 import type { AccountClient } from './profiles';
 import { bankContextKey, readBank, requireBankEnvironment, requireBankReadEnvironment } from './banks';
 import { OFFICIAL_PROJECT_ID, usesCanonicalFinance } from './config';
 import { measureRead } from './diagnostics';
 import { readCategory, resolveHistoricalCategory } from './categories';
 import { categorySupports } from '../domain/categories';
-import { parseBank, type BankAccount, type BankScope } from '../domain/banks';
+import { parseBank, validId, type BankAccount, type BankScope } from '../domain/banks';
 import { validCents } from '../domain/money';
-import { financialDateKey, financialDayStart, financialTime, toFinancialCivilDate } from '../utils/financialCivilDate';
+import { civilDateKey, financialDateKey, financialDayStart, financialTime, toFinancialCivilDate } from '../utils/financialCivilDate';
 import { isTagVisibleInRegularUsageList } from '../utils/tagUsage';
 import { getCycleKeyFromDate } from '../utils/mandatoryExpenses';
 import { civilDate, mandatoryAmount } from '../domain/mandatory';
@@ -17,6 +17,23 @@ import { CASH_HISTORY_ID, movementDate, movementEffect, movementInstant, validat
 function movements(client: AccountClient, scope: BankScope) {
   requireBankReadEnvironment(client, scope);
   return collection(client.db, 'financialContexts', bankContextKey(scope), 'movements');
+}
+
+// A server-confirmed commit invalidates every affected account, including old
+// statement dates and cancellations that leave the posted movements query.
+export function watchMovementChanges(client: AccountClient, scope: BankScope, onChange: (initial: boolean) => void) {
+  const latest = query(movements(client, scope), orderBy('updatedAt', 'desc'), limit(1));
+  let last: string | undefined;
+  return onSnapshot(latest, { includeMetadataChanges: true }, snapshot => {
+    if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites || client.auth.currentUser?.uid !== scope.uid) return;
+    const movement = snapshot.docs[0];
+    const stamp = movement?.data().updatedAt as Timestamp | undefined;
+    const key = JSON.stringify([movement?.id, stamp?.seconds, stamp?.nanoseconds, movement?.data().revision]);
+    if (key === last) return;
+    const initial = last === undefined;
+    last = key;
+    onChange(initial);
+  }, () => { /* Scoped queries surface read errors and the group watcher handles revocation. */ });
 }
 function movementRef(client: AccountClient, scope: BankScope, id: string) {
   if (!/^[A-Za-z0-9]{20}(-credit|-\d{4}-(0[1-9]|1[0-2]))?$/.test(id)) throw Error('movements/invalid-id');
@@ -39,7 +56,8 @@ function parseLedgerEntry(id: string, data: Record<string, any>, scope: BankScop
     if (movementInstant(date, time, latest).getTime() !== instant.getTime() || data.occurredAt.nanoseconds !== 0) throw Error('movements/incompatible');
   }
   const common = { name: data.name, type: data.type, amountCents: data.amountCents, accountId: data.accountId, date,
-    ...(time ? { time } : {}), explanation: data.explanation, paymentFormats: data.paymentFormats };
+    ...(time ? { time } : {}), ...(data.referenceTreatment !== undefined ? { referenceTreatment: data.referenceTreatment } : {}),
+    explanation: data.explanation, paymentFormats: data.paymentFormats };
   const metadata = { id, status: data.status, revision: data.revision };
   if (data.operation === undefined) return { ...metadata, ...validateMovement({ ...common, categoryId: data.categoryId, categorySource: data.categorySource, ...(data.isFromMandatory === true ? { isFromMandatory: true } : {}) }, latest) };
   const operation: unknown = data.operation;
@@ -65,6 +83,7 @@ async function checkCategory(client: AccountClient, scope: BankScope, value: Mov
 
 function matchesPostedInput(entry: LedgerEntry, expected: LedgerInput) {
   const { id, status, revision, ...current } = entry;
+  if (expected.referenceTreatment === undefined) delete current.referenceTreatment;
   return status === 'posted' && Object.keys(current).length === Object.keys(expected).length
     && Object.entries(current).every(([key, value]) => JSON.stringify(value) === JSON.stringify(Reflect.get(expected, key)));
 }
@@ -74,20 +93,41 @@ function ledgerFields({ time, ...value }: LedgerInput) {
     ...(time ? { occurredAt: Timestamp.fromDate(movementInstant(value.date, time)) } : {}) };
 }
 
-function requireMovementDate(account: BankAccount, { date, time }: Pick<LedgerInput, 'date' | 'time'>) {
+export class MovementReferenceConfirmationRequired extends Error {
+  constructor(readonly accountId: string, readonly accountName: string, readonly referenceAt: Date) {
+    super('movements/reference-confirmation-required');
+  }
+}
+
+function reconcileMovement<T extends LedgerInput>(account: BankAccount, value: T, preserveOccurrence = false): T {
+  const { date, time, referenceTreatment } = value;
   if (!account.openingDate) throw Error('movements/invalid-account');
   if (account.referenceAt) {
-    if (time) {
-      if (movementInstant(date, time) <= account.referenceAt) throw Error('movements/before-reference');
-    } else {
-      const day = movementDate(date);
-      if (day.getTime() === financialDateKey(account.referenceAt)) throw Error('movements/reference-time-required');
-      // Before the end of daylight saving time, use the earliest possible local midnight.
-      const midnight = day.getTime() + (day.getUTCFullYear() < 2020 ? 2 : 3) * 3_600_000;
-      if (midnight <= account.referenceAt.getTime()) throw Error('movements/before-reference');
-      if (midnight > Date.now()) throw Error('movements/invalid-date');
+    const day = movementDate(date).getTime();
+    const referenceDay = financialDateKey(account.referenceAt);
+    if (day < referenceDay) {
+      if (referenceTreatment !== undefined && referenceTreatment !== 'historical') throw Error('movements/invalid-reference-treatment');
+      return { ...value, referenceTreatment: 'historical' };
+    }
+    if (day === referenceDay) {
+      if (referenceTreatment === 'included' || referenceTreatment === 'after') return value;
+      if (referenceTreatment !== undefined) throw Error('movements/invalid-reference-treatment');
+      if (!time) throw new MovementReferenceConfirmationRequired(account.id, account.name, account.referenceAt);
+      if (movementInstant(date, time) <= account.referenceAt) {
+        if (preserveOccurrence) return { ...value, referenceTreatment: 'included' };
+        throw Error('movements/before-reference');
+      }
+      return value;
+    }
+    // Older references around the UTC-02/UTC-03 boundary can need an explicit
+    // classification in Rules even when the São Paulo day is known to be later.
+    if (!time && (referenceTreatment === undefined || referenceTreatment === 'after') && account.referenceAt.getUTCFullYear() < 2020 &&
+      date === new Date(account.referenceAt.getTime() - 2 * 3600000).toISOString().slice(0, 10)) {
+      return { ...value, referenceTreatment: 'after' };
     }
   } else if (date < account.openingDate) throw Error('movements/before-opening');
+  if (referenceTreatment !== undefined) throw Error('movements/invalid-reference-treatment');
+  return value;
 }
 // A competing commit can reach Rules before the SDK reports ABORTED. Retry
 // only when a server-confirmed account revision actually changed.
@@ -118,20 +158,54 @@ export async function readMovement(client: AccountClient, scope: BankScope, id: 
   if (!snap.exists()) throw Error('movements/not-found');
   return parseMovement(snap.id, snap.data(), scope);
 }
-export type MovementCursor = { date: Timestamp; id: string };
+type TimelinePosition = { date: Timestamp; id: string };
+type MovementOrder = { day: number; createdAt?: Timestamp; id: string; source?: string };
+const MAX_PAGE_SIZE = 20;
+const MAX_PAGE_READS = 4;
+
+function compareMovementOrder(a: MovementOrder, b: MovementOrder, descendingId = false) {
+  const aSeconds = a.createdAt?.seconds ?? Number.MIN_SAFE_INTEGER;
+  const bSeconds = b.createdAt?.seconds ?? Number.MIN_SAFE_INTEGER;
+  const idOrder = a.id === b.id ? 0 : a.id < b.id ? -1 : 1;
+  return b.day - a.day || bSeconds - aSeconds || (b.createdAt?.nanoseconds ?? 0) - (a.createdAt?.nanoseconds ?? 0)
+    || (descendingId ? -idOrder : idOrder)
+    || (a.source === b.source ? 0 : (a.source ?? '') < (b.source ?? '') ? -1 : 1);
+}
+
+// A legacy instant may belong to an earlier São Paulo day than its UTC day.
+function unreadDay(after: TimelinePosition | null, exhausted: boolean) {
+  return exhausted ? -Infinity : after ? Math.floor(after.date.seconds / 86400) * 86400000 : Infinity;
+}
+
+type PendingLedgerEntry = MovementOrder & { entry: LedgerEntry };
+export type MovementCursor = { after: TimelinePosition | null; exhausted: boolean; pending: PendingLedgerEntry[] };
 export async function readMovementPage(client: AccountClient, scope: BankScope, filters: { accountId?: string; type?: MovementInput['type']; from?: Date; to?: Date }, cursor?: MovementCursor | null) {
   const constraints: QueryConstraint[] = [where('status', '==', 'posted')];
   if (filters.accountId) constraints.push(where('accountId', '==', filters.accountId));
   if (filters.type) constraints.push(where('type', '==', filters.type));
   if (filters.from) constraints.push(where('date', '>=', Timestamp.fromDate(filters.from)));
   if (filters.to) constraints.push(where('date', '<', Timestamp.fromDate(filters.to)));
-  constraints.push(orderBy('date', 'desc'), orderBy(documentId()), limit(20));
-  if (cursor) constraints.push(startAfter(cursor.date, cursor.id));
-  const snap = await getDocsFromServer(query(movements(client, scope), ...constraints));
-  requireBankReadEnvironment(client, scope);
-  const items = snap.docs.map(item => parseLedgerEntry(item.id, item.data(), scope));
-  const last = snap.docs.at(-1);
-  return { items, cursor: snap.size === 20 && last ? { date: last.data().date as Timestamp, id: last.id } : null };
+  constraints.push(orderBy('date', 'desc'), orderBy(documentId()), limit(MAX_PAGE_SIZE));
+  let after = cursor?.after ?? null, exhausted = cursor?.exhausted ?? false;
+  const pending = [...(cursor?.pending ?? [])];
+  for (let reads = 0; reads < MAX_PAGE_READS && !exhausted && pending.filter(item => item.day > unreadDay(after, exhausted)).length < MAX_PAGE_SIZE; reads++) {
+    const position = after ? [startAfter(after.date, after.id)] : [];
+    const snap = await getDocsFromServer(query(movements(client, scope), ...constraints, ...position));
+    requireBankReadEnvironment(client, scope);
+    for (const item of snap.docs) {
+      const data = item.data();
+      const entry = parseLedgerEntry(item.id, data, scope);
+      const day = typeof data.historicalSourcePath === 'string' ? financialDateKey(data.date.toDate()) : movementDate(entry.date, Infinity).getTime();
+      pending.push({ entry, day, createdAt: data.createdAt, id: item.id });
+    }
+    const last = snap.docs.at(-1);
+    if (last) after = { date: last.data().date, id: last.id };
+    exhausted = snap.size < MAX_PAGE_SIZE;
+  }
+  pending.sort(compareMovementOrder);
+  const firstUnready = pending.findIndex(item => item.day <= unreadDay(after, exhausted));
+  const items = pending.splice(0, firstUnready < 0 ? MAX_PAGE_SIZE : Math.min(firstUnready, MAX_PAGE_SIZE)).map(item => item.entry);
+  return { items, cursor: !exhausted || pending.length ? { after, exhausted, pending } : null };
 }
 export async function createMovement(client: AccountClient, scope: BankScope, id: string, input: MovementInput) {
   requireBankEnvironment(client, scope);
@@ -169,11 +243,11 @@ export async function confirmMandatoryCycle(client: AccountClient, scope: BankSc
     if (!account.exists()) throw Error('movements/invalid-account');
     const accountData = account.data(), parsed = parseBank(account.id, 'new', accountData, scope);
     if (parsed.status !== 'active' || parsed.balanceInCents === null) throw Error('movements/invalid-account');
-    requireMovementDate(parsed, value);
-    const posted = { ...value, status: 'posted' as const };
+    const reconciled = reconcileMovement(parsed, value);
+    const posted = { ...reconciled, status: 'posted' as const };
     const balance = parsed.balanceInCents + movementEffect(posted, account.id);
     if (!validCents(balance)) throw Error('movements/amount-limit');
-    const fields = ledgerFields(value);
+    const fields = ledgerFields(reconciled);
     observe(account.id, accountData.balanceRevision ?? 0);
     tx.update(bank, { balanceCents: balance, balanceRevision: (accountData.balanceRevision ?? 0) + 1, lastMovementId: id });
     tx.set(ref, { schemaVersion: 1, scopeKind: scope.kind, scopeId: scope.id, ...fields, status: 'posted', recurringTemplateId: templateId,
@@ -202,7 +276,7 @@ export async function cancelMandatoryCycle(client: AccountClient, scope: BankSco
     if (!account.exists()) throw Error('movements/invalid-account');
     const data = account.data(), parsed = parseBank(account.id, 'new', data, scope);
     if (parsed.status !== 'active' || parsed.balanceInCents === null) throw Error('movements/invalid-account');
-    requireMovementDate(parsed, movement);
+    reconcileMovement(parsed, movement);
     const balance = parsed.balanceInCents - movementEffect(movement, bank.id);
     if (!validCents(balance)) throw Error('movements/amount-limit');
     observe(account.id, data.balanceRevision ?? 0);
@@ -225,9 +299,12 @@ export async function createBankTransfer(client: AccountClient, scope: BankScope
   const value = validateBankOperation(input);
   if (value.accountId === input.destinationAccountId) throw Error('movements/same-account');
   const common = { ...value, name: 'Transferência entre bancos', paymentFormats: [], transferId: id };
+  const { referenceTreatment: _originTreatment, ...destination } = common;
+  const credit = validateBankOperation({ ...destination, accountId: input.destinationAccountId,
+    referenceTreatment: input.destinationReferenceTreatment });
   await createLedgerEntries(client, scope, [
     { id, value: { ...common, type: 'expense', operation: 'transfer-out' } },
-    { id: `${id}-credit`, value: { ...common, type: 'gain', operation: 'transfer-in', accountId: input.destinationAccountId } },
+    { id: `${id}-credit`, value: { ...destination, ...credit, type: 'gain', operation: 'transfer-in' } },
   ]);
   return id;
 }
@@ -263,10 +340,11 @@ export async function cancelBankOperation(client: AccountClient, scope: BankScop
       const { ref, entry: leg } = movements[index];
       const data = snapshot.data(), bank = parseBank(snapshot.id, 'new', data, scope);
       if (bank.status !== 'active' || bank.balanceInCents === null) throw Error('movements/invalid-account');
-      requireMovementDate(bank, leg);
-      const balance = bank.balanceInCents - movementEffect(leg, bank.id);
+      reconcileMovement(bank, leg);
+      const effect = movementEffect(leg, bank.id);
+      const balance = bank.balanceInCents - effect;
       if (!validCents(balance)) throw Error('movements/amount-limit');
-      if (leg.operation === 'transfer-in' && balance < 0) throw Error('movements/insufficient-balance');
+      if (effect > 0 && balance < 0) throw Error('movements/insufficient-balance');
       const revision = data.balanceRevision ?? 0;
       observe(bank.id, revision);
       tx.update(snapshot.ref, { balanceCents: balance, balanceRevision: revision + 1, lastMovementId: leg.id });
@@ -304,12 +382,13 @@ async function createLedgerEntries(client: AccountClient, scope: BankScope, entr
       observe(bankSnap.id, bankSnap.data().balanceRevision ?? 0);
       const account = parseBank(bankSnap.id, 'new', bankSnap.data(), scope);
       if (account.status !== 'active' || account.balanceInCents === null) throw Error('movements/invalid-account');
-      requireMovementDate(account, value);
-      const next = account.balanceInCents + movementEffect({ ...value, status: 'posted' }, account.id);
+      const reconciled = reconcileMovement(account, value);
+      const effect = movementEffect({ ...reconciled, status: 'posted' }, account.id);
+      const next = account.balanceInCents + effect;
       if (!validCents(next)) throw Error('movements/amount-limit');
-      if ('operation' in value && value.type === 'expense' && next < 0) throw Error('movements/insufficient-balance');
+      if ('operation' in value && effect < 0 && next < 0) throw Error('movements/insufficient-balance');
       tx.update(bank, { balanceCents: next, balanceRevision: (bankSnap.data().balanceRevision ?? 0) + 1, lastMovementId: id });
-      tx.set(ref, { schemaVersion: 1, scopeKind: scope.kind, scopeId: scope.id, ...ledgerFields(value), status: 'posted', revision: 0, createdBy: scope.uid, updatedBy: scope.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      tx.set(ref, { schemaVersion: 1, scopeKind: scope.kind, scopeId: scope.id, ...ledgerFields(reconciled), status: 'posted', revision: 0, createdBy: scope.uid, updatedBy: scope.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     }
   }));
 }
@@ -329,25 +408,33 @@ export async function updateMovement(client: AccountClient, scope: BankScope, ex
     const current = parseMovement(snap.id, snap.data(), scope);
     if (current.status === 'cancelled' && !value && current.revision === expected.revision + 1) return;
     if (JSON.stringify(current) !== JSON.stringify(expected) || current.status !== 'posted') throw Error('movements/conflict');
-    const next = value ? { ...current, ...value, revision: current.revision + 1 } : { ...current, status: 'cancelled' as const, revision: current.revision + 1 };
-    const ids = [...new Set([current.accountId, next.accountId])];
+    const sameDate = value?.date === current.date;
+    const samePosition = sameDate && value?.accountId === current.accountId;
+    const ids = [...new Set([current.accountId, value?.accountId ?? current.accountId])];
     const refs = ids.map(id => accountRef(client, scope, id));
     const accounts = await Promise.all(refs.map(ref => tx.get(ref)));
     requireBankEnvironment(client, scope);
-    accounts.forEach((accountSnap, index) => {
+    const banks = accounts.map(accountSnap => {
       if (!accountSnap.exists()) throw Error('movements/invalid-account');
       observe(accountSnap.id, accountSnap.data().balanceRevision ?? 0);
       const account = parseBank(accountSnap.id, 'new', accountSnap.data(), scope);
       if (account.status !== 'active' || account.balanceInCents === null) throw Error('movements/invalid-account');
-      if (current.accountId === account.id) requireMovementDate(account, current);
-      if (next.accountId === account.id) requireMovementDate(account, value ?? current);
+      if (current.accountId === account.id) reconcileMovement(account, current);
+      return { ...account, balanceInCents: account.balanceInCents };
+    });
+    const reconciled = value ? reconcileMovement(banks.at(-1)!, {
+      ...value, ...(sameDate && current.time ? { time: current.time } : {}),
+      ...(samePosition && current.referenceTreatment ? { referenceTreatment: current.referenceTreatment } : {}),
+    }, sameDate && !samePosition) : null;
+    const next = reconciled ? { ...reconciled, status: 'posted' as const } : null;
+    banks.forEach((account, index) => {
       const balance = account.balanceInCents + movementEffect(next, account.id) - movementEffect(current, account.id);
       if (!validCents(balance)) throw Error('movements/amount-limit');
-      tx.update(refs[index], { balanceCents: balance, balanceRevision: (accountSnap.data().balanceRevision ?? 0) + 1, lastMovementId: expected.id });
+      tx.update(refs[index], { balanceCents: balance, balanceRevision: (accounts[index].data()!.balanceRevision ?? 0) + 1, lastMovementId: expected.id });
     });
-    const fields = value ? ledgerFields(value) : null;
-    tx.update(ref, { ...(fields ? { ...fields, occurredAt: fields.occurredAt ?? deleteField() } : { status: 'cancelled' }),
-      revision: next.revision, updatedBy: scope.uid, updatedAt: serverTimestamp() });
+    const fields = reconciled ? ledgerFields(reconciled) : null;
+    tx.update(ref, { ...(fields ? { ...fields, occurredAt: fields.occurredAt ?? deleteField(), referenceTreatment: fields.referenceTreatment ?? deleteField() } : { status: 'cancelled' }),
+      revision: current.revision + 1, updatedBy: scope.uid, updatedAt: serverTimestamp() });
   }));
   return readMovement(client, scope, expected.id);
 }
@@ -377,8 +464,7 @@ export async function readHistoricalMovement(client: AccountClient, scope: BankS
 
 type TimelineSource = 'new' | 'legacy-gain' | 'legacy-expense' | 'legacy-cash' | 'group-legacy';
 type PresentationSource = TimelineSource;
-type TimelinePosition = { date: Timestamp; id: string };
-type TimelineItem = { date: Timestamp; source: TimelineSource; record: import('../types/bankMovements').MovementRecord };
+type TimelineItem = MovementOrder & { record: import('../types/bankMovements').MovementRecord };
 type TimelineStream = { source: TimelineSource; accountIds?: string[]; after: TimelinePosition | null; exhausted: boolean; pending: TimelineItem[] };
 export type TimelineCursor = { streams: TimelineStream[] };
 
@@ -390,8 +476,8 @@ export async function hasCashHistory(client: AccountClient, scope: BankScope) {
   return !result.empty;
 }
 
-// The independent collections are merged by timestamp, ID and source. Each request
-// fetches at most one bounded page per source; legacy data never changes balances.
+// Firestore pages use the stored timestamp. Only emit a civil day once all
+// streams have passed it so sorting by creation stays stable across pages.
 export async function readMovementTimeline(client: AccountClient, scope: BankScope, accountId: string | null, from: Date, to: Date, cursor?: TimelineCursor | null, allowedAccountIds?: readonly string[]) {
   requireBankReadEnvironment(client, scope);
   if ((accountId !== null && (!accountId || accountId.includes('/'))) || (accountId === null && !allowedAccountIds) || !(from < to)) throw Error('movements/invalid-account');
@@ -415,8 +501,26 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
     : sources.map(source => ({ ...source, after: null, exhausted: false, pending: [] }));
   if (streams.length !== sources.length || streams.some((stream, i) => stream.source !== sources[i].source || JSON.stringify(stream.accountIds) !== JSON.stringify(sources[i].accountIds))) throw Error('movements/invalid-cursor');
   let issues = 0, cashIncomplete = false;
-  await Promise.all(streams.map(async stream => {
-    if (stream.pending.length || stream.exhausted) return;
+  const categories = new Map<string, Promise<Awaited<ReturnType<typeof readCategory>> | null>>();
+  const categoryFor = (id: string, source: import('../domain/categories').CategorySource) => {
+    const key = `${source}:${id}`;
+    if (!categories.has(key)) categories.set(key, readCategory(client, scope, { id, source }).catch(error => {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
+      if (['permission-denied', 'categories/not-found', 'categories/incompatible', 'categories/ambiguous-owner', 'categories/invalid-id'].includes(code)) return null;
+      throw error;
+    }));
+    return categories.get(key)!;
+  };
+  const uniqueHistoricalCategory = (id: string) => {
+    const key = `resolve:${id}`;
+    if (!categories.has(key)) categories.set(key, resolveHistoricalCategory(client, scope, id).catch(error => {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
+      if (['permission-denied', 'categories/not-found', 'categories/incompatible', 'categories/ambiguous', 'categories/ambiguous-owner', 'categories/invalid-id'].includes(code)) return null;
+      throw error;
+    }));
+    return categories.get(key)!;
+  };
+  const fetchPage = async (stream: TimelineStream) => {
     const isNew = stream.source === 'new', isGroup = stream.source === 'group-legacy', isCash = stream.source === 'legacy-cash';
     const officialPersonalLegacy = !isNew && !isGroup && officialLegacy;
     if (isNew && officialLegacy) { stream.exhausted = true; issues++; return; }
@@ -449,25 +553,6 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
     const final = snap.docs.at(-1);
     stream.exhausted = snap.size < 20;
     stream.after = final ? { date: final.data().date, id: final.id } : null;
-    const categories = new Map<string, Promise<Awaited<ReturnType<typeof readCategory>> | null>>();
-    const categoryFor = (id: string, source: import('../domain/categories').CategorySource) => {
-      const key = `${source}:${id}`;
-      if (!categories.has(key)) categories.set(key, readCategory(client, scope, { id, source }).catch(error => {
-        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
-        if (['permission-denied', 'categories/not-found', 'categories/incompatible', 'categories/ambiguous-owner', 'categories/invalid-id'].includes(code)) return null;
-        throw error;
-      }));
-      return categories.get(key)!;
-    };
-    const uniqueHistoricalCategory = (id: string) => {
-      const key = `resolve:${id}`;
-      if (!categories.has(key)) categories.set(key, resolveHistoricalCategory(client, scope, id).catch(error => {
-        const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
-        if (['permission-denied', 'categories/not-found', 'categories/incompatible', 'categories/ambiguous', 'categories/ambiguous-owner', 'categories/invalid-id'].includes(code)) return null;
-        throw error;
-      }));
-      return categories.get(key)!;
-    };
     // The official index is per owner/date, so a bounded page can contain
     // movements from another account of the same authenticated user.
     const records = (cashFallback ? [...snap.docs].reverse() : snap.docs).map(item => ({ item, effectiveSource: stream.source as PresentationSource }));
@@ -508,7 +593,9 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
         record = { id: item.id, storageSource: 'new', name: value.name, type: value.type, valueInCents: value.amountCents,
           date: migrated ? toFinancialCivilDate(data.date.toDate()) : value.time
             ? toFinancialCivilDate(data.occurredAt.toDate()) : new Date(year, month - 1, day), bankId: noAccount ? null : value.accountId,
+          occurrenceTime: migrated ? financialTime(data.date.toDate()) : value.time,
           historical: migrated, moneyFormat: noAccount && data.moneyFormat === true,
+          ...(scope.kind === 'group' && validId(data.createdBy) ? { personId: data.createdBy } : {}),
           explanation: value.explanation, paymentFormats: value.paymentFormats };
         if ('operation' in value) {
           if (value.operation === 'cash-withdrawal') record.isCashRescue = true;
@@ -522,7 +609,7 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
           !validCents(data.valueInCents) || data.valueInCents <= 0 || data.deleted === true ||
           (data.status != null && !['active', 'posted'].includes(data.status))) return null;
         record = { id: item.id, storageSource: 'legacy-cash', name: 'Saque em dinheiro', type: 'expense', valueInCents: data.valueInCents,
-          date: toFinancialCivilDate(data.date.toDate()), bankId: data.bankId, isCashRescue: true,
+          date: toFinancialCivilDate(data.date.toDate()), occurrenceTime: financialTime(data.date.toDate()), bankId: data.bankId, isCashRescue: true,
           cashRescueSourceBankName: typeof data.bankNameSnapshot === 'string' ? data.bankNameSnapshot : null,
           explanation: typeof data.description === 'string' ? data.description : null };
       } else {
@@ -551,7 +638,7 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
         if (!isTransfer && !isDeposit && !isRedemption && !usableCategory && !officialPersonalLegacy) return null;
         if (!isTransfer && !isDeposit && !isRedemption && !usableCategory && tagValid) issues++;
         record = { id: item.id, storageSource: effectiveSource, name: data.name, type, valueInCents: data.valueInCents,
-          date: toFinancialCivilDate(data.date.toDate()), bankId: data.bankId, tagId: usableCategory ? `${usableCategory.source}:${data.tagId}` : null, tagName: usableCategory?.name ?? null,
+          date: toFinancialCivilDate(data.date.toDate()), occurrenceTime: financialTime(data.date.toDate()), bankId: data.bankId, tagId: usableCategory ? `${usableCategory.source}:${data.tagId}` : null, tagName: usableCategory?.name ?? null,
           tagIconFamily: usableCategory?.iconFamily, tagIconName: usableCategory?.iconName, tagIconStyle: usableCategory?.iconStyle,
           isBankTransfer: isTransfer, bankTransferDirection: isTransfer ? data.bankTransferDirection : null,
           isInvestmentDeposit: isDeposit, isInvestmentRedemption: isRedemption,
@@ -561,22 +648,22 @@ export async function readMovementTimeline(client: AccountClient, scope: BankSco
           isFromMandatory: isMandatory,
           explanation: typeof data.explanation === 'string' ? data.explanation : null };
       }
-      return { date: data.date as Timestamp, source: stream.source, record };
+      return { day: civilDateKey(record.date!), createdAt: data.createdAt, source: stream.source, id: record.id, record };
     }));
-    stream.pending = items.filter((item): item is TimelineItem => item !== null);
-    issues += items.length - stream.pending.length;
-  }));
-  const items: import('../types/bankMovements').MovementRecord[] = [];
-  while (items.length < 20 && streams.some(stream => stream.pending.length) && streams.every(stream => stream.pending.length || stream.exhausted)) {
-    const candidates = streams.filter(stream => stream.pending.length).sort((a, b) => {
-      const x = a.pending[0], y = b.pending[0];
-      const idOrder = x.record.id < y.record.id ? -1 : x.record.id > y.record.id ? 1 : 0;
-      return y.date.seconds - x.date.seconds || y.date.nanoseconds - x.date.nanoseconds ||
-        (officialLegacy && scope.kind === 'personal' ? -idOrder : idOrder) ||
-        (x.source < y.source ? -1 : x.source > y.source ? 1 : 0);
-    });
-    if (!candidates.length) break;
-    items.push(candidates[0].pending.shift()!.record);
+    const present = items.filter((item): item is NonNullable<typeof item> => item !== null);
+    stream.pending.push(...present);
+    issues += items.length - present.length;
+  };
+  const frontier = () => Math.max(...streams.map(stream => unreadDay(stream.after, stream.exhausted)));
+  let boundary = frontier();
+  for (let reads = 0; reads < MAX_PAGE_READS && boundary !== -Infinity &&
+    streams.reduce((count, stream) => count + stream.pending.filter(item => item.day > boundary).length, 0) < MAX_PAGE_SIZE; reads++) {
+    await Promise.all(streams.filter(stream => unreadDay(stream.after, stream.exhausted) === boundary).map(fetchPage));
+    boundary = frontier();
   }
+  const page = streams.flatMap(stream => stream.pending.filter(item => item.day > boundary)).sort((a, b) => compareMovementOrder(a, b, officialLegacy)).slice(0, MAX_PAGE_SIZE);
+  const delivered = new Set(page);
+  for (const stream of streams) stream.pending = stream.pending.filter(item => !delivered.has(item));
+  const items = page.map(item => item.record);
   return { items, issues, cashIncomplete, cursor: streams.some(stream => stream.pending.length || !stream.exhausted) ? { streams } : null };
 }

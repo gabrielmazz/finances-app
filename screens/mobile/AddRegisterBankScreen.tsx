@@ -172,7 +172,7 @@ export default function AddRegisterBankScreen() {
                                 {bankLoadError ? <Text className={LUMUS_CLASS_NAMES.errorText}>{bankLoadError} Confira o cadastro antes de enviar.</Text> : isEditing && loadedBankId !== editingBankId ? <Text className={LUMUS_CLASS_NAMES.helper}>Carregando cadastro atual...</Text> : null}
                                 <VStack className="mb-4">
                                     <Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome da conta</Text>
-                                    <Input isDisabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} className={fieldContainerClassName}>
+                                    <Input isDisabled={isSubmitting||isLoadingBank||form.referenceRequired||(!isEditing&&!!form.saved)} className={fieldContainerClassName}>
                                         <InputField
                                             ref={bankNameInputRef as any}
                                             accessibilityLabel="Nome da conta"
@@ -266,11 +266,11 @@ export default function AddRegisterBankScreen() {
                                     <BankOpeningBalanceFields valueInCents={openingBalanceInCents} onValueChange={setOpeningBalanceInCents}
                                         reason={overdraftReason} onReasonChange={setOverdraftReason} disabled={isSubmitting||isLoadingBank||(!isEditing&&!!form.saved)} />
                                 ) : null}
-                                {isEditing ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
+                                {isEditing ? <Text className={helperText}>{form.referenceRequired ? 'Confirme o saldo de referência para ativar a conta.' : 'Editar nome, ícone ou cor preserva o saldo e o histórico do banco.'}</Text> : null}
 
                                 <BankFormFeedback error={form.error} saved={form.saved} isEditing={isEditing} busy={isSubmitting} onAnother={form.startAnother} canWrite={form.canWrite}/>
                                 <BankReferenceControls bank={form.loadedBank} metadata={{ name: nameBank, institutionKey: selectedBankIconKey, institutionName: form.institutionName, accountType: form.accountType as import('@/domain/banks').AccountType, colorHex: selectedColor }} />
-                                <Button
+                                {!form.referenceRequired && <Button
                                     className={`${submitButtonClassName} web:mt-2 web:h-12`}
                                     onPress={registerBank}
                                     isDisabled={isSubmitting||isLoadingBank||!form.canWrite||!!bankLoadError||(!isEditing&&!!form.saved)||(isEditing&&loadedBankId!==editingBankId)}
@@ -282,7 +282,7 @@ export default function AddRegisterBankScreen() {
                                             {isEditing ? 'Atualizar Banco' : 'Registrar Banco'}
                                         </ButtonText>
                                     )}
-                                </Button>
+                                </Button>}
                             </VStack>
                         </ScrollView>
                     </View>

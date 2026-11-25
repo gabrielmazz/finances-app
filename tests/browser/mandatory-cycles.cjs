@@ -43,7 +43,9 @@ async function run() {
     page.setDefaultTimeout(25000);
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    const url = path => (staging ? 'http://127.0.0.1:4175/web' : 'http://127.0.0.1:4173/web') + path;
+    const origin = process.env.LUMUS_BROWSER_ORIGIN || (staging ? 'http://127.0.0.1:4175' : 'http://127.0.0.1:4173');
+    assert.match(origin, /^http:\/\/127\.0\.0\.1:\d+$/);
+    const url = path => origin + '/web' + path;
     const button = name => page.getByRole('button', { name, exact: true }).last();
     const label = name => page.getByLabel(name, { exact: true }).last();
     const text = value => page.getByText(value, { exact: true }).last();

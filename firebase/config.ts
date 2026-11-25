@@ -10,6 +10,7 @@ type FinanceReadiness = ProductionReadiness & {
 	financialWritesEnabled: boolean;
 	migrationManifestSHA256?: string;
 	canonicalRulesSHA256?: string;
+	releaseView?: string;
 };
 
 export const financialProjectAllowsWrites = (projectId: string | undefined) => projectId === LOCAL_PROJECT_ID || projectId === STAGING_PROJECT_ID;
@@ -23,7 +24,8 @@ export function usesCanonicalFinance(projectId: string | undefined, readiness: F
 }
 
 export function financialLedgerAllowsWrites(projectId: string | undefined, readiness: FinanceReadiness = productionReadiness) {
-	return financialProjectAllowsWrites(projectId) || (usesCanonicalFinance(projectId, readiness) && readiness.financialWritesEnabled);
+	return financialProjectAllowsWrites(projectId) ||
+		(usesCanonicalFinance(projectId, readiness) && readiness.releaseView === 'canonical' && readiness.financialWritesEnabled);
 }
 
 export function selectedFinancialProject() {

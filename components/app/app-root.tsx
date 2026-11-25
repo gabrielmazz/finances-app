@@ -36,14 +36,17 @@ const PresentationStack = () => {
 	const pathname = usePathname();
 	const showWorkspace = pathname !== APP_ROUTE_PATHS.login && pathname !== '/';
 	const { isLoadingTheme } = useAppTheme();
-	const { initializing, user, error, contextError } = useSession();
+	const { initializing, user, error, context, contextError, contextNotice } = useSession();
 	const { isLoadingRouteVisibility, isRouteVisible } = useRouteVisibility();
+	const message = contextError || error || contextNotice || (context?.kind === 'group'
+		? context.role === 'member' ? 'Conta compartilhada · somente consulta' : 'Conta compartilhada'
+		: null);
 	if (isLoadingTheme || isLoadingRouteVisibility || initializing) return <AppBootstrapScreen />;
 	return (
 		<View className="flex-1">
-			{showWorkspace && (contextError || error) && (
+			{showWorkspace && message && (
                 <SafeAreaView edges={['top']} className="bg-background-0">
-                    <FeatureUnavailableNotice showWorkspace message={contextError || error || undefined} />
+                    <FeatureUnavailableNotice showWorkspace message={message} />
                 </SafeAreaView>
             )}
 			<WebAppShell showWorkspace={showWorkspace}>
@@ -75,6 +78,16 @@ const LayoutWithTheme = () => {
 	);
 };
 
+function FinancialWorkspace() {
+	const { user, context } = useSession();
+	const pathname = usePathname();
+	const group = context?.kind === 'group' ? context.groupId : '';
+	const workspace = pathname !== '/' && pathname !== APP_ROUTE_PATHS.login;
+	return <BankAccountsProvider key={workspace ? `${user?.uid ?? ''}:${group}` : 'login'}>
+		<LayoutWithTheme />
+	</BankAccountsProvider>;
+}
+
 export default function AppRoot() {
 	// [[Gerenciamento de Tags]]: category glyphs need their font families ready before any screen renders.
 	const [iconFontsLoaded, iconFontsError] = useFonts({
@@ -89,11 +102,9 @@ export default function AppRoot() {
 			<ValueVisibilityProvider>
 				<PostSubmitBehaviorProvider>
 					<RouteVisibilityProvider>
-								<SessionProvider>
-                                <BankAccountsProvider>
-                                    <LayoutWithTheme />
-                                </BankAccountsProvider>
-                            </SessionProvider>
+						<SessionProvider>
+							<FinancialWorkspace />
+						</SessionProvider>
 					</RouteVisibilityProvider>
 				</PostSubmitBehaviorProvider>
 			</ValueVisibilityProvider>

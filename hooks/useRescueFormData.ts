@@ -1,11 +1,13 @@
+import { civilDateKey, financialDateKey } from '@/utils/financialCivilDate';
 import { useMovementBanks } from './useMovementOptions';
 
-export function useRescueFormData(accountId: string | null) {
-	const { accounts, banks, writable } = useMovementBanks();
+export function useRescueFormData(accountId: string | null, date: Date | null) {
+	const { accounts, banks, writable, optionsError: error } = useMovementBanks();
 	const { active } = accounts;
-	const error = accounts.scopeError || active.error;
 	const hasMore = !!(active.nextNew || active.nextLegacy || active.nextBound);
+	const bank = writable.find(bank => bank.id === accountId);
 	return {
+		mayAlreadyBeIncluded: !!(date && bank?.referenceAt && civilDateKey(date) <= financialDateKey(bank.referenceAt)),
 		personId: accounts.scope?.uid ?? null,
 		banks,
 		isLoadingBanks: active.loading,
@@ -14,8 +16,8 @@ export function useRescueFormData(accountId: string | null) {
 		reload: accounts.reload,
 		hasMore,
 		loadMore: () => accounts.load('active', true),
-		currentBankBalanceInCents: writable.find(bank => bank.id === accountId)?.balanceInCents ?? null,
+		currentBankBalanceInCents: bank?.balanceInCents ?? null,
 		isLoadingBankBalance: active.loading && !!accountId,
-		needsBank: active.loaded && !active.loading && !hasMore && !banks.length,
+		needsBank: accounts.canWrite && active.loaded && !active.loading && !hasMore && !banks.length,
 	};
 }

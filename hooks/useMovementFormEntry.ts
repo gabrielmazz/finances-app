@@ -32,7 +32,7 @@ export function useMovementFormEntry(id?: string | null) {
   const record = React.useMemo<Record<string, unknown> | null>(() => {
     if (!movement) return null;
     const [year, month, day] = movement.date.split('-').map(Number);
-    return { name: movement.name, valueInCents: movement.amountCents, date: new Date(year, month - 1, day), time: movement.time, tagId: `${movement.categorySource}:${movement.categoryId}`, bankId: movement.accountId, tagName: state.tagName, bankName: state.bankName, explanation: movement.explanation, paymentFormats: movement.paymentFormats, moneyFormat: false };
+    return { name: movement.name, valueInCents: movement.amountCents, date: new Date(year, month - 1, day), tagId: `${movement.categorySource}:${movement.categoryId}`, bankId: movement.accountId, tagName: state.tagName, bankName: state.bankName, explanation: movement.explanation, paymentFormats: movement.paymentFormats, moneyFormat: false };
   }, [movement, state.tagName, state.bankName]);
   return { movement, record, loading: state.loading, ready: id === null || !!movement, error: state.error, retry: () => setVersion(value => value + 1) };
 }

@@ -186,7 +186,7 @@ test('migra com escrita administrativa controlada e valida consultas e retomada 
     const id = newMovementId(client, scope);
     const input = { name: 'Despesa do dia', type: 'expense' as const, amountCents: 1234, accountId: bankId,
       categoryId, categorySource: 'new' as const, date: '2026-11-05', explanation: '', paymentFormats: [] };
-    await assert.rejects(createMovement(client, scope, id, input), /movements\/reference-time-required/);
+    await assert.rejects(createMovement(client, scope, id, input), /movements\/reference-confirmation-required/);
     await assert.rejects(createMovement(client, scope, id, { ...input, time: '22:14' }), /movements\/before-reference/);
     await assert.rejects(createMovement(client, scope, id, { ...input, time: '22:15' }), /movements\/before-reference/);
     const movementRef = owner.doc(root + '/movements/' + id);
@@ -207,10 +207,23 @@ test('migra com escrita administrativa controlada e valida consultas e retomada 
     const from = new Date('2026-11-05T00:00:00Z'), to = new Date('2026-11-06T00:00:00Z');
     const timeline = await readMovementPage(client, scope, { accountId: bankId, from, to });
     assert.deepEqual(timeline.items, [posted]);
-    const edited = await updateMovement(client, scope, posted, { ...input, date: '2026-11-06' });
+    const beforeEdit = (await movementRef.get()).data()!;
+    const described = await updateMovement(client, scope, posted, { ...input, explanation: 'Descrição corrigida' });
+    const afterEdit = (await movementRef.get()).data()!;
+    assert.equal(afterEdit.occurredAt.toMillis(), beforeEdit.occurredAt.toMillis());
+    assert.equal(afterEdit.createdAt.toMillis(), beforeEdit.createdAt.toMillis());
+    const edited = await updateMovement(client, scope, described, { ...input, date: '2026-11-06' });
     assert.equal(edited.time, undefined);
     assert.equal((await movementRef.get()).data()?.occurredAt, undefined);
     await updateMovement(client, scope, edited, null);
+    assert.equal((await accountRef.get()).data()?.balanceCents, 42000);
+    const included = await createMovement(client, scope, newMovementId(client, scope), { ...input, referenceTreatment: 'included' });
+    assert.equal((await accountRef.get()).data()?.balanceCents, 42000);
+    const dateOnly = await createMovement(client, scope, newMovementId(client, scope), { ...input, referenceTreatment: 'after' });
+    assert.equal((await accountRef.get()).data()?.balanceCents, 40766);
+    assert.equal((await owner.doc(root + '/movements/' + dateOnly.id).get()).data()?.occurredAt, undefined);
+    await updateMovement(client, scope, included, null);
+    await updateMovement(client, scope, dateOnly, null);
     assert.equal((await accountRef.get()).data()?.balanceCents, 42000);
 
     await assert.rejects(main(['rollback', ...args, '--journal', path.join(sandbox, 'reference-journal.json'),

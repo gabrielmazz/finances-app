@@ -84,7 +84,7 @@ export function useHomeScreenData(_personId?: string | null) {
 	const project = selectedFinancialProject();
 	const canonical = usesCanonicalFinance(project);
 	const upcomingAvailable = Platform.OS === 'web' && (canonical || project === LOCAL_PROJECT_ID);
-	const recent = useRecentMovements(scope, accounts.active.items, focused && accounts.active.loaded && !accounts.active.loading);
+	const recent = useRecentMovements(scope, accounts.active.items, focused && accounts.active.loaded, accounts.ledgerRevision);
 	const [refresh, setRefresh] = React.useState(0);
 	const [month, setMonth] = React.useState<{ scope: BankScope; value: Awaited<ReturnType<typeof readCurrentMonth>> }>();
 	const [cashHistoryScope, setCashHistoryScope] = React.useState<BankScope | null>(null);
@@ -109,7 +109,7 @@ export function useHomeScreenData(_personId?: string | null) {
 				.catch(error => { if (active) setSchedule({ scope, error: errorMessage(error) }); });
 		}
 		return () => { active = false; };
-	}, [scope, focused, canonical, upcomingAvailable, refresh]);
+	}, [scope, focused, canonical, upcomingAvailable, refresh, accounts.ledgerRevision]);
 	const monthly = month && month.scope === scope ? month.value : null;
 	const mandatory = schedule?.scope === scope ? schedule : null;
 	return {
@@ -146,7 +146,7 @@ export function useHomeScreenData(_personId?: string | null) {
 				: accounts.active.loaded && accounts.sharedReadStatus === 'authorized'
 					? 'Há acesso compartilhado autorizado que ainda não é consultado nesta versão.'
 				: accounts.active.loaded && accounts.sharedReadStatus === 'group-listed'
-					? 'Sua autorização contém vínculos de grupo, mas esta versão está consultando o contexto pessoal.'
+					? 'Abra Meu perfil para consultar seus vínculos de grupo.'
 				: accounts.active.loaded && accounts.sharedReadStatus === 'unverified'
 					? 'Não foi possível verificar o acesso compartilhado. As contas pessoais continuam disponíveis para consulta.'
 				: accounts.active.loaded && accounts.active.unavailable

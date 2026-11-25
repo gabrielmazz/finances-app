@@ -266,7 +266,7 @@ const BankCard = ({
 					APP_ROUTE_PATHS.bankMovements,
 					item.kind === "cash"
 						? { cashView: "true" }
-						: { bankId: item.id, bankSource: item.source, bankName: encodeURIComponent(item.name) },
+						: { bankId: item.id, bankSource: item.source },
 				)
 			}
 			accessibilityRole="button"

@@ -1034,16 +1034,9 @@ export default function ConfigurationsScreen() {
 				return;
 			}
 
-			const encodedName = encodeURIComponent(bank?.name ?? '');
-			const encodedColor = bank?.colorHex ? encodeURIComponent(bank.colorHex) : undefined;
-			const encodedIconKey = bank?.iconKey ? encodeURIComponent(bank.iconKey) : undefined;
-
 			navigateToRoute(APP_ROUTE_PATHS.addRegisterBank, {
 				bankId: bank.id,
 				bankSource: bank.financialSource,
-				bankName: encodedName,
-				...(encodedColor ? { colorHex: encodedColor } : {}),
-				...(encodedIconKey ? { bankIconKey: encodedIconKey } : {}),
 			});
 		},
 		[],

@@ -20,6 +20,38 @@ import { parseAuthorization } from '../domain/authorization';
 export type FinancialContext =
 	{ kind: 'personal'; sharedReadStatus?: 'authorized' | 'group-listed' | 'unverified' } | { kind: 'group'; groupId: string; role: 'admin' | 'member' };
 
+export type FinancialGroup = Extract<FinancialContext, { kind: 'group' }> & {
+	name: string;
+	participantIds: string[];
+};
+
+async function readActiveGroup(client: AccountClient, uid: string, groupId: string, role: FinancialGroup['role']): Promise<FinancialGroup> {
+	const snapshot = await measureRead('context.get', () => getDocFromServer(doc(client.db, 'financialGroups', groupId)), () => 1);
+	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
+	const data = snapshot.data();
+	if (data?.status !== 'active') throw new Error('context/access-denied');
+	const name = typeof data.name === 'string' ? data.name.trim().slice(0, 100) : '';
+	const members = data.members;
+	const participantIds = members && typeof members === 'object' && !Array.isArray(members)
+		? Object.keys(members).filter(id => /^[A-Za-z0-9_-]{1,128}$/.test(id) && ['admin', 'member'].includes(members[id]))
+		: [];
+	return { kind: 'group', groupId, role, name: name || `Grupo ${groupId}`, participantIds };
+}
+
+export async function listFinancialGroups(client: AccountClient, uid: string): Promise<FinancialGroup[]> {
+	const authorization = await loadAuthorization(client, uid);
+	const groups = await Promise.all(Object.entries(authorization?.groups ?? {}).map(async ([groupId, role]) => {
+		try {
+			return await readActiveGroup(client, uid, groupId, role);
+		} catch (error) {
+			if (error instanceof Error && (error.message === 'context/access-denied' || ('code' in error && error.code === 'permission-denied'))) return null;
+			throw error;
+		}
+	}));
+	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
+	return groups.filter(group => group !== null);
+}
+
 export async function loadFinancialContext(
 	client: AccountClient,
 	uid: string,
@@ -43,15 +75,7 @@ export async function loadFinancialContext(
 	const authorization = await loadAuthorization(client, uid);
 	const role = authorization?.groups[groupId];
 	if (role !== 'admin' && role !== 'member') throw new Error('context/access-denied');
-	const snapshot = await measureRead(
-		'context.get',
-		() => getDocFromServer(doc(client.db, 'financialGroups', groupId)),
-		() => 1,
-	);
-	if (client.auth.currentUser?.uid !== uid) throw new Error('session/changed');
-	const data = snapshot.data();
-	if (data?.status !== 'active')
-		throw new Error('context/access-denied');
+	await readActiveGroup(client, uid, groupId, role);
 	return { kind: 'group', groupId, role };
 }
 
