@@ -1,3 +1,4 @@
+import { useInlineCategory } from '@/hooks/useInlineCategory';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
@@ -79,7 +80,7 @@ formatMandatoryReminderTime,
 isMandatoryReminderTimeValid,
 parseMandatoryReminderTime,
 } from '@/utils/mandatoryReminderTime';
-import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard } from '@/utils/navigation';
 
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -164,6 +165,7 @@ export default function AddMandatoryGainsScreen() {
 	const tagOptions = entry.tagOptions as TagOption[];
 	const applyPostSubmit = usePostSubmitBehavior('addMandatoryGains');
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
+	const [pinnedCategory, setPinnedCategory] = React.useState<TagActionsheetOption | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
 	const isLoadingTags = entry.tags.loading && !tagOptions.length;
 	const [gainName, setGainName] = React.useState('');
@@ -434,20 +436,20 @@ setSelectedTagId((current) => (options?.keepTag && current ? current : null));
 setLastReceiptCycle(null);
 }, []);
 
+	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
+		setSelectedTagId(tag.id);
+		setSelectedTagName(tag.name);
+		setPinnedCategory(tag);
+	}, []);
+	const openInlineCategory = useInlineCategory('mandatory-gain', APP_ROUTE_PATHS.addMandatoryGains, category => {
+		handleSelectTag({ ...category, id: category.source + ':' + category.id });
+	});
 	const handleOpenAddTagScreen = React.useCallback(() => {
 		if (isFormBusy) {
 			return;
 		}
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			placement: 'mandatory-gain',
-			returnAfterCreate: '1',
-			returnToRoute: APP_ROUTE_PATHS.addMandatoryGains,
-		});
-	}, [isFormBusy]);
-	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
-		setSelectedTagId(tag.id);
-		setSelectedTagName(tag.name);
-	}, []);
+		openInlineCategory();
+	}, [openInlineCategory, isFormBusy]);
 
 	const loadTags = entry.tags.reload;
 
@@ -512,6 +514,7 @@ setLastReceiptCycle(null);
 		setInstallmentEndDate(normalizedEndDate);
 		setSettledInstallmentsCount(installmentsCompletedValue);
 		setSelectedTagId(tagId);
+		setPinnedCategory(entry.categoryOption);
 		setDescription(descriptionValue);
 		setReminderEnabled(reminderFlag);
 		setReminderTime(normalizedReminderTime);
@@ -547,7 +550,7 @@ setLastReceiptCycle(null);
 		}
 	};
 
-	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || (!selectedTagId || !(tagOptions.some(tag => tag.id === selectedTagId) || pinnedCategory?.id === selectedTagId || entry.record?.tagId === selectedTagId)) || (reminderEnabled && !isReminderTimeValid);
 	const isEditingMode = Boolean(editingGainTemplateId);
 	const screenTitle = isEditingMode ? 'Atualize seu ganho obrigatório' : 'Registro de ganho obrigatório';
 	const inputClassName = `${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`;
@@ -790,9 +793,11 @@ setLastReceiptCycle(null);
 													<TagActionsheetSelector
 														options={tagOptions}
 														selectedId={selectedTagId}
+										selectedOption={tagOptions.find(tag => tag.id === selectedTagId) ?? (pinnedCategory?.id === selectedTagId ? pinnedCategory : null)}
 														selectedLabel={selectedTagLabel}
 														onSelect={handleSelectTag}
-										onEndReached={() => { if (entry.tags.hasMore) void entry.tags.loadMore(); }}
+										onLoadMore={entry.tags.hasMore ? () => void entry.tags.loadMore() : undefined}
+										isLoadingMore={entry.tags.loading}
 														isDisabled={isTagSelectDisabled}
 														isDarkMode={isDarkMode}
 														bodyTextClassName={bodyText}

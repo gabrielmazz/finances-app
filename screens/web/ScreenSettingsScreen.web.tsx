@@ -525,8 +525,8 @@ export default function ScreenSettingsScreenWeb() {
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
+			<View className="relative flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden ${cardBackground}`} style={{ height: heroHeight }}>
 					<RNImage
 						source={LoginWallpaper}
 						accessibilityLabel="Background da tela de configurações das telas"
@@ -939,7 +939,7 @@ export default function ScreenSettingsScreenWeb() {
 					</ModalContent>
 				</Modal>
 
-				<View style={{ marginHorizontal: 0, paddingBottom: 0, flexShrink: 0 }}>
+				<View className="relative z-navigation shrink-0">
 					<Navigator defaultValue={2} onHardwareBack={handleBackToConfigurations} />
 				</View>
 			</View>

@@ -1,3 +1,4 @@
+import { useCategoryRevision } from './useCategoryRevision';
 import React from 'react';
 import { useIsFocused } from 'expo-router';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
@@ -22,6 +23,7 @@ export function useMovementList(accountId: string | null, start: string, end: st
   const enabled = requested && focused;
   const scope = accounts.scope;
   const canWrite = accounts.canWrite;
+  const categoryRevision = useCategoryRevision(scope);
   const identity = scope ? `${scope.uid}:${scope.kind}:${scope.id}:${accountId}:${start}:${end}:${enabled}` : '';
   const identityRef = React.useRef(identity); identityRef.current = identity;
   const [state, setState] = React.useState<{ identity: string; items: MovementRecord[]; cursor: TimelineCursor | null; issues: number; cashIncomplete: boolean; loading: boolean; error: string | null }>({ identity, items: [], cursor: null, issues: 0, cashIncomplete: false, loading: false, error: null });
@@ -63,9 +65,8 @@ export function useMovementList(accountId: string | null, start: string, end: st
     });
     void fetchPage();
     return () => { generation.current++; inFlight.current = false; };
-  }, [identity, fetchPage, enabled ? accounts.ledgerRevision : 0]);
+  }, [identity, fetchPage, enabled ? accounts.ledgerRevision : 0, enabled ? categoryRevision : 0]);
   React.useEffect(() => { setTransferDetails({ identity, names: {} }); }, [identity]);
-  React.useEffect(() => { if (enabled && accountId) void accounts.reload(); }, [enabled, accountId, accounts.reload]);
   const cancel = React.useCallback(async (record: MovementRecord) => {
     if (!scope) throw Error('movements/invalid-context');
     if (!canWrite) throw Error('read-only/operation');
@@ -73,10 +74,8 @@ export function useMovementList(accountId: string | null, start: string, end: st
     if (record.isBankTransfer || record.isCashRescue) await cancelBankOperation(client, scope, record.id);
     else await updateMovement(client, scope, await readMovement(client, scope, record.id), null);
     if (identityRef.current !== identity) return;
-    await accounts.reload();
-    generation.current++; inFlight.current = false;
-    await fetchPage();
-  }, [scope, canWrite, identity, accounts.reload, fetchPage]);
+    await accounts.refreshAfterMovement(scope);
+  }, [scope, canWrite, identity, accounts.refreshAfterMovement]);
   const loadTransferDetails = React.useCallback(async (movement: MovementRecord) => {
     if (!scope || movement.storageSource !== 'new' || !movement.bankTransferPairId || !movement.bankTransferDirection) return;
     const update = (name: string | null) => {

@@ -21,3 +21,9 @@ AddMandatoryExpensesScreen / MandatoryExpensesListScreen em `screens/mobile/` e,
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 O pagamento do ciclo usa a data financeira. Quando a data coincide com a referência da conta escolhida, a confirmação determina o efeito sobre o saldo. A baixa do ciclo, a movimentação e a atualização do banco continuam atômicas. Ver [[Gerenciamento de Bancos]].
+
+## Antecipação e valor efetivo
+
+A confirmação permite escolher parcelas consecutivas a partir da próxima pendente. A interface mostra intervalo, quantidade restante e total previsto. A data sugerida é o dia financeiro atual. Cada ciclo permite uma confirmação ativa por compromisso. O próximo vencimento considera o mês de início e o número de parcelas concluídas.
+
+Na candidata local, plannedInstallmentCents registra o previsto quando há ajuste individual. O valor efetivo fica em amountCents e define o efeito no saldo e no estorno. O estorno repõe a quantidade de parcelas. Ao confirmar o mesmo ciclo após o estorno de um ajuste, reversalHistory guarda os valores e a data da operação estornada, com limite de 50 versões. O compromisso mantém o total previsto como referência das parcelas pendentes. Ver [[Receitas Fixas]] e [[Transações de Despesas]].

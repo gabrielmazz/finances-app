@@ -39,7 +39,9 @@ it('distinguishes incomplete historical access from an empty account list', asyn
   expect((await readHome()).error).toBeNull();
   useBankAccounts.mockReturnValue({ ...base, active: { ...base.active, issues: 1, items: [{ id: 'synthetic', name: 'Banco teste', balanceInCents: null, colorHex: null, source: 'legacy', institutionKey: 'outro-banco' }] } });
   expect((await readHome()).data.bankBalances).toHaveLength(1);
-  expect((await readHome()).historyError).toContain('indisponível');
+  expect((await readHome()).historyError).toBeNull();
+  useBankAccounts.mockReturnValue({ ...base, scope: { uid: 'owner', kind: 'personal', id: 'owner' }, active: { ...base.active, complete: false } });
+  expect((await readHome()).historyError).toContain('verificar todas as contas');
   useBankAccounts.mockReturnValue({ ...base, active: { ...base.active, error: 'Acesso negado' } });
   expect((await readHome()).error).toBe('Acesso negado');
 });

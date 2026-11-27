@@ -1,3 +1,4 @@
+import { useInlineCategory } from '@/hooks/useInlineCategory';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
@@ -51,7 +52,7 @@ import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
 import WebSelectField from '@/components/web/shared/web-select-field';
 
-import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard } from '@/utils/navigation';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { MAX_MONTHLY_BUSINESS_DAY } from '@/utils/businessCalendar';
@@ -172,6 +173,7 @@ export default function AddMandatoryExpensesScreen() {
 	const tagOptions = entry.tagOptions as TagOption[];
 	const applyPostSubmit = usePostSubmitBehavior('addMandatoryExpenses');
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
+	const [pinnedCategory, setPinnedCategory] = React.useState<TagActionsheetOption | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
 	const isLoadingTags = entry.tags.loading && !tagOptions.length;
 
@@ -473,22 +475,22 @@ setLastPaymentCycle(null);
 	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ }); setSubmitError(null); }, [personId, editingExpenseId, resetForm]);
 
 	// Segue [[Despesas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
+
+	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
+		setSelectedTagId(tag.id);
+		setSelectedTagName(tag.name);
+		setPinnedCategory(tag);
+	}, []);
+	const openInlineCategory = useInlineCategory('mandatory-expense', APP_ROUTE_PATHS.addMandatoryExpenses, category => {
+		handleSelectTag({ ...category, id: category.source + ':' + category.id });
+	});
 	const handleOpenAddTagScreen = React.useCallback(() => {
 		if (isAddTagButtonDisabled) {
 			return;
 		}
 
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			placement: 'mandatory-expense',
-			returnAfterCreate: '1',
-			returnToRoute: APP_ROUTE_PATHS.addMandatoryExpenses,
-		});
-	}, [isAddTagButtonDisabled]);
-
-	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
-		setSelectedTagId(tag.id);
-		setSelectedTagName(tag.name);
-	}, []);
+		openInlineCategory();
+	}, [openInlineCategory, isAddTagButtonDisabled]);
 
 	const loadTags = entry.tags.reload;
 
@@ -558,6 +560,7 @@ setLastPaymentCycle(null);
 				setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
 				setSettledInstallmentsCount(installmentsCompletedValue);
 				setSelectedTagId(tagId);
+		setPinnedCategory(entry.categoryOption);
 				setDescription(descriptionValue);
 				setReminderEnabled(reminderFlag);
 				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
@@ -594,7 +597,7 @@ setLastPaymentCycle(null);
 	};
 
 	const isSaveDisabled =
-		!isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+		!isTemplateReady || isSubmitting || !entry.ready || (!selectedTagId || !(tagOptions.some(tag => tag.id === selectedTagId) || pinnedCategory?.id === selectedTagId || entry.record?.tagId === selectedTagId)) || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
 	const screenTitle = isEditingMode ? 'Atualize seu gasto obrigatório' : 'Registro de gasto obrigatório';
@@ -848,9 +851,11 @@ setLastPaymentCycle(null);
 														<TagActionsheetSelector
 															options={tagOptions}
 															selectedId={selectedTagId}
+										selectedOption={tagOptions.find(tag => tag.id === selectedTagId) ?? (pinnedCategory?.id === selectedTagId ? pinnedCategory : null)}
 															selectedLabel={selectedTagLabel}
 															onSelect={handleSelectTag}
-										onEndReached={() => { if (entry.tags.hasMore) void entry.tags.loadMore(); }}
+										onLoadMore={entry.tags.hasMore ? () => void entry.tags.loadMore() : undefined}
+										isLoadingMore={entry.tags.loading}
 															isDisabled={isTagSelectDisabled}
 															isDarkMode={isDarkMode}
 															bodyTextClassName={bodyText}

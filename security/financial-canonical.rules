@@ -154,6 +154,12 @@ service cloud.firestore {
     function cycleNumber(cycle) {
       return int(cycle.split('-')[0]) * 12 + int(cycle.split('-')[1]);
     }
+    function validInstallmentAmount(movement,count,planned) {
+      return movement.keys().hasAny(['plannedInstallmentCents'])
+        ? count == 1 && movement.plannedInstallmentCents is int
+          && movement.plannedInstallmentCents == planned && movement.amountCents != planned
+        : movement.amountCents == planned;
+    }
     function validMandatoryConfirmation(before,after,movement) {
       let count = movement.installmentCount;
       let completed = before.installmentsCompleted + count;
@@ -162,9 +168,9 @@ service cloud.firestore {
         && (before.lastCycle == null || cycleNumber(after.lastCycle) >= cycleNumber(before.lastCycle))
         && (before.installmentTotal == null
           ? count == 1 && after.installmentsCompleted == 0 && movement.amountCents == before.valueInCents
+            && !movement.keys().hasAny(['plannedInstallmentCents'])
           : completed <= before.installmentTotal && after.installmentsCompleted == completed
-            && cycleNumber(after.lastCycle) >= cycleNumber(cycleKey(before.installmentStartDate))
-            && movement.amountCents == (completed == before.installmentTotal
+            && validInstallmentAmount(movement,count,completed == before.installmentTotal
               ? before.installmentTotalValueInCents - before.installmentsCompleted * before.valueInCents
               : count * before.valueInCents));
     }
@@ -200,7 +206,8 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','valueInCents','categoryId','categorySource','description',
               'dueDay','usesBusinessDays','installmentTotal','installmentTotalValueInCents','installmentStartDate','revision','updatedBy','updatedAt'])
             && (resource.data.installmentsCompleted == 0 || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['installmentTotal','installmentTotalValueInCents','installmentStartDate']))
-            && mandatoryCategory(request.resource.data,key));
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['categoryId','categorySource'])
+              || mandatoryCategory(request.resource.data,key)));
       // Only the ledger mutation in the same commit can authorize a cycle change.
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastCycle','lastMovementDate'])
         && mayWriteContext(key) && resource.data.isActive && request.resource.data.revision == resource.data.revision + 1
@@ -228,12 +235,33 @@ service cloud.firestore {
           && (data.date == (data.occurredAt - duration.value(3,'h')).date()
             || (data.date < timestamp.date(2020,1,1) && data.date == (data.occurredAt - duration.value(2,'h')).date())));
     }
+    function preservesMandatoryReversal(before,after) {
+      return !before.keys().hasAny(['plannedInstallmentCents','reversalHistory'])
+        ? !after.keys().hasAny(['reversalHistory'])
+        : after.reversalHistory.size() <= 50
+          && after.reversalHistory == before.get('reversalHistory',[]).concat([{
+            'revision': before.revision, 'date': before.date, 'amountCents': before.amountCents,
+            'accountId': before.accountId, 'plannedInstallmentCents': before.get('plannedInstallmentCents',null),
+            'installmentCount': before.installmentCount, 'cancelledAt': before.updatedAt, 'cancelledBy': before.updatedBy
+          }]);
+    }
+    function validMovementExtension(data) {
+      let adjusted = data.keys().hasAny(['plannedInstallmentCents','reversalHistory']);
+      return adjusted
+        ? data.keys().hasAll(['recurringTemplateId','installmentCount']) && !data.keys().hasAny(['paymentMethod'])
+          && (!data.keys().hasAny(['reversalHistory']) || resource.data.status == 'cancelled')
+        : data.type == 'expense' && data.paymentMethod in ['debit','credit']
+          && !data.keys().hasAny(['operation','recurringTemplateId'])
+          && (data.paymentMethod != 'credit' || !data.keys().hasAny(['referenceTreatment']));
+    }
     function validMovement(data,key) {
-      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt','operation','transferId','isFromMandatory','recurringTemplateId','installmentCount'])
+      return data.keys().hasOnly(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt','operation','transferId','isFromMandatory','recurringTemplateId','installmentCount','plannedInstallmentCents','paymentMethod','reversalHistory'])
         && data.keys().hasAll(['schemaVersion','scopeKind','scopeId','name','type','amountCents','accountId','date','explanation','paymentFormats','status','revision','createdBy','updatedBy','createdAt','updatedAt'])
         && data.schemaVersion == 1 && data.scopeKind in ['personal','group'] && key == data.scopeKind + ':' + data.scopeId
         && isValidName(data) && data.type in ['gain','expense'] && validAmount(data.amountCents) && data.amountCents > 0
-        && data.accountId is string && data.accountId.matches('^[A-Za-z0-9]{20}$')
+        && (data.accountId == null ? !data.keys().hasAny(['operation','recurringTemplateId','referenceTreatment','paymentMethod'])
+          : data.accountId is string && data.accountId.matches('^[A-Za-z0-9]{20}$'))
+        && (!data.keys().hasAny(['paymentMethod','plannedInstallmentCents','reversalHistory']) || validMovementExtension(data))
         && data.date is timestamp && data.date >= timestamp.date(1900,1,1) && data.date <= (request.time - duration.value(3,'h')).date() && validOccurrence(data)
         && (!data.keys().hasAny(['referenceTreatment']) || data.referenceTreatment in ['historical','included','after'])
         && data.explanation is string && data.explanation.size() <= 500 && data.explanation.matches('[^\\x00-\\x1F\\x7F]*')
@@ -258,9 +286,9 @@ service cloud.firestore {
         && other.get('occurredAt',null) == data.get('occurredAt',null);
     }
     function validMovementOperation(data,key,id) {
-      return !data.keys().hasAny(['operation']) ? movementCategory(data,key)
-        && (data.keys().hasAny(['recurringTemplateId','installmentCount'])
-          ? linkedMandatoryMovement(data,key,id) : id.matches('^[A-Za-z0-9]{20}$'))
+      return !data.keys().hasAny(['operation'])
+        ? (data.keys().hasAny(['recurringTemplateId','installmentCount'])
+          ? linkedMandatoryMovement(data,key,id) : id.matches('^[A-Za-z0-9]{20}$') && movementCategory(data,key))
         : data.operation == 'cash-withdrawal' ? id.matches('^[A-Za-z0-9]{20}$') && data.type == 'expense' && !data.keys().hasAny(['transferId'])
         : data.operation in ['transfer-in','transfer-out'] && validTransferPair(data,key,id,data.operation == 'transfer-out',true);
     }
@@ -277,7 +305,7 @@ service cloud.firestore {
       return data.openingDate is timestamp && validAmount(data.initialBalanceCents);
     }
     function movementEffect(data) {
-      return data.get('referenceTreatment','') in ['historical','included'] ? 0
+      return data.get('paymentMethod','') == 'credit' || data.get('referenceTreatment','') in ['historical','included'] ? 0
         : data.type == 'gain' ? data.amountCents : -data.amountCents;
     }
     function validReferenceDay(data,opening) {
@@ -292,18 +320,16 @@ service cloud.firestore {
         : treatment == 'after' && data.date == latestDay && (occurred == null || occurred > opening);
     }
     function validMovementAccountDate(key,data) {
-      let account = get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
-      return preparedAccount(account) && data.date == data.date.date()
-        && (account.keys().hasAny(['legacyBankId','historicalSourcePath'])
+      let account = data.accountId == null ? {} : get(/databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(data.accountId)).data;
+      return data.date == data.date.date() && (data.accountId == null || data.get('paymentMethod','') == 'credit'
+        || (preparedAccount(account) && (account.keys().hasAny(['legacyBankId','historicalSourcePath'])
           ? validReferenceDay(data,account.openingDate)
-          : !data.keys().hasAny(['referenceTreatment']) && data.date >= account.openingDate.date());
+          : !data.keys().hasAny(['referenceTreatment']) && data.date >= account.openingDate.date())));
     }
     function accountChangedForMovement(key,accountId,movementId) {
       let path = /databases/$(database)/documents/financialContexts/$(key)/bankAccounts/$(accountId);
-      let before = get(path).data;
       let after = getAfter(path).data;
-      return before.status == 'active' && preparedAccount(before) && after.lastMovementId == movementId
-        && after.balanceRevision == before.get('balanceRevision',0) + 1;
+      return after.lastMovementId == movementId && after.balanceRevision != get(path).data.get('balanceRevision',0);
     }
     function validMovementBalanceUpdate(key,accountId) {
       let id = request.resource.data.lastMovementId;
@@ -347,18 +373,19 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && validMovementOperation(request.resource.data,key,id) && validMovementAccountDate(key,request.resource.data)
-        && accountChangedForMovement(key,request.resource.data.accountId,id);
+        && (request.resource.data.accountId == null || accountChangedForMovement(key,request.resource.data.accountId,id));
       allow update: if !resource.data.keys().hasAny(['operation','recurringTemplateId','historicalSourcePath']) && mayWriteContext(key) && validMovementAccountDate(key,request.resource.data)
-        && (request.resource.data.accountId == resource.data.accountId && request.resource.data.date == resource.data.date || validMovementAccountDate(key,resource.data))
         && validMovement(request.resource.data,key) && resource.data.status == 'posted'
         && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','status','revision','updatedBy','updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','paymentMethod','status','revision','updatedBy','updatedAt'])
         && (request.resource.data.status == 'posted' || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt']))
         && (request.resource.data.accountId != resource.data.accountId || request.resource.data.date != resource.data.date
+          || (request.resource.data.get('paymentMethod','') == 'credit') != (resource.data.get('paymentMethod','') == 'credit')
           || request.resource.data.get('referenceTreatment',null) == resource.data.get('referenceTreatment',null))
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['categoryId','categorySource']) || movementCategory(request.resource.data,key))
-        && accountChangedForMovement(key,resource.data.accountId,id)
-        && (request.resource.data.accountId == resource.data.accountId || accountChangedForMovement(key,request.resource.data.accountId,id));
+        && (resource.data.accountId == null || accountChangedForMovement(key,resource.data.accountId,id))
+        && (request.resource.data.accountId == null || request.resource.data.accountId == resource.data.accountId
+          || accountChangedForMovement(key,request.resource.data.accountId,id));
       allow update: if resource.data.keys().hasAny(['operation']) && !resource.data.keys().hasAny(['historicalSourcePath'])
         && mayWriteContext(key) && resource.data.status == 'posted' && request.resource.data.status == 'cancelled'
         && request.resource.data.revision == resource.data.revision + 1 && request.resource.data.revision <= 1000000000
@@ -375,10 +402,9 @@ service cloud.firestore {
         && (resource.data.status == 'posted'
           ? request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt'])
           : resource.data.status == 'cancelled' && request.resource.data.status == 'posted'
-            && validMovement(request.resource.data,key)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt','name','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','installmentCount'])
-            && movementCategory(request.resource.data,key))
-        && validMovementAccountDate(key,request.resource.data)
+            && validMovement(request.resource.data,key) && preservesMandatoryReversal(resource.data,request.resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','revision','updatedBy','updatedAt','name','amountCents','accountId','categoryId','categorySource','date','occurredAt','referenceTreatment','explanation','paymentFormats','installmentCount','plannedInstallmentCents','reversalHistory'])
+            && validMovementAccountDate(key,request.resource.data))
         && accountChangedForMovement(key,request.resource.data.accountId,id);
     }
     match /financialContexts/{key}/bankAccounts/{id} {

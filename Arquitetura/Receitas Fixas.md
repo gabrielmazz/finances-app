@@ -21,3 +21,7 @@ AddMandatoryGainsScreen / MandatoryGainsListScreen em `screens/mobile/` e, quand
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 O recebimento do ciclo usa a data financeira. Quando a data coincide com a referência da conta escolhida, a confirmação determina o efeito sobre o saldo. O recebimento do ciclo, a movimentação e a atualização do banco continuam atômicos. Ver [[Gerenciamento de Bancos]].
+
+## Recebimentos antecipados
+
+O fluxo compartilha com [[Despesas Fixas]] a confirmação de uma ou mais parcelas, o cálculo em centavos, a quantidade restante e a alteração individual do valor efetivo. A confirmação soma ao banco o valor recebido. O estorno usa o valor registrado e repõe as parcelas.

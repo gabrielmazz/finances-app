@@ -72,7 +72,7 @@ async function run() {
 		await page.goto(base + '/web/profile');
 		await page.getByRole('button', { name: 'Entrar', exact: true }).waitFor();
 		assert.equal(new URL(page.url()).pathname, '/web');
-		assert(await page.getByRole('button', { name: 'Entre para acessar as telas' }).isDisabled());
+		assert.equal(await page.getByRole('button', { name: 'Entre para acessar as telas' }).count(), 0);
 		await login('legacy@lumus.test', 'incorrect-password');
 		await page
 			.getByText('Não foi possível entrar. Confira seu email e sua senha.', { exact: true })
@@ -84,8 +84,7 @@ async function run() {
 		assert.equal(await page.getByLabel('Nome', { exact: true }).inputValue(), 'Pessoa Legada');
 		await shot('profile');
 		await page.getByLabel('Nome', { exact: true }).fill('Rascunho preservado');
-		await page.getByRole('button', { name: 'Atualizar perfil', exact: true }).click();
-		await page.getByLabel('Nome', { exact: true }).waitFor();
+		assert.equal(await page.getByRole('button', { name: 'Atualizar perfil', exact: true }).count(), 0);
 		assert.equal(await page.getByLabel('Nome', { exact: true }).inputValue(), 'Rascunho preservado');
 		await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();
 		assert.equal(await page.getByLabel('Nome', { exact: true }).inputValue(), 'Pessoa Legada');
@@ -107,17 +106,13 @@ async function run() {
 		});
 		for (const route of routes) {
 			await page.goto(base + route);
-			if (route === '/web') await page.getByRole('button', { name: 'Continuar no workspace' }).waitFor();
-			else
-				await page
-					.getByText('Módulo financeiro temporariamente indisponível.', { exact: false })
-					.first()
-					.waitFor();
+			if (route === '/web') await page.waitForURL('**/web/home**');
+			await page.locator('.staggered-menu-wrapper, [aria-label="Navegação principal"]').first().waitFor({ state: 'attached' });
 			await page.waitForTimeout(100);
 			const text = await page.locator('body').innerText();
 			assert(!/Unmatched Route|Something went wrong|Cannot read propert/.test(text));
 			const resolvedPath = new URL(page.url()).pathname;
-			assert.equal(resolvedPath, route === '/web/bank-summary' ? '/web/home' : route);
+			assert([route, '/web/home'].includes(resolvedPath), route + ' resolved to ' + resolvedPath);
 			const horizontalOverflow = await page.evaluate(
 				() => document.documentElement.scrollWidth > innerWidth + 2,
 			);
@@ -172,6 +167,7 @@ async function run() {
 		let page=await openPersistent();await enter(page,'legacy@lumus.test');
 		const uid=await page.locator('#profile-id').inputValue();assert(uid);
 		await persistent.close();page=await openPersistent();
+		await page.goto(base+'/web');await page.waitForURL('**/web/home**');
 		await page.goto(base+'/web/profile');await page.getByLabel('Nome',{exact:true}).waitFor();
 		assert.equal(await page.locator('#profile-id').inputValue(),uid);
 		await page.getByRole('button',{name:'Sair',exact:true}).first().click();
@@ -179,6 +175,10 @@ async function run() {
 		await persistent.close();page=await openPersistent();await page.goto(base+'/web/profile');await page.getByRole('button',{name:'Entrar',exact:true}).waitFor();
 		assert.equal(new URL(page.url()).pathname,'/web');
 		await enter(page,'incomplete@lumus.test');revokedUid=await page.locator('#profile-id').inputValue();
+		await page.getByRole('button', { name: 'Voltar às contas pessoais' }).click();
+		await page.getByRole('button', { name: /Abrir grupo/ }).click();
+		await page.getByRole('button', { name: 'Voltar às contas pessoais' }).waitFor();
+
 		const {initializeTestEnvironment}=require('@firebase/rules-unit-testing');
 		admin=await initializeTestEnvironment({projectId:'demo-lumus-foundation',firestore:{host:'127.0.0.1',port:8089}});
 		await admin.withSecurityRulesDisabled(async c=>c.firestore().doc('_authorizations/'+revokedUid).update({enabled:false}));

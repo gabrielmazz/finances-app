@@ -19,3 +19,9 @@ No histórico do Git, o commit `594f2d2` registra o formulário **Vincular usuá
 AddUserRelationScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptadores em `app/` e os componentes usados por essas telas permanecem no projeto.
 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
+
+## Acesso vinculado na revisão de 25/11
+
+O seletor lista grupos ativos com claim Auth e concessão vigente. Membros consultam o contexto autorizado e retornam ao pessoal se perderem a concessão. A aplicação anterior reconhecia um vínculo bilateral protegido ou referências mútuas acompanhadas de concessões bilaterais. A arquitetura canônica reserva contextos pessoais aos titulares. O inventário do corte não comprova concessão canônica para o vínculo pessoal citado. A recuperação do vínculo real exige confirmar a concessão protegida aplicável e sua correspondência com o contexto canônico.
+
+A consulta agregada de 25/11 encontrou zero autorizações habilitadas e zero grupos ativos no projeto oficial. A leitura por coleção de vínculos Spark legados retornou HTTP 400. Nenhuma autorização de contexto pessoal de terceiros foi comprovada nessa consulta.

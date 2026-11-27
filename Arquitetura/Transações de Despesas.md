@@ -22,3 +22,9 @@ AddRegisterExpensesScreen em `screens/mobile/` e, quando existente, `screens/web
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 Na 1.7.1, o cadastro e a edição usam a data civil de São Paulo. A edição no mesmo dia preserva o horário registrado e a criação original. A data ou conta nova é conciliada conforme [[Gerenciamento de Bancos]].
+
+## Modalidade de pagamento
+
+Na revisão de 25/11, o emulador e a candidata canônica registram paymentMethod opcional. Novas despesas bancárias começam com Débito selecionado. Registros sem o campo continuam sem classificação até o usuário escolher. Crédito entra nos totais de despesas e tem efeito bancário imediato de zero. Edição e cancelamento calculam a diferença entre os efeitos persistidos. Dinheiro usa accountId nulo, sem modalidade de cartão e sem atualização bancária.
+
+A fatura, seu vencimento e sua liquidação ficam fora do modelo. Lançar a fatura como despesa comum acrescentaria outro gasto ao total. A distribuição oficial dos novos atributos depende das Rules candidatas e de um recibo que habilite paymentExtensionsEnabled. As referências migradas são preservadas.

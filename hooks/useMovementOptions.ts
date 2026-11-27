@@ -26,7 +26,8 @@ export function movementCategorySelection(selection: string): Pick<MovementInput
 
 export function useMovementOptions(type: MovementType, editing: Movement | null) {
   const { accounts, banks, optionsError } = useMovementBanks();
-  const categories = useCategories(true, type);
+  const destination = editing ? (editing.isFromMandatory ? `mandatory-${type}` as const : type) : `movement-${type}` as const;
+  const categories = useCategories(true, destination);
   const tags = React.useMemo(() => categories.items.filter(item => categorySupports(item, type)).flatMap(item => {
     const tag = { id: `${item.source}:${item.id}`, name: item.name, usageType: item.usageType ?? undefined, iconFamily: item.iconFamily, iconName: item.iconName, iconStyle: item.iconStyle };
     const mandatory = isTagVisibleInMandatoryUsageList(item, type);
@@ -36,5 +37,5 @@ export function useMovementOptions(type: MovementType, editing: Movement | null)
     const mandatoryTag = { ...tag, id: MANDATORY_PREFIX + tag.id, name: `${tag.name} (${type === 'gain' ? 'ganho obrigatório' : 'gasto obrigatório'})` };
     return regular ? [tag, mandatoryTag] : [mandatoryTag];
   }), [categories.items, editing, type]);
-  return { scope: accounts.scope, banks, tags, optionsError: optionsError || categories.error, isLoadingBanks: accounts.active.loading && !accounts.active.items.length, isLoadingTags: categories.loading && !categories.items.length, loadMoreBanks: () => accounts.load('active', true), loadMoreTags: categories.loadMore, hasMoreTags: categories.hasMore, reloadTags: categories.reload, reloadBanks: accounts.reload };
+  return { scope: accounts.scope, banks, tags, optionsError: optionsError || categories.error, isLoadingBanks: accounts.active.loading && !accounts.active.items.length, isLoadingTags: categories.loading && !categories.items.length, loadMoreBanks: () => accounts.load('active', true), loadMoreTags: categories.loadMore, hasMoreTags: categories.hasMore, isLoadingMoreTags: categories.loading, reloadTags: categories.reload, reloadBanks: accounts.reload };
 }

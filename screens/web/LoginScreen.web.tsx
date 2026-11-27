@@ -2,7 +2,6 @@ import { useSession } from '@/hooks/useSession';
 import { AUTH_CLASS_NAMES } from '@/design-system/auth';
 import { LUMUS_FORM_CLASS_NAMES,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { useAccountAccess,type AccountAccessMode } from '@/hooks/useAccountAccess';
-import { navigateToHomeDashboard } from '@/utils/navigation';
 import { MantineProvider,UnstyledButton } from '@mantine/core';
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import {
@@ -429,7 +428,6 @@ export default function LoginScreen() {
 												<Text className={AUTH_CLASS_NAMES.submitText}>{submitLabel}</Text>
 											)}
 										</Button>
-<Button variant="outline" action="secondary" isDisabled={!session.user} onPress={navigateToHomeDashboard}><ButtonText>{session.user ? 'Continuar no workspace' : 'Entre para acessar as telas'}</ButtonText></Button>
 
 										<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'} withCssVariables={false} withGlobalClasses={false}>
 											<View className="mt-4 flex-row flex-wrap items-center justify-between gap-2">

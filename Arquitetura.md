@@ -48,6 +48,8 @@ Atualizar o documento do módulo e este Active Context quando comportamento/arqu
 
 ## Active Context
 
+- 2026-11-25, revisão funcional local Web e Mobile. Categorias usam destinos compartilhados, filtros antes da paginação e retorno ao formulário com a categoria selecionada. A Home recupera gastos por data civil e atividade anual por contexto. O emulador e a candidata canônica cobrem dinheiro, classificação de despesas e valor efetivo por parcela. O vínculo pessoal legado citado depende de uma concessão protegida verificável. Ver [[Gerenciamento de Tags]], [[Dashboard Home]], [[Despesas Fixas]], [[Transações de Despesas]] e [[Gerenciamento de Usuários]].
+
 - 2026-11-24, entrega da 1.7.1. O Hosting oficial serve a Web atualizada. O APK ARM64 assinado usa o mesmo certificado da 1.7.0 e inclui o recibo das Rules ativas. A execução em aparelho Android continua pendente. Ver [[Processo de Release]].
 
 - 2026-11-23, 1.7.1. Os formulários financeiros pedem a data civil de São Paulo. As contas com saldo de referência conciliam pelo dia escolhido, com confirmação por conta no próprio dia e histórico retroativo sem efeito bancário. Home e extrato usam a mesma ordem por dia, criação e ID. Ver [[Gerenciamento de Bancos]], [[Dashboard Home]] e [[Processo de Release]].

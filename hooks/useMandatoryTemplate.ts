@@ -1,3 +1,4 @@
+import { readCategory } from '@/firebase/categories';
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bankIntentLock } from '@/application/bankIntentLock';
@@ -13,20 +14,22 @@ import { useCategoryScope } from './useCategoryScope';
 
 export function useMandatoryTemplate(type: MovementType, id: string | null) {
   const scope = useCategoryScope();
-  const { canWrite } = useBankAccounts();
+  const { canWrite, invalidateMandatoryTemplates } = useBankAccounts();
   const tags = useCategories(true, type === 'gain' ? 'mandatory-gain' : 'mandatory-expense');
   const identity = JSON.stringify([scope?.uid, scope?.kind, scope?.id, id]);
   const currentIdentity = React.useRef(identity);
   currentIdentity.current = identity;
   const [version, refresh] = React.useReducer(value => value + 1, 0);
-  const [state, setState] = React.useState<{ identity: string; template: MandatoryTemplate | null; error: string | null; loading: boolean }>({ identity, template: null, error: null, loading: !!id });
+  const [state, setState] = React.useState<{ identity: string; template: MandatoryTemplate | null; categoryOption?: import('@/components/uiverse/categories/tag-actionsheet-selector').TagActionsheetOption | null; error: string | null; loading: boolean }>({ identity, template: null, error: null, loading: !!id });
   React.useEffect(() => {
     if (!id || !scope) return;
     let active = true;
     setState({ identity, template: null, error: null, loading: true });
-    void readMandatoryTemplate(getFirebaseClient(), scope, id).then(template => {
+    void readMandatoryTemplate(getFirebaseClient(), scope, id).then(async template => {
       if (template.type !== type || !template.isActive) throw Error('mandatory/not-found');
-      if (active) setState({ identity, template, error: null, loading: false });
+      const category = await readCategory(getFirebaseClient(), scope, { id: template.categoryId, source: template.categorySource }).catch(() => null);
+      const categoryOption = category ? { ...category, id: `${category.source}:${category.id}` } : null;
+      if (active) setState({ identity, template, categoryOption, error: null, loading: false });
     }).catch(error => {
       if (active) setState({ identity, template: null, error: errorMessage(error), loading: false });
     });
@@ -47,7 +50,11 @@ export function useMandatoryTemplate(type: MovementType, id: string | null) {
     if (!scope) throw Error('mandatory/not-found');
     if (!canWrite) throw Error('read-only/operation');
     const client = getFirebaseClient(), value = { ...input, type };
-    if (template) return saveMandatoryTemplate(client, scope, template.id, value, template.revision);
+    if (template) {
+      const saved = await saveMandatoryTemplate(client, scope, template.id, value, template.revision);
+      invalidateMandatoryTemplates(scope);
+      return saved;
+    }
     if (id) throw Error('mandatory/not-found');
     const key = `lumus:mandatory-template:${scope.uid}:${scope.kind}:${scope.id}:${type}`;
     return bankIntentLock(key, async () => {
@@ -57,6 +64,7 @@ export function useMandatoryTemplate(type: MovementType, id: string | null) {
       if (currentIdentity.current !== identity) throw Error('session/changed');
       const saved = await saveMandatoryTemplate(client, scope, next, value, null);
       if (await AsyncStorage.getItem(key) === next) await AsyncStorage.removeItem(key);
+      invalidateMandatoryTemplates(scope);
       return saved;
     });
   }
@@ -64,6 +72,6 @@ export function useMandatoryTemplate(type: MovementType, id: string | null) {
   const tagOptions = React.useMemo(() => tags.items.filter(tag => !tag.blocked).map(tag => ({
     id: `${tag.source}:${tag.id}`, name: tag.name, iconFamily: tag.iconFamily, iconName: tag.iconName, iconStyle: tag.iconStyle,
   })), [tags.items]);
-  return { record, loading: !!id && !!scope && (state.identity !== identity || state.loading), ready: !!scope && canWrite && (!id || !!template),
+  return { record, categoryOption: state.identity === identity ? state.categoryOption ?? null : null, loading: !!id && !!scope && (state.identity !== identity || state.loading), ready: !!scope && canWrite && (!id || !!template),
     error: scope && !canWrite ? errorMessage(Error('read-only/operation')) : state.identity === identity ? state.error : null, retry: refresh, save, tagOptions, tags };
 }

@@ -326,7 +326,7 @@ setTransferDescription(null);
 							<VStack className={`mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<MovementFormStatus loading={isLoadingBanks || isLoadingBalance || isLoadingTargetBalance} error={transferDataError} onRetry={reloadTransferData} />
 								{hasMore ? <Button variant="outline" isDisabled={isLoadingBanks || isSubmitting} onPress={loadMore}><ButtonText>Carregar mais contas</ButtonText></Button> : null}
-								{needsBanks ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre pelo menos dois bancos ativos para transferir entre contas.</Text><Button variant="outline" onPress={reloadTransferData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
+								{needsBanks ? <Text accessibilityRole="status" className={helperText}>Selecione dois bancos ativos. Cadastre os que faltam em Configurações.</Text> : null}
 								{null}
 
 								<HStack className="w-full flex-col gap-4 md:flex-row">

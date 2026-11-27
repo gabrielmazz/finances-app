@@ -1,8 +1,9 @@
+import { useCategoryRevision } from './useCategoryRevision';
 import { useIsFocused } from 'expo-router';
 import React from 'react';
 import { errorMessage } from '@/application/errors';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
-import { civilDate, mandatoryAmount, type MandatoryTemplate } from '@/domain/mandatory';
+import { civilDate, mandatoryAmount, mandatoryDueMonth, type MandatoryTemplate } from '@/domain/mandatory';
 import type { MovementType } from '@/domain/movements';
 import { readCategory } from '@/firebase/categories';
 import { getFirebaseClient } from '@/firebase/client';
@@ -20,6 +21,7 @@ type State = { identity: string; page: Loaded | null; tags: Record<string, Tag>;
 
 export function useMandatoryList(type: MovementType) {
   const scope = useCategoryScope(), accounts = useBankAccounts(), focused = useIsFocused();
+  const categoryRevision = useCategoryRevision(scope);
   const identity = JSON.stringify([scope?.uid, scope?.kind, scope?.id, type]);
   const current = React.useRef(identity);
   current.current = identity;
@@ -55,7 +57,7 @@ export function useMandatoryList(type: MovementType) {
     }
     if (focused) void load();
     return () => { request.current++; };
-  }, [focused, identity, load, scope, focused ? accounts.ledgerRevision : 0]);
+  }, [focused, identity, load, scope, focused ? accounts.ledgerRevision : 0, focused ? accounts.mandatoryRevision : 0, focused ? categoryRevision : 0]);
 
   const items = state.identity === identity ? state.page?.items : null;
   const rows = React.useMemo(() => {
@@ -63,7 +65,7 @@ export function useMandatoryList(type: MovementType) {
     return (items ?? []).map(template => {
       const tagId = `${template.categorySource}:${template.categoryId}`;
       const startDate = template.installmentStartDate ? civilDate(template.installmentStartDate) : null;
-      const due = resolveMonthlyOccurrence({ referenceDate: today, dueDay: template.dueDay, usesBusinessDays: template.usesBusinessDays });
+      const due = resolveMonthlyOccurrence({ referenceDate: mandatoryDueMonth(template, today), dueDay: template.dueDay, usesBusinessDays: template.usesBusinessDays });
       const complete = template.lastCycle === cycle && template.lastMovementDate !== null;
       const remaining = template.installmentTotal === null ? null : template.installmentTotal - template.installmentsCompleted;
       const isInstallmentComplete = remaining === 0;
@@ -85,13 +87,15 @@ export function useMandatoryList(type: MovementType) {
     if (!scope || !item) throw Error('mandatory/not-found');
     if (!accounts.canWrite) throw Error('read-only/operation');
     const client = getFirebaseClient();
-    if (action === 'delete') await archiveMandatoryTemplate(client, scope, item);
+    if (action === 'delete') {
+      await archiveMandatoryTemplate(client, scope, item);
+      accounts.invalidateMandatoryTemplates(scope);
+    }
     else {
       if (!item.lastCycle || !item.lastMovementDate) throw Error('mandatory/cycle-unavailable');
       await cancelMandatoryCycle(client, scope, item.id, item.lastCycle, item.revision);
-      await accounts.reload();
+      await accounts.refreshAfterMovement(scope);
     }
-    await load();
   }
   function amount(id: string, installments: number) {
     const item = items?.find(value => value.id === id);

@@ -2,7 +2,6 @@ import { useSession } from '@/hooks/useSession';
 import { AUTH_CLASS_NAMES } from '@/design-system/auth';
 import { useAccountAccess,type AccountAccessMode } from '@/hooks/useAccountAccess';
 import { cn } from '@/lib/utils';
-import { navigateToHomeDashboard } from '@/utils/navigation';
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import {
 AccessibilityInfo,BackHandler,Keyboard,KeyboardAvoidingView,
@@ -390,7 +389,6 @@ export default function LoginScreen() {
 										</Text>
 									)}
 								</Button>
-<Button variant="outline" action="secondary" isDisabled={!session.user} onPress={navigateToHomeDashboard}><ButtonText>{session.user ? 'Continuar no workspace' : 'Entre para acessar as telas'}</ButtonText></Button>
 
 								<View className="mt-4 flex-row flex-wrap items-center justify-between gap-2">
 									{access.mode === 'login' ? (

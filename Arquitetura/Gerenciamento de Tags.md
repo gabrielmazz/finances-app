@@ -39,3 +39,9 @@ A listagem mantém paginação por cursor, com consultas limitadas e sem listene
 ### MVP 1.4 — leitura pessoal direta
 
 A candidata tenta consultar diretamente `tags` com os três campos de grupo explícitos e nulos. Entretanto, a verificação de vínculos protegidos contraditórios nas Rules impede autorizar essa listagem no emulador. O aplicativo sinaliza a fonte como indisponível, sem tratá-la como vazia. Tags com campos ausentes continuam legíveis por ID autorizado; a enumeração de categorias legadas de grupo na raiz também está indisponível. A incompatibilidade impede a publicação da candidata.
+
+## Consulta e cadastro no formulário
+
+Na revisão de 25/11, a lista entrega até cinco categorias que correspondem à consulta. O cursor existe quando há outra categoria elegível. Os destinos usam filtros por tipo ou flag no Firestore. A busca explícita por nome ignora acentos e pode percorrer os documentos do destino pesquisado em páginas. A troca de consulta interrompe leituras entre páginas. A situação ativa ou arquivada é independente do destino. No emulador, tags pessoais da raiz que exigem autorização por documento continuam acessíveis pela consulta protegida por ID. A lista usa o caminho financeiro paginável. Os seletores oferecem Carregar mais categorias.
+
+O cadastro pelo formulário conserva o rascunho e seleciona a categoria devolvida ao mesmo formulário e contexto. Escritas confirmadas invalidam a lista e os metadados na Home, no extrato e nos compromissos. O arquivamento conserva ID, nome e ícone para o histórico. Um compromisso existente mantém sua referência se a categoria for alterada ou arquivada. Novas associações exigem categoria ativa e compatível. A interface renderiza também glifos válidos fora do catálogo de criação.

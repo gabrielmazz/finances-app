@@ -2,6 +2,7 @@ import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bankIntentLock } from '@/application/bankIntentLock';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
+import { financialMovementExtensionsEnabled, selectedFinancialProject } from '@/firebase/config';
 import { getFirebaseClient } from '@/firebase/client';
 import { confirmMandatoryCycle, createBankTransfer, createCashWithdrawal, createMovement, MovementReferenceConfirmationRequired, newMovementId, updateMovement } from '@/firebase/movements';
 import type { BankOperationInput, BankTransferInput, Movement, MovementInput, ReferenceChoice } from '@/domain/movements';
@@ -12,7 +13,7 @@ type MovementSubmission = MovementInput | (BankOperationInput & { operation: 'ca
 
 export function useMovementSubmit() {
   const scope = useCategoryScope();
-  const { reload, canWrite } = useBankAccounts();
+  const { refreshAfterMovement, canWrite } = useBankAccounts();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [reference, setReference] = React.useState<MovementReferenceConfirmationRequired | null>(null);
   const resolveReference = React.useRef<((choice: ReferenceChoice | null) => void) | null>(null);
@@ -34,13 +35,13 @@ export function useMovementSubmit() {
   const running = React.useRef(false);
   const completed = React.useRef<{ key: string; draft: string | null } | null>(null);
   const resetBankOperation = React.useCallback(() => { completed.current = null; }, []);
-  const save = React.useCallback(async (value: MovementSubmission, original: MovementSubmission, existing: Movement | null, mandatory?: { id: string; installments: number }) => {
+  const save = React.useCallback(async (value: MovementSubmission, original: MovementSubmission, existing: Movement | null, mandatory?: { id: string; installments: number; expectedCents?: number }) => {
     if (!scope) throw Error('movements/invalid-context');
     if (!canWrite) throw Error('read-only/operation');
     const client = getFirebaseClient();
     if (mandatory) {
       if (existing || 'operation' in value) throw Error('movements/unsupported-edit');
-      return await confirmMandatoryCycle(client, scope, mandatory.id, value, mandatory.installments);
+      return await confirmMandatoryCycle(client, scope, mandatory.id, value, mandatory.installments, mandatory.expectedCents);
     }
     if (existing) {
       if ('operation' in value) throw Error('movements/unsupported-edit');
@@ -73,17 +74,20 @@ export function useMovementSubmit() {
     });
     completed.current = { key, draft };
     await releaseIntent();
-    if (bankOperation) await reload();
     return saved;
-  }, [reload, scope, canWrite]);
-  const submit = React.useCallback(async (value: MovementSubmission, existing: Movement | null = null, mandatory?: { id: string; installments: number }) => {
+  }, [scope, canWrite]);
+  const submit = React.useCallback(async (value: MovementSubmission, existing: Movement | null = null, mandatory?: { id: string; installments: number; expectedCents?: number }) => {
     if (running.current) throw Error('movements/in-progress');
     running.current = true;
     setIsSubmitting(true);
     let draft = value;
     try {
       for (;;) {
-        try { return await save(draft, value, existing, mandatory); }
+        try {
+          const saved = await save(draft, value, existing, mandatory);
+          if (scope) await refreshAfterMovement(scope);
+          return saved;
+        }
         catch (error) {
           if (!(error instanceof MovementReferenceConfirmationRequired)) throw error;
           if (!mounted.current) return null;
@@ -101,9 +105,9 @@ export function useMovementSubmit() {
       running.current = false;
       if (mounted.current) setIsSubmitting(false);
     }
-  }, [save]);
+  }, [save, scope, refreshAfterMovement]);
   const referenceDialog = reference && React.createElement(MovementReferenceDialog, {
     accountName: reference.accountName, referenceAt: reference.referenceAt, onChoice: chooseReference,
   });
-  return { submit, isSubmitting, resetBankOperation, canWrite, referenceDialog };
+  return { submit, isSubmitting, resetBankOperation, canWrite, referenceDialog, supportsNewPaymentFields: financialMovementExtensionsEnabled(selectedFinancialProject()) };
 }

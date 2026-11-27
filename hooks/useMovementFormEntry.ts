@@ -11,7 +11,7 @@ import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 export function useMovementFormEntry(id?: string | null) {
   const scope = useCategoryScope();
   const [version, setVersion] = React.useState(0);
-  const [state, setState] = React.useState<{ movement: Movement | null; loading: boolean; error: string | null; tagName?: string; bankName?: string }>({ movement: null, loading: !!id, error: null });
+  const [state, setState] = React.useState<{ movement: Movement | null; loading: boolean; error: string | null; tagName?: string; tagIcon?: import('@/utils/tagIconCatalog').TagIconSelection; bankName?: string }>({ movement: null, loading: !!id, error: null });
   React.useEffect(() => {
     let active = true;
     if (id === undefined) { setState({ movement: null, loading: false, error: FEATURE_UNAVAILABLE_MESSAGE }); return () => { active = false; }; }
@@ -22,9 +22,9 @@ export function useMovementFormEntry(id?: string | null) {
     void readMovement(client, scope, id).then(async movement => {
       const [tag, bank] = await Promise.all([
         readCategory(client, scope, { id: movement.categoryId, source: movement.categorySource }).catch(() => null),
-        readBank(client, scope, { id: movement.accountId, source: 'new' }).catch(() => null),
+        movement.accountId ? readBank(client, scope, { id: movement.accountId, source: 'new' }).catch(() => null) : null,
       ]);
-      if (active) setState({ movement, tagName: tag?.name ?? 'Categoria indisponível', bankName: bank?.name, loading: false, error: null });
+      if (active) setState({ movement, tagName: tag?.name ?? 'Categoria indisponível', tagIcon: tag ?? undefined, bankName: bank?.name, loading: false, error: null });
     }, reason => { if (active) setState({ movement: null, loading: false, error: errorMessage(reason) }); });
     return () => { active = false; };
   }, [id, scope, version]);
@@ -32,7 +32,7 @@ export function useMovementFormEntry(id?: string | null) {
   const record = React.useMemo<Record<string, unknown> | null>(() => {
     if (!movement) return null;
     const [year, month, day] = movement.date.split('-').map(Number);
-    return { name: movement.name, valueInCents: movement.amountCents, date: new Date(year, month - 1, day), tagId: `${movement.categorySource}:${movement.categoryId}`, bankId: movement.accountId, tagName: state.tagName, bankName: state.bankName, explanation: movement.explanation, paymentFormats: movement.paymentFormats, moneyFormat: false };
-  }, [movement, state.tagName, state.bankName]);
+    return { name: movement.name, valueInCents: movement.amountCents, date: new Date(year, month - 1, day), tagId: `${movement.categorySource}:${movement.categoryId}`, bankId: movement.accountId, tagName: state.tagName, tagIcon: state.tagIcon, bankName: state.bankName, explanation: movement.explanation, paymentFormats: movement.paymentFormats, moneyFormat: movement.accountId === null };
+  }, [movement, state.tagName, state.tagIcon, state.bankName]);
   return { movement, record, loading: state.loading, ready: id === null || !!movement, error: state.error, retry: () => setVersion(value => value + 1) };
 }

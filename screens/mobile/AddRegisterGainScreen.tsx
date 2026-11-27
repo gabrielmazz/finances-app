@@ -1,3 +1,4 @@
+import { useInlineCategory } from '@/hooks/useInlineCategory';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
@@ -59,7 +60,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import type { TagIconFamily,TagIconSelection,TagIconStyle } from '@/hooks/useTagIcons';
 import { TagIcon } from '@/hooks/useTagIcons';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
-import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard } from '@/utils/navigation';
 import {
 type TagUsageType
 } from '@/utils/tagUsage';
@@ -209,7 +210,7 @@ export default function AddRegisterGainScreen() {
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
 	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 
-	const { submit, isSubmitting, canWrite, referenceDialog } = useMovementSubmit();
+	const { submit, isSubmitting, canWrite, referenceDialog, supportsNewPaymentFields } = useMovementSubmit();
 
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
@@ -265,6 +266,7 @@ export default function AddRegisterGainScreen() {
 
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
+		templateAdjustableInstallment?: string | string[];
 		templateTagId?: string | string[];
 		templateDescription?: string | string[];
 		templateDueDay?: string | string[];
@@ -289,7 +291,7 @@ export default function AddRegisterGainScreen() {
 	}, [params.gainId]);
 	const isEditing = Boolean(editingGainId);
 	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingGainId);
-	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('gain', editableMovement);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, isLoadingMoreTags, reloadTags, reloadBanks } = useMovementOptions('gain', editableMovement);
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -403,6 +405,10 @@ export default function AddRegisterGainScreen() {
 	);
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
+	const canAdjustInstallment = isTemplateLocked && supportsNewPaymentFields &&
+		(Array.isArray(params.templateAdjustableInstallment) ? params.templateAdjustableInstallment[0] : params.templateAdjustableInstallment) === '1';
+	const plannedAmount = isTemplateLocked ? templateData?.valueInCents : undefined;
+	const adjustment = canAdjustInstallment && plannedAmount && gainValueCents ? gainValueCents - plannedAmount : 0;
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
 	const isBankSelectionLocked = Boolean(templateData?.lockBank || templateData?.bankId);
 	const shouldShowPaymentFormatSelection = !isTemplateLocked;
@@ -503,17 +509,6 @@ export default function AddRegisterGainScreen() {
 	const handlePaymentFormatChange = React.useCallback((format: string, isSelected: boolean) => {
 		setPaymentFormat(isSelected ? [format] : []);
 	}, []);
-	const handleOpenAddTagScreen = React.useCallback(() => {
-		if (isAddTagButtonDisabled) {
-			return;
-		}
-
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			placement: 'gain',
-			returnAfterCreate: '1',
-			returnToRoute: APP_ROUTE_PATHS.addRegisterGain,
-		});
-	}, [isAddTagButtonDisabled]);
 
 	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
 		setSelectedTagId(tag.id);
@@ -524,6 +519,16 @@ export default function AddRegisterGainScreen() {
 			iconStyle: tag.iconStyle ?? null,
 		});
 	}, []);
+	const openInlineCategory = useInlineCategory('gain', APP_ROUTE_PATHS.addRegisterGain, category => {
+		handleSelectTag({ ...category, id: category.source + ':' + category.id });
+	});
+	const handleOpenAddTagScreen = React.useCallback(() => {
+		if (isAddTagButtonDisabled) {
+			return;
+		}
+
+		openInlineCategory();
+	}, [openInlineCategory, isAddTagButtonDisabled]);
 
 	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
 		setSelectedBankId(bank.id);
@@ -545,7 +550,7 @@ export default function AddRegisterGainScreen() {
 		}
 
 		if (typeof templateData.dueDay === 'number') {
-			setGainDate(getSuggestedDateByDueDay(templateData.dueDay, templateData.usesBusinessDays));
+			setGainDate(templateData.mandatoryGainId ? formatDateToBR(toFinancialCivilDate(new Date())) : getSuggestedDateByDueDay(templateData.dueDay, templateData.usesBusinessDays));
 		}
 
 		if (templateData.tagId) {
@@ -590,18 +595,17 @@ export default function AddRegisterGainScreen() {
 	}, []);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (moneyFormat || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
-		if (!selectedBankId || !selectedTagId || !gainValueCents) return;
+		if ((moneyFormat && (!supportsNewPaymentFields || linkedMandatoryGainId)) || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if ((!moneyFormat && !selectedBankId) || !selectedTagId || !gainValueCents) return;
 		const category = movementCategorySelection(selectedTagId);
 		if (!category) return;
 		const [day, month, year] = gainDate.split('/');
 		try {
-			if (!(await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement, linkedMandatoryGainId ? { id: linkedMandatoryGainId, installments: templateData?.installmentsToAdvance ?? 1 } : undefined))) return;
-			await reloadBanks();
+			if (!(await submit({ name: gainName, type: 'gain', amountCents: gainValueCents, accountId: moneyFormat ? null : selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationGain ?? '', paymentFormats: paymentFormat.filter((value): value is 'Variable' | 'External' => value === 'Variable' || value === 'External') }, editableMovement, linkedMandatoryGainId ? { id: linkedMandatoryGainId, installments: templateData?.installmentsToAdvance ?? 1, expectedCents: plannedAmount } : undefined))) return;
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Receita atualizada.' : 'Receita cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryGainId, templateData?.installmentsToAdvance, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, supportsNewPaymentFields, plannedAmount, linkedMandatoryGainId, templateData?.installmentsToAdvance, params.investmentIdForAdjustment, selectedBankId, selectedTagId, gainValueCents, gainDate, gainName, explanationGain, paymentFormat, editableMovement, submit, isEditing]);
 
 	React.useEffect(() => {
 		if (!existingMovement) return;
@@ -616,6 +620,7 @@ export default function AddRegisterGainScreen() {
 
 
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+		setSelectedMovementTagIcon((data.tagIcon as typeof selectedMovementTagIcon) ?? null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
 		setSelectedMovementTagName(typeof data.tagName === 'string' ? data.tagName : null);
 		setSelectedMovementBankName(typeof data.bankName === 'string' ? data.bankName : null);
@@ -790,11 +795,15 @@ export default function AddRegisterGainScreen() {
 											autoCorrect={false}
 											returnKeyType="next"
 											className={inputField}
+											editable={!isFormBusy && (!isTemplateLocked || canAdjustInstallment)}
 											value={gainValueDisplay}
 											onChangeText={handleValueChange}
 											onFocus={() => handleInputFocus('gain-value')}
 										/>
 									</Input>
+										{plannedAmount ? <Text className={helperText}>
+											Valor previsto: {formatCurrencyBRL(plannedAmount)}{adjustment ? ` · Diferença: ${formatCurrencyBRL(adjustment)}` : ''}
+										</Text> : null}
 								</VStack>
 
 								<VStack className="mb-4">
@@ -1104,7 +1113,8 @@ export default function AddRegisterGainScreen() {
 											selectedOption={selectedTagOption}
 											onSelect={handleSelectTag}
 												onOpen={() => { if (!tags.length && hasMoreTags) void loadMoreTags(); }}
-												onEndReached={() => void loadMoreTags()}
+												onLoadMore={hasMoreTags ? () => void loadMoreTags() : undefined}
+												isLoadingMore={isLoadingMoreTags}
 											isDisabled={isTagSelectDisabled}
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}

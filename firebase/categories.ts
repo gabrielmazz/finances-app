@@ -42,7 +42,7 @@ export async function readCategory(client: AccountClient, scope: BankScope, ref:
       (snap.data().groupId != null || snap.data().financialGroupId != null || snap.data().ledgerGroupId != null)) throw Error('categories/ambiguous-owner');
   return parseCategory(snap.id, ref.source, snap.data(), scope);
 }
-export async function readCategoryPage(client: AccountClient, scope: BankScope, source: CategorySource, cursor?: string | null, pageSize = 20) {
+export async function readCategoryPage(client: AccountClient, scope: BankScope, source: CategorySource, cursor?: string | null, pageSize = 20, destination: CategoryDestination = 'all', status: 'active' | 'archived' | 'all' = 'all') {
   requireCategoryEnvironment(client, scope);
   const canonical = usesCanonicalFinance(client.db.app.options.projectId);
   const official = !canonical && client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
@@ -54,6 +54,15 @@ export async function readCategoryPage(client: AccountClient, scope: BankScope, 
     : null;
   if (!base) throw Error('categories/invalid-context');
   const filters: QueryConstraint[] = [];
+  if (canonical && source === 'new' && destination === 'all' && status !== 'all') filters.push(where('status', '==', status));
+  if (source === 'new' && destination !== 'all') {
+    const usage = destination.endsWith('gain') ? 'gain' : 'expense';
+    if (destination.startsWith('mandatory-')) {
+      filters.push(where(usage === 'gain' ? 'isMandatoryGain' : 'isMandatoryExpense', '==', true));
+    } else {
+      filters.push(where('usageType', 'in', [usage, 'both']));
+    }
+  }
   if (source === 'legacy') filters.push(where('personId', '==', scope.uid), ...(official ? [] : [where('groupId', '==', null), where('financialGroupId', '==', null), where('ledgerGroupId', '==', null)]));
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 20) throw Error('categories/invalid-page');
   filters.push(orderBy(documentId()), limit(pageSize));
@@ -78,37 +87,61 @@ export async function readCategoryPage(client: AccountClient, scope: BankScope, 
   requireCategoryEnvironment(client, scope);
   return { items, issues, unavailable: false, nextCursor: snap.size === pageSize ? snap.docs.at(-1)!.id : null };
 }
-export type CategoryFilter = 'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain';
+export type CategoryDestination = 'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain' | 'movement-expense' | 'movement-gain';
+export type CategoryFilter = CategoryDestination | {
+  destination: CategoryDestination;
+  status: 'active' | 'archived' | 'all';
+  name: string;
+};
+
 export type CategoryCursor = { sourceIndex: number; after: string | null; unavailable?: boolean };
-function matchesCategoryFilter(item: Category, filter: CategoryFilter) {
-  if (item.status !== 'active') return false;
-  if (filter === 'all') return true;
-  if (filter === 'expense' || filter === 'gain') return isTagVisibleInRegularUsageList(item, filter);
-  return isTagVisibleInMandatoryUsageList(item, filter === 'mandatory-expense' ? 'expense' : 'gain');
+
+function matchesCategoryDestination(item: Category, destination: CategoryDestination) {
+  if (destination === 'all') return true;
+  if (item.blocked) return false;
+  const usage = destination.endsWith('gain') ? 'gain' : 'expense';
+  if (destination.startsWith('movement-')) return item.usageType === usage || item.usageType === 'both';
+  if (destination.startsWith('mandatory-')) return isTagVisibleInMandatoryUsageList(item, usage);
+  return isTagVisibleInRegularUsageList(item, usage);
 }
-export async function readCategorySlice(client: AccountClient, scope: BankScope, cursor: CategoryCursor | null, filter: CategoryFilter) {
-  const sources: CategorySource[] = usesCanonicalFinance(client.db.app.options.projectId) ? ['new'] :
-    scope.kind === 'personal' ? ['new', 'legacy'] : ['new', 'group-legacy', 'group-root'];
-  let sourceIndex = cursor?.sourceIndex ?? 0, after = cursor?.after ?? null, issues = 0, unavailable = cursor?.unavailable ?? false;
+
+const searchKey = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+
+export async function readCategorySlice(client: AccountClient, scope: BankScope, cursor: CategoryCursor | null, filter: CategoryFilter, isCurrent = () => true) {
+  const { destination, status, name }: Exclude<CategoryFilter, string> = typeof filter === 'string'
+    ? { destination: filter, status: 'active', name: '' } : filter;
+  const search = searchKey(name.trim());
+  const project = client.db.app.options.projectId;
+  // Legacy personal roots in the emulator require a verified lookup by ID.
+  const sources: CategorySource[] = usesCanonicalFinance(project) ? ['new']
+    : scope.kind === 'group' ? ['new', 'group-legacy']
+    : project === OFFICIAL_PROJECT_ID ? ['new', 'legacy'] : ['new'];
   const items: Category[] = [];
-  let requests = 0;
-  // Sparse filters must not turn a page request into a scan of the collection.
-  while (items.length < 5 && sourceIndex < sources.length && requests < 2) {
-    const result = await readCategoryPage(client, scope, sources[sourceIndex], after, 6);
-    requests++;
-    const matches = result.items.filter(item => matchesCategoryFilter(item, filter));
-    const capacity = 5 - items.length;
-    items.push(...matches.slice(0, capacity));
+  let sourceIndex = cursor?.sourceIndex ?? 0;
+  let after = cursor?.after ?? null;
+  let unavailable = cursor?.unavailable ?? false;
+  let issues = 0;
+  const pageSize = 5;
+  while (sourceIndex < sources.length) {
+    const source = sources[sourceIndex];
+    if (!isCurrent()) throw Error('session/changed');
+    const result = await readCategoryPage(client, scope, source, after, search ? 20 : pageSize + 1, destination, status);
     issues += result.issues;
     unavailable ||= result.unavailable;
-    // Resume at the last item shown if the page contained another match.
-    // The next request must reauthorize it instead of carrying a cached row.
-    if (matches.length > capacity) after = matches[capacity - 1].id;
-    else if (result.nextCursor) after = result.nextCursor;
+    for (const item of result.items) {
+      if ((status === 'all' || item.status === status) && matchesCategoryDestination(item, destination)
+          && (!search || searchKey(item.name).includes(search))) {
+        if (items.length === pageSize) return { items, issues, unavailable, cursor: { sourceIndex, after, unavailable } };
+        items.push(item);
+      }
+      after = item.id;
+    }
+    if (result.nextCursor) after = result.nextCursor;
     else { sourceIndex++; after = null; }
   }
-  return { items, issues, unavailable, cursor: sourceIndex < sources.length ? { sourceIndex, after, unavailable } : null };
+  return { items, issues, unavailable, cursor: null };
 }
+
 export async function resolveHistoricalCategory(client: AccountClient, scope: BankScope, id: string) {
   if (usesCanonicalFinance(client.db.app.options.projectId)) return readCategory(client, scope, { id, source: 'new' });
   const official = client.db.app.options.projectId === OFFICIAL_PROJECT_ID;
@@ -174,7 +207,7 @@ export async function updateCategory(client: AccountClient, scope: BankScope, ex
       tx.update(ref, { name: value.name, iconFamily: value.iconFamily, iconName: value.iconName, iconStyle: value.iconStyle, ...availability, updatedBy: scope.uid, updatedAt: serverTimestamp() });
       return;
     }
-    if (!value.usageType) throw Error('categories/invalid-type');
+    if (!value.usageType && current.usageType !== null) throw Error('categories/invalid-type');
     tx.update(ref, { ...value, revision: current.revision + 1, updatedBy: scope.uid, updatedAt: serverTimestamp() });
   });
   return readCategory(client, scope, expected);

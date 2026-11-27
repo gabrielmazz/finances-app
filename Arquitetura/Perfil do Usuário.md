@@ -23,3 +23,5 @@ Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 Perfil próprio existente e UID foram conferidos na Web com login manual autorizado. A restauração real de 987 documentos interpretou os dois perfis e negou acesso cruzado. O inventário Auth cifrado contém três contas; uma não possui perfil Firestore e foi preservada sem criação automática. Ausência/incompletude são tratadas explicitamente e não concedem permissões. Estado e evidências: [[Homologação e Recuperação da Etapa 03]].
 
 No Android físico, nome/email/data legada e UID foram conferidos, inclusive após reiniciar e reconectar. `InputField` preserva agora os rótulos nativos fornecidos pelo consumidor; ver [[Componentes UI]] e o registro assistido de [[Homologação e Recuperação da Etapa 03]].
+
+Na revisão de 25/11, a sessão compartilhada atualiza o perfil após autenticação e salvamento. A tela oferece nova tentativa quando há falha de carregamento. A seleção de vínculos usa as concessões descritas em [[Gerenciamento de Usuários]].

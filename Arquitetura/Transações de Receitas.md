@@ -22,3 +22,5 @@ AddRegisterGainScreen em `screens/mobile/` e, quando existente, `screens/web/`. 
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 Na 1.7.1, o cadastro e a edição usam a data civil de São Paulo. O Firestore registra criação e atualização automaticamente. O extrato mostra a hora histórica quando existe um instante registrado. As contas de referência seguem a conciliação de [[Gerenciamento de Bancos]].
+
+Na revisão de 25/11, o emulador e a candidata canônica permitem receitas em dinheiro com accountId nulo. Esses lançamentos aparecem no extrato e nos totais sem alterar saldo bancário. Ver [[Transações de Despesas]] e [[Receitas Fixas]].

@@ -1,3 +1,5 @@
+import type { ExpensePaymentMethod } from '@/domain/movements';
+import { useInlineCategory } from '@/hooks/useInlineCategory';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
@@ -159,7 +161,7 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const { submit, isSubmitting, canWrite, referenceDialog } = useMovementSubmit();
+	const { submit, isSubmitting, canWrite, referenceDialog, supportsNewPaymentFields } = useMovementSubmit();
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
@@ -167,6 +169,7 @@ export default function AddRegisterExpensesScreen() {
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
+	const [paymentMethod, setPaymentMethod] = React.useState<ExpensePaymentMethod | undefined>('debit');
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
 	const [mandatoryExpenseSuggestion, setMandatoryExpenseSuggestion] = React.useState<MandatoryExpenseSuggestion | null>(
 		null,
@@ -201,6 +204,7 @@ export default function AddRegisterExpensesScreen() {
 
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
+		templateAdjustableInstallment?: string | string[];
 		templateTagId?: string | string[];
 		templateDueDay?: string | string[];
 		templateUsesBusinessDays?: string | string[];
@@ -238,7 +242,7 @@ export default function AddRegisterExpensesScreen() {
 	}, [params.expenseId]);
 	const isEditing = Boolean(editingExpenseId);
 	const { movement: editableMovement, record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry(editingExpenseId);
-	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, reloadTags, reloadBanks } = useMovementOptions('expense', editableMovement);
+	const { banks, tags, optionsError, isLoadingBanks, isLoadingTags, loadMoreBanks, loadMoreTags, hasMoreTags, isLoadingMoreTags, reloadTags, reloadBanks } = useMovementOptions('expense', editableMovement);
 	const templateData = React.useMemo(() => {
 		const name = decodeParam(params.templateName);
 		const description = decodeParam(params.templateDescription);
@@ -310,6 +314,10 @@ export default function AddRegisterExpensesScreen() {
 
 	const linkedMandatoryExpenseId = templateData?.mandatoryExpenseId ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
+	const canAdjustInstallment = isTemplateLocked && supportsNewPaymentFields &&
+		(Array.isArray(params.templateAdjustableInstallment) ? params.templateAdjustableInstallment[0] : params.templateAdjustableInstallment) === '1';
+	const plannedAmount = isTemplateLocked ? templateData?.valueInCents : undefined;
+	const adjustment = canAdjustInstallment && plannedAmount && expenseValueCents ? expenseValueCents - plannedAmount : 0;
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
 	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
 	const isBankSelectionRequired = !moneyFormat;
@@ -357,18 +365,17 @@ export default function AddRegisterExpensesScreen() {
 	}, []);
 
 	const handleSubmit = React.useCallback(async (_options: SubmitOptions = {}) => {
-		if (moneyFormat || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
-		if (!selectedBankId || !selectedTagId || !expenseValueCents) return;
+		if ((moneyFormat && (!supportsNewPaymentFields || linkedMandatoryExpenseId)) || params.investmentIdForAdjustment) { showFeatureUnavailable(); return; }
+		if ((!moneyFormat && !selectedBankId) || !selectedTagId || !expenseValueCents) return;
 		const category = movementCategorySelection(selectedTagId);
 		if (!category) return;
 		const [day, month, year] = expenseDate.split('/');
 		try {
-			if (!(await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [] }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1 } : undefined))) return;
-			await reloadBanks();
+			if (!(await submit({ name: expenseName, type: 'expense', amountCents: expenseValueCents, accountId: moneyFormat ? null : selectedBankId, ...category, date: `${year}-${month}-${day}`, explanation: explanationExpense ?? '', paymentFormats: [], ...(!moneyFormat && !isTemplateLocked && (supportsNewPaymentFields || editableMovement?.paymentMethod) && paymentMethod ? { paymentMethod } : {}) }, editableMovement, linkedMandatoryExpenseId ? { id: linkedMandatoryExpenseId, installments: templateData?.installmentsToSettle ?? 1, expectedCents: plannedAmount } : undefined))) return;
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Despesa atualizada.' : 'Despesa cadastrada.' });
 			navigateToHomeDashboard();
 		} catch (error) { showNotifierAlert({ type: 'error', description: errorMessage(error) }); }
-	}, [moneyFormat, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, reloadBanks, isEditing]);
+	}, [moneyFormat, paymentMethod, isTemplateLocked, supportsNewPaymentFields, plannedAmount, linkedMandatoryExpenseId, templateData?.installmentsToSettle, params.investmentIdForAdjustment, selectedBankId, selectedTagId, expenseValueCents, expenseDate, expenseName, explanationExpense, editableMovement, submit, isEditing]);
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);
@@ -393,18 +400,17 @@ export default function AddRegisterExpensesScreen() {
 			iconStyle: tag.iconStyle as TagIconStyle | null,
 		});
 	}, []);
+	const openInlineCategory = useInlineCategory('expense', APP_ROUTE_PATHS.addRegisterExpenses, category => {
+		handleSelectTag({ ...category, id: category.source + ':' + category.id });
+	});
+	const handleOpenAddTagScreen = React.useCallback(() => {
+		if (isFormBusy || isTagSelectionLocked) return;
+		openInlineCategory();
+	}, [openInlineCategory, isFormBusy, isTagSelectionLocked]);
 	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
 		setSelectedBankId(bank.id);
 		setSelectedMovementBankName(bank.name);
 	}, []);
-	const handleOpenAddTagScreen = React.useCallback(() => {
-		if (isFormBusy || isTagSelectionLocked) return;
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			placement: 'expense',
-			returnAfterCreate: '1',
-			returnToRoute: APP_ROUTE_PATHS.addRegisterExpenses,
-		});
-	}, [isFormBusy, isTagSelectionLocked]);
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) return;
@@ -414,7 +420,7 @@ export default function AddRegisterExpensesScreen() {
 			setExpenseValueDisplay(formatCurrencyBRL(templateData.valueInCents));
 		}
 		if (typeof templateData.dueDay === 'number')
-			setExpenseDate(getSuggestedDateByDueDay(templateData.dueDay, templateData.usesBusinessDays));
+			setExpenseDate(templateData.mandatoryExpenseId ? formatDateToBR(toFinancialCivilDate(new Date())) : getSuggestedDateByDueDay(templateData.dueDay, templateData.usesBusinessDays));
 		if (templateData.tagId) setSelectedTagId(templateData.tagId);
 		if (templateData.tagName) setSelectedMovementTagName(templateData.tagName);
 		if (templateData.tagIcon) setSelectedMovementTagIcon(templateData.tagIcon);
@@ -432,11 +438,13 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseDate(formatDateToBR(normalizeDateValue(data.date) ?? new Date()));
 
 		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+		setSelectedMovementTagIcon((data.tagIcon as typeof selectedMovementTagIcon) ?? null);
 		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
 		setSelectedMovementTagName(typeof data.tagName === 'string' ? data.tagName : null);
 		setSelectedMovementBankName(typeof data.bankName === 'string' ? data.bankName : null);
 		setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
 		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
+		setPaymentMethod(editableMovement?.paymentMethod);
 	}, [existingMovement]);
 
 	React.useEffect(() => {
@@ -645,13 +653,17 @@ export default function AddRegisterExpensesScreen() {
 															placeholder="R$ 0,00"
 															autoComplete="off"
 															keyboardType="numeric"
-															value={expenseValueDisplay}
+															editable={!isFormBusy && (!isTemplateLocked || canAdjustInstallment)}
+											value={expenseValueDisplay}
 															onChangeText={handleValueChange}
 															onFocus={() => handleInputFocus('expense-value')}
 															returnKeyType="next"
 															className={inputField}
 														/>
 													</Input>
+										{plannedAmount ? <Text className={helperText}>
+											Valor previsto: {formatCurrencyBRL(plannedAmount)}{adjustment ? ` · Diferença: ${formatCurrencyBRL(adjustment)}` : ''}
+										</Text> : null}
 												</VStack>
 												<VStack className={webExpenseClassNames.fieldFull}>
 													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data da despesa</Text>
@@ -748,7 +760,7 @@ export default function AddRegisterExpensesScreen() {
 														<RadioGroup className="w-full max-w-[1120px] self-center" value={valuesRadioMoneyFormat} onChange={handleRadioMoneyFormatChange}>
 															<View className="w-full flex-row flex-wrap gap-5">
 																<Radio
-																	value="Pagamento em Banco"
+																	value="Pagamento em Banco" accessibilityLabel="Pagamento em Banco"
 																	className={switchRadioClassName}
 																	isDisabled={isMoneyFormatSelectionDisabled}
 																>
@@ -760,7 +772,7 @@ export default function AddRegisterExpensesScreen() {
 																	</RadioLabel>
 																</Radio>
 																<Radio
-																	value="Pagamento em Dinheiro"
+																	value="Pagamento em Dinheiro" accessibilityLabel="Pagamento em Dinheiro"
 																	className={switchRadioClassName}
 																	isDisabled={isMoneyFormatSelectionDisabled}
 																>
@@ -773,6 +785,26 @@ export default function AddRegisterExpensesScreen() {
 																</Radio>
 															</View>
 														</RadioGroup>
+										{!moneyFormat && !isTemplateLocked && (supportsNewPaymentFields || editableMovement?.paymentMethod) ? (
+											<VStack className="mt-3 gap-2">
+												<Text className={bodyText}>Modalidade do pagamento</Text>
+												<RadioGroup accessibilityLabel="Modalidade do pagamento" value={paymentMethod ?? ''} onChange={value => {
+													if (value === 'debit' || value === 'credit') setPaymentMethod(value);
+												}}>
+													<HStack className="flex-wrap gap-4">
+														{(['debit', 'credit'] as const).map(method => (
+															<Radio key={method} value={method} aria-label={method === 'debit' ? 'Débito' : 'Crédito'} className="min-h-touch gap-2" isDisabled={isFormBusy}>
+																<RadioIndicator className={switchRadioIndicatorClassName}>
+																	<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+																</RadioIndicator>
+																<RadioLabel className={bodyText}>{method === 'debit' ? 'Débito' : 'Crédito'}</RadioLabel>
+															</Radio>
+														))}
+													</HStack>
+												</RadioGroup>
+												{paymentMethod === 'credit' ? <Text className={helperText}>A compra entra nas despesas sem debitar o banco. A fatura não é controlada pelo Lumus.</Text> : null}
+											</VStack>
+										) : null}
 														{valuesRadioMoneyFormat === 'Pagamento em Banco' ? (
 															<VStack className="mt-4 w-full">
 																<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco</Text>
@@ -829,7 +861,8 @@ export default function AddRegisterExpensesScreen() {
 															selectedOption={selectedTagOption}
 															onSelect={handleSelectTag}
 												onOpen={() => { if (!tags.length && hasMoreTags) void loadMoreTags(); }}
-												onEndReached={() => void loadMoreTags()}
+												onLoadMore={hasMoreTags ? () => void loadMoreTags() : undefined}
+												isLoadingMore={isLoadingMoreTags}
 															isDisabled={isTagSelectDisabled}
 															isDarkMode={isDarkMode}
 															bodyTextClassName={bodyText}

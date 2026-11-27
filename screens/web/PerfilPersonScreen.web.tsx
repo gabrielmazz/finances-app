@@ -70,7 +70,6 @@ export default function PerfilPersonScreen() {
 			<main className={cn(layout.sheet, ui.screen, 'relative z-sheet min-h-0 overflow-y-auto')} style={{ marginTop: heroHeight - 64 }}>
 				<div className={cn(layout.contentFrame, layout.contentPadding, 'mx-auto py-6 pb-12')}>
 					<h1 className="sr-only">Meu perfil</h1>
-					<button type="button" onClick={state.reload} disabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'mb-5 min-h-12 px-5 disabled:opacity-50')}>Atualizar perfil</button>
 					{state.loading ? <p role="status" className={ui.helper}>Carregando seu perfil…</p> : state.loadError ? (
 						<div className="flex flex-col items-start gap-4">
 							<p role="alert" className={ui.errorText}>{state.loadError}</p>
@@ -144,10 +143,7 @@ export default function PerfilPersonScreen() {
 										</p>
 									</div>
 								</div>
-								{state.accessSummaryError && <div className="mt-3 flex flex-col items-start gap-3">
-									<p role="alert" className={ui.errorText}>Resumo de permissões indisponível nesta etapa.</p>
-									<button type="button" onClick={state.reload} disabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 px-5')}>Tentar novamente</button>
-								</div>}
+
 							</section>
 							<section aria-labelledby="profile-sharing-heading" className={cn(ui.card, 'w-full min-w-0 p-5')}>
 								<h2 id="profile-sharing-heading" className={cn(ui.heading, 'text-lg font-bold')}>Contas vinculadas</h2>

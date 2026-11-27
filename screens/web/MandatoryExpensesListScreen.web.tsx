@@ -487,7 +487,9 @@ setPendingAction(null);
 			const tag = tagMetadataMap[item.tagId];
 			setPendingAction(null);
 			navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
-				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents), templateTagId: item.tagId,
+				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents),
+				templateAdjustableInstallment: typeof item.installmentTotal === 'number' && installments === 1 ? '1' : undefined,
+				templateTagId: item.tagId,
 				templateDueDay: String(item.dueDay), templateUsesBusinessDays: item.usesBusinessDays ? '1' : undefined,
 				templateDescription: item.description ? encodeURIComponent(item.description.replace(/[\r\n]+/g, ' ')) : undefined,
 				templateMandatoryExpenseId: item.id,
@@ -818,7 +820,6 @@ setPendingAction(null);
 
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 {reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
-<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar despesas recorrentes</ButtonText></Button>
 							{list.hasMore ? <Button variant="outline" isDisabled={isRefreshing} onPress={() => void list.load(true)}><ButtonText>Carregar mais</ButtonText></Button> : null}
 {!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
 								{!isLoading && !loadError && <RecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
@@ -1329,7 +1330,9 @@ setPendingAction(null);
 										className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
 									/>
 									<Text className={helperText}>
-										Restam {pendingAction.expense.remainingInstallments ?? 0} parcela(s).
+										{selectedSettlementInstallments > 0
+											? `Parcelas ${(pendingAction.expense.installmentsCompleted ?? 0) + 1} a ${(pendingAction.expense.installmentsCompleted ?? 0) + selectedSettlementInstallments}. Restam ${(pendingAction.expense.remainingInstallments ?? 0) - selectedSettlementInstallments} após a operação.`
+											: `Restam ${pendingAction.expense.remainingInstallments ?? 0} parcela(s).`}
 									</Text>
 								</VStack>
 							) : null}

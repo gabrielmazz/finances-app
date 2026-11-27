@@ -476,7 +476,9 @@ setPendingAction(null);
 			const tag = tagMetadataMap[item.tagId];
 			setPendingAction(null);
 			navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, {
-				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents), templateTagId: item.tagId,
+				templateName: encodeURIComponent(item.name), templateValueInCents: String(cents),
+				templateAdjustableInstallment: typeof item.installmentTotal === 'number' && installments === 1 ? '1' : undefined,
+				templateTagId: item.tagId,
 				templateDueDay: String(item.dueDay), templateUsesBusinessDays: item.usesBusinessDays ? '1' : undefined,
 				templateDescription: item.description ? encodeURIComponent(item.description.replace(/[\r\n]+/g, ' ')) : undefined,
 				templateMandatoryGainId: item.id,
@@ -800,7 +802,6 @@ setPendingAction(null);
 							<VStack className={`${webStyles.contentFrame} ${webStyles.contentPadding} justify-between pb-8`}>
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 								{reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
-								<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar receitas recorrentes</ButtonText></Button>
 							{list.hasMore ? <Button variant="outline" isDisabled={isRefreshing} onPress={() => void list.load(true)}><ButtonText>Carregar mais</ButtonText></Button> : null}
 								{!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
 								{!isLoading && !loadError && <RecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
@@ -1192,7 +1193,9 @@ setPendingAction(null);
 										className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
 									/>
 									<Text className={helperText}>
-										Restam {pendingAction.gain.remainingInstallments ?? 0} parcela(s).
+										{selectedReceiptInstallments > 0
+											? `Parcelas ${(pendingAction.gain.installmentsCompleted ?? 0) + 1} a ${(pendingAction.gain.installmentsCompleted ?? 0) + selectedReceiptInstallments}. Restam ${(pendingAction.gain.remainingInstallments ?? 0) - selectedReceiptInstallments} após a operação.`
+											: `Restam ${pendingAction.gain.remainingInstallments ?? 0} parcela(s).`}
 									</Text>
 								</VStack>
 							) : null}

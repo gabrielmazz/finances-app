@@ -94,6 +94,9 @@ async function run() {
         await button(gain ? 'Registrar ganho' : 'Registrar despesa').click();
         await waitForLedger(cents, type, true);
       }
+      await page.goto(url('/home'));
+      await page.getByRole('img', { name: /Gastos por dia nos últimos três meses/ }).waitFor();
+      await page.getByText(/2 ações registradas em/).waitFor();
       await page.goto(url('/mandatory-expenses'));
       await label('Expandir detalhes de Curso mensal').click();
       await label('Desfazer pagamento de Curso mensal').click();
