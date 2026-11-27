@@ -19,3 +19,5 @@ TransferScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adap
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 A transferência usa a data financeira. Cada conta no dia da sua referência pede a confirmação correspondente. Cada ponta já contemplada pela referência tem efeito zero. O estorno considera o efeito original de cada ponta. Ver [[Gerenciamento de Bancos]].
+
+Na revisão de 25/11, o seletor recebe as contas elegíveis do contexto ativo. Quando a lista está completa e há menos de duas contas elegíveis, a tela orienta o cadastro em Configurações. A validação de origem e destino distintos permanece no fluxo financeiro.

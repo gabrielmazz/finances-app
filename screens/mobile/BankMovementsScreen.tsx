@@ -1998,6 +1998,11 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 									label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
 									value: getMovementPrimarySourceLabel(movement),
 								},
+								...(movement.paymentMethod ? [{ label: 'Pagamento', value: movement.paymentMethod === 'credit' ? 'Crédito' : 'Débito' }] : []),
+								...(movement.plannedInstallmentCents !== undefined ? [
+									{ label: 'Valor previsto', value: formatCurrencyBRL(movement.plannedInstallmentCents) },
+									{ label: 'Diferença', value: formatCurrencyBRL(movement.valueInCents - movement.plannedInstallmentCents) },
+								] : []),
 							];
 							const syncMetadataItems = movement.isFinanceInvestmentSync
 								? [

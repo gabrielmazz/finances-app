@@ -1,59 +1,45 @@
 import React from 'react';
 import { useIsFocused } from 'expo-router';
-import { Platform } from 'react-native';
 import { errorMessage } from '@/application/errors';
 import { useBankAccounts } from '@/contexts/BankAccountsContext';
 import type { BankScope } from '@/domain/banks';
-import { civilDate, mandatoryAmount, type MandatoryTemplate } from '@/domain/mandatory';
-import { sumCents } from '@/domain/money';
-import { CASH_HISTORY_ID, isIncomeOrExpenseTotal } from '@/domain/movements';
+import { mandatoryAmount, mandatoryDueMonth, type MandatoryTemplate } from '@/domain/mandatory';
+import { summarizeHomeHistory } from '@/domain/homeHistory';
+import { CASH_HISTORY_ID, hasAmbiguousMovementIds } from '@/domain/movements';
 import { getFirebaseClient } from '@/firebase/client';
 import { LOCAL_PROJECT_ID, selectedFinancialProject, usesCanonicalFinance } from '@/firebase/config';
 import { readMandatoryPage } from '@/firebase/mandatory';
 import { hasCashHistory, readMovementTimeline, type TimelineCursor } from '@/firebase/movements';
 import type { HomeInvestmentsData, HomeMovementsData, HomeOverviewData } from '@/types/presentation/home';
+import type { MovementRecord } from '@/types/bankMovements';
 import type { HomeMandatoryItem } from '@/types/presentation/home-mandatory-schedule';
 import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 import { useRecentMovements } from './useRecentMovements';
 
-async function readCurrentMonth(scope: BankScope) {
+async function readHomeHistory(scope: BankScope, banks: string[], isCurrent: () => boolean) {
 	const today = toFinancialCivilDate(new Date());
-	const month = Date.UTC(today.getFullYear(), today.getMonth(), 1);
-	const nextMonth = Date.UTC(today.getFullYear(), today.getMonth() + 1, 1);
+	const year = today.getFullYear(), month = today.getMonth();
+	const from = new Date(Math.min(Date.UTC(year, 0, 1), Date.UTC(year, month - 2, 1)));
+	const to = new Date(Date.UTC(year, month, today.getDate() + 1));
 	const client = getFirebaseClient();
-	const gain = new Map<string | null, number>(), expense = new Map<string | null, number>();
+	const items: MovementRecord[] = [];
 	let cursor: TimelineCursor | null = null;
-	for (let page = 0; page < 8; page++) {
-		const result = await readMovementTimeline(client, scope, null, new Date(month), new Date(nextMonth), cursor, []);
-		if (result.issues || result.cashIncomplete) return null;
-		for (const item of result.items) {
-			if ((item.type !== 'gain' && item.type !== 'expense') || !isIncomeOrExpenseTotal(item)) continue;
-			const amounts = item.type === 'gain' ? gain : expense;
-			const id = item.bankId ?? null;
-			amounts.set(id, sumCents([amounts.get(id) ?? 0, item.valueInCents]));
-		}
-		cursor = result.cursor;
-		if (!cursor) {
-			return {
-				expensesByBank: Object.fromEntries([...expense].filter(([id]) => id !== null)),
-				gainsByBank: Object.fromEntries([...gain].filter(([id]) => id !== null)),
-				expenses: sumCents([...expense.values()]), gains: sumCents([...gain.values()]),
-				cashExpenses: expense.get(null) ?? 0, cashGains: gain.get(null) ?? 0,
-			};
-		}
-	}
-	return null;
+	do {
+		const page = await readMovementTimeline(client, scope, null, from, to, cursor, banks, false);
+		if (!isCurrent()) return null;
+		if (page.issues || page.cashIncomplete) throw Error('movements/incomplete-history');
+		items.push(...page.items);
+		cursor = page.cursor;
+	} while (cursor);
+	if (hasAmbiguousMovementIds(items)) throw Error('movements/incomplete-history');
+	return summarizeHomeHistory(items, today);
 }
 
 function nextMandatory(template: MandatoryTemplate, today: Date): HomeMandatoryItem | null {
 	if (template.installmentTotal !== null && template.installmentsCompleted >= template.installmentTotal) return null;
-	const month = new Date(today.getFullYear(), today.getMonth(), 1);
-	const last = template.lastCycle ? civilDate(template.lastCycle + '-01') : month;
-	if (template.lastMovementDate) last.setMonth(last.getMonth() + 1);
-	const start = template.installmentStartDate ? civilDate(template.installmentStartDate.slice(0, 7) + '-01') : month;
-	const referenceDate = new Date(Math.max(month.getTime(), last.getTime(), start.getTime()));
+	const referenceDate = mandatoryDueMonth(template, today);
 	const dueDate = resolveMonthlyOccurrence({ referenceDate, dueDay: template.dueDay, usesBusinessDays: template.usesBusinessDays }).date;
 	return {
 		id: template.id, name: template.name, type: template.type, valueInCents: mandatoryAmount(template, 1), dueDate,
@@ -83,24 +69,34 @@ export function useHomeScreenData(_personId?: string | null) {
 	const focused = useIsFocused();
 	const project = selectedFinancialProject();
 	const canonical = usesCanonicalFinance(project);
-	const upcomingAvailable = Platform.OS === 'web' && (canonical || project === LOCAL_PROJECT_ID);
+	const upcomingAvailable = canonical || project === LOCAL_PROJECT_ID;
 	const recent = useRecentMovements(scope, accounts.active.items, focused && accounts.active.loaded, accounts.ledgerRevision);
 	const [refresh, setRefresh] = React.useState(0);
-	const [month, setMonth] = React.useState<{ scope: BankScope; value: Awaited<ReturnType<typeof readCurrentMonth>> }>();
+	const accountIds = canonical ? '[]' : JSON.stringify(accounts.active.items.filter(bank => !bank.blocked).map(bank => bank.id).sort());
+	const historyReady = canonical || accounts.active.loaded && accounts.active.complete;
+	const historyKey = JSON.stringify([scope?.uid, scope?.kind, scope?.id, accountIds, refresh, accounts.ledgerRevision]);
+	const [history, setHistory] = React.useState<{ key: string; value: Awaited<ReturnType<typeof readHomeHistory>>; error?: string }>();
+	React.useEffect(() => {
+		if (!scope || !historyReady) return;
+		let active = true;
+		void readHomeHistory(scope, JSON.parse(accountIds), () => active).then(value => {
+			if (active) setHistory({ key: historyKey, value });
+		}).catch(() => {
+			if (active) setHistory({ key: historyKey, value: null, error: 'Não foi possível verificar o histórico financeiro do período.' });
+		});
+		return () => { active = false; };
+	}, [scope, historyKey, historyReady, accountIds]);
 	const [cashHistoryScope, setCashHistoryScope] = React.useState<BankScope | null>(null);
 	const [schedule, setSchedule] = React.useState<{ scope: BankScope; value?: Awaited<ReturnType<typeof readUpcoming>>; error?: string }>();
 	React.useEffect(() => {
 		if (!scope) {
-			setMonth(undefined);
 			setCashHistoryScope(null);
 			setSchedule(undefined);
 			return;
 		}
 		if (!focused) return;
 		let active = true;
-		if (canonical) {
-			void readCurrentMonth(scope).then(value => { if (active) setMonth({ scope, value }); })
-				.catch(() => { if (active) setMonth({ scope, value: null }); });
+		if (canonical || project === LOCAL_PROJECT_ID) {
 			void hasCashHistory(getFirebaseClient(), scope).then(exists => { if (active) setCashHistoryScope(exists ? scope : null); })
 				.catch(() => { if (active) setCashHistoryScope(null); });
 		}
@@ -109,8 +105,9 @@ export function useHomeScreenData(_personId?: string | null) {
 				.catch(error => { if (active) setSchedule({ scope, error: errorMessage(error) }); });
 		}
 		return () => { active = false; };
-	}, [scope, focused, canonical, upcomingAvailable, refresh, accounts.ledgerRevision]);
-	const monthly = month && month.scope === scope ? month.value : null;
+	}, [scope, focused, canonical, project, upcomingAvailable, refresh, accounts.ledgerRevision, accounts.mandatoryRevision]);
+	const period = history?.key === historyKey ? history : null;
+	const monthly = period?.value?.monthly ?? null;
 	const mandatory = schedule?.scope === scope ? schedule : null;
 	return {
 		overview: {
@@ -129,8 +126,8 @@ export function useHomeScreenData(_personId?: string | null) {
 				} : null,
 				currentMonthExpensesByBankId: monthly?.expensesByBank ?? {},
 				currentMonthGainsByBankId: monthly?.gainsByBank ?? {},
-				expenseHistoryLastThreeMonths: [],
-				activityHeatmap: { startDate: '', endDate: '', dailyActionCounts: {}, totalActions: 0 },
+				expenseHistoryLastThreeMonths: period?.value?.months ?? [],
+				activityHeatmap: period?.value?.activity ?? { startDate: '', endDate: '', dailyActionCounts: {}, totalActions: 0 },
 				upcomingMandatoryItems: mandatory?.value?.items ?? [],
 			} as HomeOverviewData,
 			loading: accounts.active.loading,
@@ -156,7 +153,8 @@ export function useHomeScreenData(_personId?: string | null) {
 							? 'Nenhuma conta antiga ativa foi encontrada no grupo atual nesta página. A fonte de contas novas está indisponível nesta versão.'
 							: 'Nenhuma conta pessoal antiga ativa foi encontrada nesta página. A fonte de contas novas está indisponível nesta versão.'
 					: null,
-			historyError: 'Histórico indisponível no momento.',
+			historyLoading: !!scope && (historyReady ? !period : accounts.active.loading),
+			historyError: period?.error ?? (scope && !historyReady && !accounts.active.loading ? 'Não foi possível verificar todas as contas para consultar o histórico.' : null),
 		},
 		movements: {
 			data: { timelineMovements: recent.items, bankColorsById: {} } as HomeMovementsData,

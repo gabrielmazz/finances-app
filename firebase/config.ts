@@ -8,6 +8,7 @@ type ProductionReadiness = {status:string;projectId:string;appId:string;authDoma
 type FinanceReadiness = ProductionReadiness & {
 	financialSchemaVersion?: number;
 	financialWritesEnabled: boolean;
+	paymentExtensionsEnabled?: boolean;
 	migrationManifestSHA256?: string;
 	canonicalRulesSHA256?: string;
 	releaseView?: string;
@@ -26,6 +27,11 @@ export function usesCanonicalFinance(projectId: string | undefined, readiness: F
 export function financialLedgerAllowsWrites(projectId: string | undefined, readiness: FinanceReadiness = productionReadiness) {
 	return financialProjectAllowsWrites(projectId) ||
 		(usesCanonicalFinance(projectId, readiness) && readiness.releaseView === 'canonical' && readiness.financialWritesEnabled);
+}
+
+export function financialMovementExtensionsEnabled(projectId: string | undefined, readiness: FinanceReadiness = productionReadiness) {
+	return financialProjectAllowsWrites(projectId) ||
+		(readiness.paymentExtensionsEnabled === true && financialLedgerAllowsWrites(projectId, readiness));
 }
 
 export function selectedFinancialProject() {

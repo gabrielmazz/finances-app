@@ -73,3 +73,7 @@ As Rules canônicas foram publicadas em 23/11/2026, às 22h29 de São Paulo, e o
 O APK oficial ARM64 usa versionCode 12 e o pacote `com.gabrielmazz.lumusfinances.homologacao`. A verificação conferiu o certificado da versão anterior, os alinhamentos ZIP e ELF de 16 KiB e o hash das Rules ativas no bundle. A execução em Android instalado permanece pendente porque o ADB não encontrou aparelho conectado. [APK oficial](../dist/mvp-1.7.1/Lumus-Financas-1.7.1-oficial-arm64.apk) · [Assinatura e SHA-256](../dist/mvp-1.7.1/validation/apk-signature.json) · [Conteúdo do APK](../dist/mvp-1.7.1/validation/apk-content.json)
 
 Passaram 183 testes unitários, 218 testes de integração e os fluxos Playwright nos emuladores com as Rules locais e canônicas. A suíte temporal passou em UTC e em São Paulo. [Resultado dos testes](../dist/mvp-1.7.1/validation/summary.json)
+
+## Candidata de 25/11
+
+As extensões de pagamentos foram verificadas no Firebase Emulator com as Rules de desenvolvimento e com o arquivo canônico. O projeto Spark isolado de homologação ainda serve outro ruleset e a preparação rejeita a divergência. A publicação da candidata e a atualização do recibo de produção com paymentExtensionsEnabled exigem autorização. O recibo oficial atual continua verificável e o faturamento oficial permanece desativado.

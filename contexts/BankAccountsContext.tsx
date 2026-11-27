@@ -39,6 +39,9 @@ type Store = {
 	scopeError: string | null;
 	canWrite: boolean;
 	ledgerRevision: number;
+	mandatoryRevision: number;
+	invalidateMandatoryTemplates(scope: BankScope): void;
+	refreshAfterMovement(scope: BankScope): Promise<void>;
 	active: PageState;
 	archived: PageState;
 	load(status: 'active' | 'archived', more?: boolean): Promise<void>;
@@ -67,6 +70,8 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 	);
 	const [state, setState] = React.useState({ active: empty(), archived: empty() });
 	const [stateIdentity, setStateIdentity] = React.useState<string | null>(null);
+	const watcherReady = React.useRef<string | null>(null);
+	const [mandatoryRevision, advanceMandatoryRevision] = React.useReducer(value => value + 1, 0);
 	const [ledgerRevision, invalidateLedger] = React.useReducer(value => value + 1, 0);
 	const current = React.useRef(state);
 	current.current = state;
@@ -170,16 +175,27 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 	}, [load, identity]);
 	const project = selectedFinancialProject();
 	const ledgerOpen = financialLedgerAllowsWrites(project);
+	const invalidateMandatoryTemplates = React.useCallback((origin: BankScope) => {
+		if (scope === origin || (origin.uid === scope?.uid && origin.kind === scope.kind && origin.id === scope.id)) advanceMandatoryRevision();
+	}, [scope]);
+	const refreshAfterMovement = React.useCallback(async (origin: BankScope) => {
+		if (origin.uid !== scope?.uid || origin.kind !== scope.kind || origin.id !== scope.id) return;
+		const owner = identity;
+		if (identityRef.current !== owner || watcherReady.current === owner) return;
+		await reload();
+		if (identityRef.current === owner) invalidateLedger();
+	}, [scope, identity, reload]);
 	const canWrite = Boolean(scope && ledgerOpen && (scope.kind === 'personal' ||
 		(session.context?.kind === 'group' && session.context.role === 'admin')));
 	React.useEffect(() => {
-		if (!scope || !ledgerOpen || !usesCanonicalFinance(project)) return;
+		if (!scope || !usesCanonicalFinance(project)) return;
 		let active = true;
-		const stop = watchMovementChanges(getFirebaseClient(), scope, () => {
+		const stop = watchMovementChanges(getFirebaseClient(), scope, initial => {
+			if (initial) { watcherReady.current = identity; return; }
 			void reload().then(() => { if (active) invalidateLedger(); });
 		});
-		return () => { active = false; stop(); };
-	}, [scope, project, ledgerOpen, reload]);
+		return () => { active = false; watcherReady.current = null; stop(); };
+	}, [scope, project, identity, reload]);
 	const visible = stateIdentity === identity ? state : { active: empty(), archived: empty() };
 	let total: number | null = null;
 	if (
@@ -203,6 +219,7 @@ export function BankAccountsProvider({ children }: React.PropsWithChildren) {
 				scope,
 				canWrite,
 				ledgerRevision,
+				mandatoryRevision, invalidateMandatoryTemplates, refreshAfterMovement,
 				scopeError:
 					session.contextError ||
 					session.error ||

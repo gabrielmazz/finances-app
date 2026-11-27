@@ -1,3 +1,4 @@
+import { returnCreatedCategory } from '@/application/categoryChanges';
 import { errorMessage } from '@/application/errors';
 import { useCategoryMutations } from '@/hooks/useCategoryMutations';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -125,6 +126,7 @@ export default function AddRegisterTagScreen() {
 		isMandatoryGain?: string | string[];
 		showInBothLists?: string | string[];
 		returnAfterCreate?: string | string[];
+		categoryFormId?: string | string[];
 		returnToRoute?: string | string[];
 	}>();
 
@@ -153,6 +155,7 @@ export default function AddRegisterTagScreen() {
 
 		return legacyPreset;
 	}, [params.availabilityPreset, params.isMandatoryExpense, params.isMandatoryGain, params.placement, params.showInBothLists, params.usageType]);
+	const categoryFormId = getFirstParam(params.categoryFormId);
 	const shouldReturnAfterCreate = getBooleanParam(params.returnAfterCreate);
 	const returnToRoute = React.useMemo<AppRoutePath | null>(() => {
 		const value = getFirstParam(params.returnToRoute);
@@ -323,7 +326,8 @@ export default function AddRegisterTagScreen() {
 				if (!fields.usageType) throw Error('categories/invalid-type');
 				const pending = await create({ ...fields, usageType: fields.usageType }, intentRef.current);
 				intentRef.current = pending.operation;
-				await pending.run();
+				const created = await pending.run();
+				returnCreatedCategory(scope, categoryFormId, created);
 			}
 			showNotifierAlert({ type: 'success', description: isEditing ? 'Categoria atualizada.' : 'Categoria cadastrada.' });
 			if (shouldReturnAfterCreate) navigateBackToInlineSource();
@@ -334,7 +338,7 @@ export default function AddRegisterTagScreen() {
 			submissionLock.current = false;
 			setIsSubmitting(false);
 		}
-	}, [scope, isEditing, selectedAvailabilityPreset, savedAvailability, creationFields, serializeTagIcon, selectedTagIcon, iconChanged, tagName, existingTag, shouldReturnAfterCreate, navigateBackToInlineSource, applyPostSubmitBehavior, defaultTagIcon, reloadCategory, create, update]);
+	}, [scope, categoryFormId, isEditing, selectedAvailabilityPreset, savedAvailability, creationFields, serializeTagIcon, selectedTagIcon, iconChanged, tagName, existingTag, shouldReturnAfterCreate, navigateBackToInlineSource, applyPostSubmitBehavior, defaultTagIcon, reloadCategory, create, update]);
 
 	const screenTitle = isEditing
 		? 'Editar categoria'

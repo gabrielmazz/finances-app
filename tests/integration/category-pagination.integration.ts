@@ -38,6 +38,7 @@ test('pages incrementally across more than 1000 canonical categories, including 
   const first = await readCategorySlice(client, scope, null, 'all');
   const afterFirst = getFirebaseDiagnostics().operations['categories.page.new']?.documents ?? 0;
   assert.equal(first.items.length, 5);
+  assert.equal(first.unavailable, false);
   assert.ok(afterFirst - before <= 6, 'first page must not scan entire collection');
   const ids = first.items.map(item => item.id);
   let cursor = first.cursor;
@@ -62,13 +63,14 @@ test('filtered pages remain ordered and a connection failure does not advance th
   const second = await readCategorySlice(client, scope, first.cursor, 'gain');
   assert.deepEqual(second.items.map(item => item.id), ['id0011', 'id0013', 'id0015', 'id0017', 'id0019']);
 });
-test('a sparse filter returns a continuation without scanning the whole collection', async () => {
+test('an empty destination filter does not expose a false continuation or scan the canonical collection', async () => {
   const client = { db: env.authenticatedContext('pager').firestore(), auth: { currentUser: { uid: 'pager' } } } as unknown as Parameters<typeof readCategorySlice>[0];
   const before = getFirebaseDiagnostics().operations['categories.page.new']?.documents ?? 0;
   const page = await readCategorySlice(client, scope, null, 'mandatory-gain');
   const reads = (getFirebaseDiagnostics().operations['categories.page.new']?.documents ?? 0) - before;
   assert.deepEqual(page.items, []);
-  assert.ok(page.cursor);
+  assert.equal(page.cursor, null);
+  assert.equal(reads, 0);
   assert.ok(reads <= 12, `expected at most 12 documents, got ${reads}`);
 });
 test('an insertion before an existing cursor is visible after refreshing from the beginning', async () => {
@@ -97,4 +99,14 @@ test('refresh incorporates an external rename and archive without retaining the 
   assert.equal(refreshed.items.find(item => item.id === 'id0001')?.name, 'Atualizada externamente');
   assert.equal(refreshed.items.some(item => item.id === 'id0002'), false);
   assert.equal(new Set(refreshed.items.map(item => `${item.source}:${item.id}`)).size, refreshed.items.length);
+});
+
+test('status and accent-insensitive search find records outside the loaded page', async () => {
+  const client = { db: env.authenticatedContext('pager').firestore(), auth: { currentUser: { uid: 'pager' } } } as unknown as Parameters<typeof readCategorySlice>[0];
+  const archived = await readCategorySlice(client, scope, null, { destination: 'expense', status: 'archived', name: 'categoria 2' });
+  assert.deepEqual(archived.items.map(item => item.id), ['id0002']);
+  assert.equal(archived.cursor, null);
+  const result = await readCategorySlice(client, scope, null, { destination: 'all', status: 'active', name: 'historica' });
+  assert.deepEqual(result.items.map(item => item.id), ['old-1']);
+  assert.equal(result.cursor, null);
 });

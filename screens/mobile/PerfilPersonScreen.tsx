@@ -78,9 +78,6 @@ export default function PerfilPersonScreen() {
 							keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" onScroll={keyboard.handleScroll} scrollEventThrottle={keyboard.scrollEventThrottle}
 							contentContainerStyle={{ paddingBottom: keyboard.contentBottomPadding }}>
 							<View className="gap-6 pt-6">
-								<Button variant="outline" onPress={state.reload} isDisabled={state.loading || state.saving}>
-									<ButtonText>Atualizar perfil</ButtonText>
-								</Button>
 								{state.loading ? <Text accessibilityRole="progressbar" accessibilityLabel="Carregando seu perfil" className={ui.helper}>Carregando seu perfil…</Text> : state.loadError ? (
 									<View className="gap-4">
 										<Text accessibilityRole="alert" className={ui.errorText}>{state.loadError}</Text>
@@ -138,10 +135,7 @@ export default function PerfilPersonScreen() {
 												</Text>
 											</View>
 										</View>
-										{state.accessSummaryError && <View className="gap-3">
-											<Text accessibilityRole="alert" className={ui.errorText}>Resumo de permissões indisponível nesta etapa.</Text>
-											<Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
-										</View>}
+
 									</View>
 									<View className={cn(ui.card, 'gap-3 p-4')}>
 										<Heading size="lg" className={ui.heading}>Contas vinculadas</Heading>

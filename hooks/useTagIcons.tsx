@@ -2,9 +2,22 @@ import { FontAwesome6,Ionicons,MaterialCommunityIcons } from '@expo/vector-icons
 import React from 'react';
 import type { StyleProp,TextStyle } from 'react-native';
 
-import { DEFAULT_TAG_ICON,resolveTagIconSelection,serializeTagIconSelection,TAG_ICON_OPTIONS,type TagIconSelection } from '@/utils/tagIconCatalog';
+import { buildTagIconKey,DEFAULT_TAG_ICON,resolveTagIconSelection,serializeTagIconSelection,TAG_ICON_OPTIONS,type TagIconOption,type TagIconSelection } from '@/utils/tagIconCatalog';
 export { buildTagIconKey,DEFAULT_TAG_ICON,resolveTagIconSelection,serializeTagIconSelection,TAG_ICON_OPTIONS } from '@/utils/tagIconCatalog';
 export type { TagIconFamily,TagIconOption,TagIconSelection,TagIconStyle } from '@/utils/tagIconCatalog';
+
+function resolveStoredIcon(selection?: TagIconSelection | null): TagIconOption {
+	const catalog = resolveTagIconSelection(selection);
+	const { iconFamily, iconName, iconStyle } = selection ?? {};
+	if (catalog !== DEFAULT_TAG_ICON || !iconName) return catalog;
+	const supported = iconFamily === 'ionicons' ? Object.prototype.hasOwnProperty.call(Ionicons.getRawGlyphMap(), iconName)
+		: iconFamily === 'material-community' ? Object.prototype.hasOwnProperty.call(MaterialCommunityIcons.getRawGlyphMap(), iconName)
+		: iconFamily === 'font-awesome-6' && Object.prototype.hasOwnProperty.call(FontAwesome6.getRawGlyphMap(), iconName);
+	if (!supported || !['ionicons', 'material-community', 'font-awesome-6'].includes(iconFamily ?? '')) return catalog;
+	const family = iconFamily as TagIconOption['iconFamily'];
+	const storedStyle = iconStyle === 'brand' || iconStyle === 'regular' || iconStyle === 'solid' ? iconStyle : undefined;
+	return { key: buildTagIconKey({ iconFamily: family, iconName, iconStyle: storedStyle }), label: iconName, iconFamily: family, iconName, iconStyle: storedStyle };
+}
 
 type TagIconProps = TagIconSelection & {
 	size?: number;
@@ -20,7 +33,7 @@ export function TagIcon({
 	color = '#0F172A',
 	style,
 }: TagIconProps) {
-	const resolved = resolveTagIconSelection({
+	const resolved = resolveStoredIcon({
 		iconFamily,
 		iconName,
 		iconStyle,
@@ -65,11 +78,11 @@ export function useTagIcons() {
 	const iconOptions = React.useMemo(() => TAG_ICON_OPTIONS, []);
 
 	const resolveTagIcon = React.useCallback((selection?: TagIconSelection | null) => {
-		return resolveTagIconSelection(selection);
+		return resolveStoredIcon(selection);
 	}, []);
 
 	const getTagIconLabel = React.useCallback((selection?: TagIconSelection | null) => {
-		return resolveTagIconSelection(selection).label;
+		return resolveStoredIcon(selection).label;
 	}, []);
 
 	const serializeTagIcon = React.useCallback((selection?: TagIconSelection | null) => {

@@ -23,3 +23,9 @@ HomeScreen em `screens/mobile/` e, quando existente, `screens/web/`. Os adaptado
 Ver [[Remoção do Backend]] para recuperação, validação e limites atuais.
 
 Desde a 1.7.1, a Home e o extrato compartilham a ordem por data civil de São Paulo e criação de servidor, ambas decrescentes, com o ID como desempate. O cursor mantém o excedente e a posição das páginas do Firestore. A leitura fecha cada dia antes de emitir seus lançamentos e limita a busca por chamada. A apresentação mantém a hora dos registros históricos que a contêm.
+
+## Histórico por data financeira
+
+A Home Web e Mobile agrupa gastos dos últimos três meses e atividades de 1º de janeiro até o dia financeiro atual em São Paulo. Os gastos seguem a regra dos totais do extrato. Transferências, saques e ajustes ficam fora do total de consumo. A atividade considera eventos confirmados e conta uma transferência com par identificado uma vez. Lançamentos cancelados ficam fora da leitura. O resumo mensal e os gráficos compartilham a leitura paginada. A agregação canônica dispensa consultas de categorias. Falhas de leitura e períodos vazios têm estados próprios.
+
+O observador por contexto invalida a Home após alterações em lançamentos. O histórico é relido quando há uma alteração confirmada para incorporar edições e cancelamentos retroativos. Em contexto legado, o total depende da completude das contas autorizadas.

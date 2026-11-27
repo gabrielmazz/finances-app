@@ -6,13 +6,15 @@ import { financialDateKey } from '../utils/financialCivilDate';
 
 export type MovementType = 'gain' | 'expense';
 export const CASH_HISTORY_ID = 'cash-transactions';
+export type ExpensePaymentMethod = 'debit' | 'credit';
 export type ReferenceChoice = 'included' | 'after';
 type ReferenceTreatment = ReferenceChoice | 'historical';
 export type MovementInput = {
   name: string;
   type: MovementType;
   amountCents: number;
-  accountId: string;
+  accountId: string | null;
+  paymentMethod?: ExpensePaymentMethod;
   categoryId: string;
   categorySource: CategorySource;
   date: string;
@@ -27,7 +29,7 @@ export type Movement = MovementInput & {
   status: 'posted' | 'cancelled';
   revision: number;
 };
-export type BankOperationInput = Pick<MovementInput, 'amountCents' | 'accountId' | 'date' | 'time' | 'referenceTreatment' | 'explanation'>;
+export type BankOperationInput = Pick<MovementInput, 'amountCents' | 'date' | 'time' | 'referenceTreatment' | 'explanation'> & { accountId: string };
 export type BankTransferInput = BankOperationInput & { destinationAccountId: string; destinationReferenceTreatment?: ReferenceChoice };
 export type BankLedgerInput = BankOperationInput & Pick<MovementInput, 'name' | 'type' | 'paymentFormats'> & (
   { operation: 'cash-withdrawal' } |
@@ -54,7 +56,11 @@ export function movementInstant(date: string, time: string, now = Date.now()): D
 }
 
 export function validateMovement(input: MovementInput, now = Date.now()): MovementInput {
-  const value = validateBankOperation(input, now);
+  if (input.accountId === null && input.referenceTreatment !== undefined) throw Error('movements/invalid-reference-treatment');
+  if (input.paymentMethod !== undefined && (input.type !== 'expense' || input.accountId === null ||
+      !['debit', 'credit'].includes(input.paymentMethod) || (input.paymentMethod === 'credit' && input.referenceTreatment !== undefined)))
+    throw Error('movements/invalid-format');
+  const value = validateMovementFields(input, now);
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!name || name.length > 100 || /[\x00-\x1f\x7f]/.test(name)) throw Error('movements/invalid-name');
   if (!['gain', 'expense'].includes(input.type)) throw Error('movements/invalid-type');
@@ -62,12 +68,18 @@ export function validateMovement(input: MovementInput, now = Date.now()): Moveme
   if (!Array.isArray(input.paymentFormats) || input.paymentFormats.length > 1 || input.paymentFormats.some(value => value !== 'Variable' && value !== 'External') || (input.type === 'expense' && input.paymentFormats.length)) throw Error('movements/invalid-format');
   if (input.isFromMandatory !== undefined && input.isFromMandatory !== true) throw Error('movements/invalid-category');
   return { ...value, name, type: input.type, categoryId: input.categoryId, categorySource: input.categorySource,
-    paymentFormats: input.paymentFormats, ...(input.isFromMandatory ? { isFromMandatory: true } : {}) };
+    paymentFormats: input.paymentFormats, ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}), ...(input.isFromMandatory ? { isFromMandatory: true } : {}) };
 }
 
 export function validateBankOperation(input: BankOperationInput, now = Date.now()): BankOperationInput {
+  return validateMovementFields(input, now);
+}
+
+function validateMovementFields<T extends string | null>(
+  input: Omit<BankOperationInput, 'accountId'> & { accountId: T }, now: number,
+) {
   if (!validCents(input.amountCents) || input.amountCents <= 0) throw Error('movements/invalid-amount');
-  if (!validId(input.accountId)) throw Error('movements/invalid-account');
+  if (input.accountId !== null && !validId(input.accountId)) throw Error('movements/invalid-account');
   movementDate(input.date, now);
   if (input.time !== undefined) movementInstant(input.date, input.time, now);
   if (input.referenceTreatment !== undefined && !['included', 'after', 'historical'].includes(input.referenceTreatment)) throw Error('movements/invalid-reference-treatment');
@@ -77,8 +89,8 @@ export function validateBankOperation(input: BankOperationInput, now = Date.now(
     ...(input.referenceTreatment !== undefined ? { referenceTreatment: input.referenceTreatment } : {}), explanation: input.explanation.trim() };
 }
 
-export function movementEffect(movement: Pick<Movement, 'accountId' | 'status' | 'type' | 'amountCents' | 'referenceTreatment'> | null, accountId: string): number {
-  return movement && movement.status === 'posted' && movement.accountId === accountId && movement.referenceTreatment !== 'included' && movement.referenceTreatment !== 'historical'
+export function movementEffect(movement: Pick<Movement, 'accountId' | 'status' | 'type' | 'amountCents' | 'referenceTreatment' | 'paymentMethod'> | null, accountId: string): number {
+  return movement && movement.status === 'posted' && movement.paymentMethod !== 'credit' && movement.accountId === accountId && movement.referenceTreatment !== 'included' && movement.referenceTreatment !== 'historical'
     ? (movement.type === 'gain' ? movement.amountCents : -movement.amountCents) : 0;
 }
 

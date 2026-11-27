@@ -1,3 +1,4 @@
+import { Input, InputField } from '@/components/ui/input';
 import LegacyRecordLookup from '@/components/uiverse/shared/legacy-record-lookup';
 import { useConfigurationBanks } from '@/hooks/useConfigurationBanks';
 import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
@@ -78,11 +79,7 @@ type CategoryAvailabilityFields,
 type CategoryAvailabilityPreset,
 } from '@/utils/categoryAvailability';
 import { APP_ROUTE_PATHS,getRouteVisibilityKeyForPath,navigateToRoute,type AppRoutePath } from '@/utils/navigation';
-import {
-isTagVisibleInMandatoryUsageList,
-isTagVisibleInRegularUsageList,
-type TagUsageType
-} from '@/utils/tagUsage';
+import type { TagUsageType } from '@/utils/tagUsage';
 
 // Importação do SVG
 import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
@@ -692,7 +689,7 @@ function ActionButtonsRow({
 		align === 'flex-start' ? 'justify-start' : align === 'center' ? 'justify-center' : 'justify-end';
 
 	return (
-		<HStack className={`flex-wrap items-center gap-2 ${justifyClassName}`}>
+		<HStack className={`flex-wrap items-center gap-1 ${justifyClassName}`}>
 			{children}
 		</HStack>
 	);
@@ -831,8 +828,6 @@ export default function ConfigurationsScreen() {
 		tableActionsHeaderClassName,
 		tableActionsCellClassName,
 		tableDoubleActionColumnClassName,
-		tableTripleActionColumnClassName,
-		tableBanksMinWidthClassName,
 		tableTagsMinWidthClassName,
 		tableIconButtonClassName,
 		tablePrimaryIconClassName,
@@ -888,7 +883,12 @@ export default function ConfigurationsScreen() {
 	const [isCheckingTagUsageId] = React.useState<string | null>(null);
 	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
 	const [openConfigurationSection, setOpenConfigurationSection] = React.useState<string | null>(null);
-	const categories = useCategories(openConfigurationSection === 'item-3', tagFilter);
+	const [categoryName, setCategoryName] = React.useState('');
+	const [categorySearch, setCategorySearch] = React.useState('');
+	const [categoryStatus, setCategoryStatus] = React.useState<'active' | 'archived' | 'all'>('active');
+	const categories = useCategories(openConfigurationSection === 'item-3', {
+		destination: tagFilter, status: categoryStatus, name: categorySearch,
+	});
 	const tagData = categories.items;
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
 		banks: 1,
@@ -929,26 +929,7 @@ export default function ConfigurationsScreen() {
 			? 'Dados financeiros poderão permanecer neste dispositivo por até 10 minutos.'
 			: 'Dados financeiros não serão gravados neste dispositivo.';
 
-	const filteredTags = React.useMemo(() => {
-		return tagData.filter(tag => {
-			if (tagFilter === 'all') {
-				return true;
-			}
-			if (tagFilter === 'expense') {
-				return isTagVisibleInRegularUsageList(tag, 'expense');
-			}
-			if (tagFilter === 'mandatory-expense') {
-				return isTagVisibleInMandatoryUsageList(tag, 'expense');
-			}
-			if (tagFilter === 'gain') {
-				return isTagVisibleInRegularUsageList(tag, 'gain');
-			}
-			if (tagFilter === 'mandatory-gain') {
-				return isTagVisibleInMandatoryUsageList(tag, 'gain');
-			}
-			return true;
-		});
-	}, [tagData, tagFilter]);
+	const filteredTags = tagData;
 
 	const banksTable = React.useMemo(() => {
 		const page = paginateTableItems(bankData, tablePages.banks);
@@ -1014,7 +995,7 @@ export default function ConfigurationsScreen() {
 					tags: 1,
 				},
 		);
-	}, [tagFilter]);
+	}, [tagFilter, categorySearch, categoryStatus]);
 
 	const handleBankRemoval = React.useCallback(
 		async (bankId: string, _bankName: string, _archived = false, source?: string) => {
@@ -1047,7 +1028,7 @@ export default function ConfigurationsScreen() {
 		if (!item) return;
 		try {
 			await categories.archive(item);
-			showNotifierAlert({ type: 'success', description: 'Categoria removida.' });
+			showNotifierAlert({ type: 'success', description: 'Categoria arquivada.' });
 		} catch (error) {
 			showNotifierAlert({ type: 'error', description: errorMessage(error) });
 		}
@@ -1143,10 +1124,9 @@ export default function ConfigurationsScreen() {
 				};
 			case 'delete-tag':
 				return {
-					title: 'Excluir categoria',
-					message: `Tem certeza de que deseja excluir a categoria ${pendingAction.payload.tagName || 'selecionada'
-						}? Esta ação não pode ser desfeita.`,
-					confirmLabel: 'Excluir',
+					title: 'Arquivar categoria',
+					message: `Arquivar “${pendingAction.payload.tagName}”? A categoria continuará visível no histórico.`,
+					confirmLabel: 'Arquivar',
 					isDestructive: true,
 				};
 			case 'tag-in-use':
@@ -1411,12 +1391,12 @@ export default function ConfigurationsScreen() {
 															})}
 															{banksTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<ScrollView horizontal nestedScrollEnabled className="w-full" contentContainerClassName="min-w-full" accessibilityLabel="Tabela de bancos. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
+																	<Table className={tableBaseClassName}>
 																		<TableHeader>
 															<TableRow className={tableHeaderRowClassName}>
 																<TableHead className={tableHeadTextClassName}>Banco</TableHead>
 																<TableActionsHeader
-																	widthClassName={tableTripleActionColumnClassName}
+																	widthClassName="w-40"
 																	headerClassName={tableActionsHeaderClassName}
 																	textClassName={tableActionsHeaderTextClassName}
 																/>
@@ -1450,7 +1430,7 @@ export default function ConfigurationsScreen() {
 																						</HStack>
 																					</TableData>
 													<TableActionsCell
-														widthClassName={tableTripleActionColumnClassName}
+														widthClassName="w-40"
 														cellClassName={tableActionsCellClassName}
 													>
 														<ConfigurationActionButton
@@ -1512,7 +1492,7 @@ export default function ConfigurationsScreen() {
 																		<TableCaption className={tableCaptionClassName}>
 																			{banksTable.totalItems} banco(s) cadastrados.
 																		</TableCaption>
-																	</Table></ScrollView>
+																	</Table>
 																	{renderTablePagination('banks', banksTable)}
 																</Box>
 															) : (
@@ -1533,6 +1513,19 @@ export default function ConfigurationsScreen() {
 															<Box className={`${notTintedCardClassName} px-4 py-4`}>
 																<VStack className="gap-2">
 																	<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Filtrar categorias por tipo</Text>
+																	<Input className="w-full">
+																		<InputField accessibilityLabel="Buscar categoria por nome" placeholder="Buscar por nome"
+																			value={categoryName} onChangeText={setCategoryName} onSubmitEditing={() => setCategorySearch(categoryName.trim())} returnKeyType="search" />
+																	</Input>
+																	<Button variant="outline" onPress={() => setCategorySearch(categoryName.trim())}><ButtonText>Pesquisar categorias</ButtonText></Button>
+																	<HStack className="flex-wrap gap-2">
+																		{(['active', 'archived', 'all'] as const).map(status => (
+																			<Button key={status} variant={status === categoryStatus ? 'solid' : 'outline'}
+																				accessibilityState={{ selected: status === categoryStatus }} onPress={() => setCategoryStatus(status)}>
+																				<ButtonText>{status === 'active' ? 'Ativas' : status === 'archived' ? 'Arquivadas' : 'Todas as situações'}</ButtonText>
+																			</Button>
+																		))}
+																	</HStack>
 																	<TagActionsheetSelector
 																		options={tagFilterOptions}
 																		selectedId={tagFilter}
@@ -1582,7 +1575,7 @@ export default function ConfigurationsScreen() {
 																							</View>
 																							<VStack className="min-w-0 flex-1 gap-1">
 																								<Text className="text-sm font-semibold" numberOfLines={1}>
-																									{tag.name}
+																									{tag.name}{tag.status === 'archived' ? ' (arquivada)' : ''}
 																								</Text>
 																								<Text className={`${helperText} text-xs`} numberOfLines={2}>
 																									{getTagBadgeLabels(tag).join(' • ')}
@@ -1604,7 +1597,7 @@ export default function ConfigurationsScreen() {
 													className={tableIconButtonClassName}
 													iconClassName={tablePrimaryIconClassName}
 													accessibilityLabel={`Editar categoria ${tag.name}`}
-							disabled={tag.blocked}
+							disabled={!configurationBanks.canWrite || tag.status === 'archived' || tag.blocked}
 													onPress={() => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, { tagId: tag.id, tagSource: tag.source })}
 												/>
 																						<ConfigurationActionButton
@@ -1612,8 +1605,8 @@ export default function ConfigurationsScreen() {
 																							variant="link"
 													className={tableIconButtonClassName}
 													action="negative"
-													accessibilityLabel={`Excluir categoria ${tag.name}`}
-													disabled={tag.blocked || isCheckingTagUsageId === tag.id}
+													accessibilityLabel={`Arquivar categoria ${tag.name}`}
+													disabled={!configurationBanks.canWrite || tag.status === 'archived' || tag.blocked || isCheckingTagUsageId === tag.id}
 													onPress={() => {
 														handleRequestTagRemoval(tag);
 													}}

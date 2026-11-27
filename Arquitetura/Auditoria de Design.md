@@ -38,3 +38,10 @@ Na conferência física da Etapa 04, o aviso global sobrepunha a barra de status
 ### Etapa 06 — extrato e controles originais
 
 O painel adicional Dados da conta foi removido das variantes Web e mobile do extrato. As ações de edição e arquivamento utilizam a tabela e o modal já existentes no acordeão Bancos de Configurações. Fluxos com dados sintéticos foram verificados no navegador em 1440 e 390 pixels. A validação física Android não ocorreu; histórico sem autoridade verificável e conciliação antiga permanecem limitados.
+
+## Revisão funcional de 25/11
+
+- Navegação de Configurações. O hero decorativo fica restrito ao conteúdo e ignora ponteiros. O menu Web fica acima da área rolável. Execução nativa pendente.
+- Bancos. A coluna de ações foi compactada e o contêiner usa a largura disponível. As ações mantêm alvos interativos e rótulos.
+- Categorias. Os filtros e a paginação exibem os estados disponíveis. Os seletores oferecem acesso à próxima página em diferentes alturas de tela.
+- Formulários financeiros. A modalidade de pagamento e o valor previsto entram no formulário existente. Foram mantidos os componentes de interação do Lumus.

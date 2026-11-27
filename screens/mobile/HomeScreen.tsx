@@ -1,3 +1,5 @@
+import HomeActivityHeatmap from '@/components/uiverse/dashboard/home-activity-heatmap';
+import HomeExpenseLineChart from '@/components/uiverse/dashboard/home-expense-line-chart';
 import { formatCents } from '@/domain/money';
 import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
 import React from 'react';
@@ -712,9 +714,9 @@ export default function HomeScreen() {
 						>
 							<View className="mb-4 gap-2">
 								{homeReadError ? <Text accessibilityRole="alert" className="text-sm text-error-600 dark:text-error-400">{homeReadError}</Text> : null}
-								<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
-									<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : homeReadError ? 'Tentar novamente' : 'Atualizar saldos'}</ButtonText>
-								</Button>
+								{homeReadError ? (<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
+									<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : 'Tentar novamente'}</ButtonText>
+								</Button>) : null}
 							</View>
 							<View
 								style={{
@@ -1221,6 +1223,23 @@ export default function HomeScreen() {
 								</View>
 								) : null}
 							</View>
+
+							<VStack className="gap-4 py-4">
+								<Heading size="md">Gastos por dia</Heading>
+								{overview.historyLoading ? <Text accessibilityRole="status">Carregando gastos…</Text>
+									: overview.historyError ? <Text accessibilityRole="alert" className="text-lumus-error">{overview.historyError}</Text>
+									: overview.data.expenseHistoryLastThreeMonths.some(month => month.totalExpensesInCents > 0) ? (
+										<HomeExpenseLineChart months={overview.data.expenseHistoryLastThreeMonths} isDarkMode={isDarkMode}
+											shouldHideValues={shouldHideValues} dom={{ scrollEnabled: false, matchContents: true }} />
+									) : <Text>Nenhum gasto registrado nos últimos três meses.</Text>}
+								<Heading size="md">Atividade no ano</Heading>
+								{overview.historyLoading ? <Text accessibilityRole="status">Carregando atividades…</Text>
+									: overview.historyError ? <Text accessibilityRole="alert" className="text-lumus-error">{overview.historyError}</Text>
+									: overview.data.activityHeatmap.totalActions > 0 ? (
+										<HomeActivityHeatmap data={overview.data.activityHeatmap.dailyActionCounts} startDate={overview.data.activityHeatmap.startDate}
+											endDate={overview.data.activityHeatmap.endDate} isDarkMode={isDarkMode} dom={{ matchContents: true }} />
+									) : <Text>Nenhuma atividade registrada neste ano.</Text>}
+							</VStack>
 
 							<BankMovementsScreen
 								recentMovements={{

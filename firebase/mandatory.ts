@@ -55,19 +55,22 @@ export function newMandatoryId(client: AccountClient, scope: BankScope) {
 export async function saveMandatoryTemplate(client: AccountClient, scope: BankScope, id: string, input: MandatoryInput, expectedRevision: number | null) {
   requireBankEnvironment(client, scope);
   const value = validateMandatory(input), ref = mandatoryRef(client, scope, id);
-  const category = await readCategory(client, scope, { id: value.categoryId, source: value.categorySource });
-  if (category.status !== 'active' || category.blocked || !isTagVisibleInMandatoryUsageList(category, value.type)) throw Error('movements/invalid-category');
   await runTransaction(client.db, async tx => {
     const snap = await tx.get(ref);
     requireBankEnvironment(client, scope);
     const fields = { ...value, installmentStartDate: value.installmentStartDate ? Timestamp.fromDate(new Date(value.installmentStartDate + 'T00:00:00Z')) : null };
-    if (!snap.exists() && expectedRevision === null) {
+    const previous = snap.exists() ? parseMandatory(id, snap.data()) : null;
+    if (!previous || previous.categoryId !== value.categoryId || previous.categorySource !== value.categorySource) {
+      const category = await readCategory(client, scope, { id: value.categoryId, source: value.categorySource });
+      if (category.status !== 'active' || category.blocked || !isTagVisibleInMandatoryUsageList(category, value.type)) throw Error('movements/invalid-category');
+    }
+    if (!previous && expectedRevision === null) {
       tx.set(ref, { ...fields, revision: 0, isActive: true, installmentsCompleted: 0, lastCycle: null, lastMovementDate: null,
         lastAmountCents: null, lastInstallments: 0, updatedBy: scope.uid, updatedAt: serverTimestamp() });
       return;
     }
-    if (!snap.exists()) throw Error('mandatory/not-found');
-    const current = parseMandatory(id, snap.data());
+    if (!previous) throw Error('mandatory/not-found');
+    const current = previous;
     if (current.type !== value.type || !current.isActive) throw Error('mandatory/conflict');
     if (expectedRevision === null) {
       if (Object.entries(value).every(([key, field]) => Reflect.get(current, key) === field)) return;

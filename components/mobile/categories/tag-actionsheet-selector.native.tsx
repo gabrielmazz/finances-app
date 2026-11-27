@@ -1,3 +1,4 @@
+import { Button, ButtonText } from '@/components/ui/button';
 import React from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,7 +48,8 @@ type TagActionsheetSelectorProps = {
 	disabledHint?: string;
 	accessibilityLabel: string;
 	onOpen?: () => void;
-	onEndReached?: () => void;
+	onLoadMore?: () => void;
+	isLoadingMore?: boolean;
 	rightAccessory?: React.ReactNode;
 	onCreatePress?: () => void;
 	createActionLabel?: string;
@@ -74,7 +76,8 @@ export default function TagActionsheetSelector({
 	disabledHint = 'Categoria indisponível no momento.',
 	accessibilityLabel,
 	onOpen,
-	onEndReached,
+	onLoadMore,
+	isLoadingMore = false,
 	rightAccessory,
 	onCreatePress,
 	createActionLabel = 'Adicionar categoria',
@@ -228,16 +231,12 @@ export default function TagActionsheetSelector({
 					</VStack>
 
 					<ActionsheetScrollView
-						onScroll={(event: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
-							const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-							if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 48) onEndReached?.();
-						}}
 						className="w-full flex-1"
 						keyboardShouldPersistTaps="handled"
 						contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
 					>
 						<VStack className="w-full px-2 pb-2">
-							{sortedOptions.length === 0 ? (
+							{sortedOptions.length === 0 && !isLoadingMore ? (
 								<VStack className="items-center px-4 py-8">
 									<Text className={`${bodyTextClassName} text-center text-sm`}>
 										{emptyMessage}
@@ -285,6 +284,11 @@ export default function TagActionsheetSelector({
 									</ActionsheetItem>
 								);
 							})}
+							{onLoadMore ? (
+								<Button variant="outline" onPress={onLoadMore} isDisabled={isLoadingMore}>
+									<ButtonText>{isLoadingMore ? 'Carregando categorias…' : 'Carregar mais categorias'}</ButtonText>
+								</Button>
+							) : null}
 
 							{onCreatePress ? (
 								<Pressable

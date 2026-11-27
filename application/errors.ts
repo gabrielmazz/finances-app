@@ -81,6 +81,7 @@ export function errorMessage(error: unknown): string {
 		'mandatory/installments-started': 'Os dados do parcelamento foram preservados porque já houve confirmação de parcelas.',
 		'mandatory/conflict': 'Os dados do modelo mudaram. Atualize a lista antes de confirmar.',
 		'mandatory/cycle-already-confirmed': 'Este modelo já tem uma confirmação para o mês informado.',
+		'mandatory/reversal-limit': 'Este lançamento atingiu o limite de estornos registrados para o ciclo.',
 		'mandatory/cycle-unavailable': 'Este ciclo não está disponível para esta ação. Confira o mês e a última confirmação.',
 		'mandatory/manage-in-template': 'Use a lista de obrigatórios para cancelar a confirmação deste ciclo.',
 	};

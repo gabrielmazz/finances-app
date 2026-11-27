@@ -1,6 +1,8 @@
 import type { RedemptionTerm } from '@/utils/finance';
 
 export type MovementRecord = {
+	paymentMethod?: import('../domain/movements').ExpensePaymentMethod;
+	plannedInstallmentCents?: number;
 
 
 

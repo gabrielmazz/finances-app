@@ -69,3 +69,12 @@ export function mandatoryAmount(template: MandatoryTemplate, installments: numbe
     : installments * template.valueInCents;
   return amount;
 }
+
+export function mandatoryDueMonth(template: MandatoryTemplate, today: Date): Date {
+  const month = new Date(today.getFullYear(), today.getMonth(), 1);
+  const paid = template.lastCycle && template.lastMovementDate ? civilDate(template.lastCycle + '-01') : null;
+  if (paid) paid.setMonth(paid.getMonth() + 1);
+  const planned = template.installmentStartDate ? civilDate(template.installmentStartDate.slice(0, 7) + '-01') : month;
+  if (template.installmentTotal !== null) planned.setMonth(planned.getMonth() + template.installmentsCompleted);
+  return new Date(Math.max(month.getTime(), paid?.getTime() ?? 0, planned.getTime()));
+}

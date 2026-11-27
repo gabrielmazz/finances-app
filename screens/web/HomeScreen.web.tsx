@@ -548,9 +548,9 @@ export default function HomeScreen() {
 							<View className={webDashboardClassNames.scrollContent}>
 								<View className="mb-4 gap-2">
 									{homeReadError ? <Text accessibilityRole="alert" className="text-sm text-error-600 dark:text-error-400">{homeReadError}</Text> : null}
-									<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
-										<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : homeReadError ? 'Tentar novamente' : 'Atualizar saldos'}</ButtonText>
-									</Button>
+									{homeReadError ? (<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
+										<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : 'Tentar novamente'}</ButtonText>
+									</Button>) : null}
 								</View>
 								<View
 									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
@@ -758,7 +758,7 @@ export default function HomeScreen() {
 											</InfoTip>
 										</View>
 									</View>
-									{overview.loading && expenseHistory.length === 0 ? (
+									{overview.historyLoading ? (
 										<Skeleton
 											className={webStyles.expenseChartSkeleton}
 											baseColor={skeletonBaseColor}
@@ -797,9 +797,9 @@ export default function HomeScreen() {
 										</View>
 									</View>
 									<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
-										{overview.error || overview.historyError ? 'Atividade indisponível' : `${activityHeatmap.totalActions} ações registradas em ${new Date().getFullYear()}`}
+										{overview.historyLoading || overview.error || overview.historyError ? null : `${activityHeatmap.totalActions} ações registradas em ${activityHeatmap.startDate.slice(0, 4)}`}
 									</Text>
-									{overview.loading && activityHeatmap.totalActions === 0 ? (
+									{overview.historyLoading ? (
 										<Skeleton
 											className={webStyles.activityHeatmapSkeleton}
 											baseColor={skeletonBaseColor}
@@ -807,6 +807,8 @@ export default function HomeScreen() {
 										/>
 									) : overview.error || overview.historyError ? (
 										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error || overview.historyError}</Text>
+									) : !activityHeatmap.totalActions ? (
+										<Text className={webStyles.emptyText}>Nenhuma atividade registrada neste ano.</Text>
 									) : (
 										<HomeActivityHeatmap
 											data={activityHeatmap.dailyActionCounts}

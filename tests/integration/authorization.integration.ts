@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, onIdTokenChanged } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onIdTokenChanged } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, terminate, setLogLevel } from 'firebase/firestore';
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { setEmulatorClaims, DEMO_PASSWORD } from '../../script/emulator-fixtures';
@@ -39,6 +39,7 @@ before(async()=>{
 after(async()=>{await terminate(client.db);await deleteApp(app);await environment?.cleanup();});
 
 test('real emulator token + protected authorization governs access, not legacy profile/member roles',async()=>{
+	await signOut(client.auth);
 	await signInWithEmailAndPassword(client.auth,'auth-member@lumus.test',DEMO_PASSWORD);
 	assert.equal(client.auth.currentUser!.uid,member);
 	assert.equal((await client.auth.currentUser!.getIdTokenResult()).claims.lumusAccess,generation);
@@ -48,6 +49,7 @@ test('real emulator token + protected authorization governs access, not legacy p
 	assert.deepEqual(await loadFinancialContext(client,member,'authorization-group'),{kind:'group',groupId:'authorization-group',role:'member'});
 	assert.deepEqual((await listFinancialGroups(client,member)).map(group => [group.groupId, group.name, group.role]), [['authorization-group','Casa','member']]);
 	assert.equal((await getDocFromServer(doc(client.db,'expenses','authorization-history'))).data()?.valueInCents,12345);
+	await signOut(client.auth);
 	await signInWithEmailAndPassword(client.auth,'auth-outsider@lumus.test',DEMO_PASSWORD);
 	assert.equal(await loadAuthorization(client,outsider),null);
 	assert.deepEqual(await listFinancialGroups(client,outsider),[]);
@@ -55,6 +57,7 @@ test('real emulator token + protected authorization governs access, not legacy p
 	await assert.rejects(getDocFromServer(doc(client.db,'expenses','authorization-history')),(e:any)=>e.code==='permission-denied');
 });
 test('revocation blocks shared documents immediately even while a valid old token remains cached',async()=>{
+	await signOut(client.auth);
 	await signInWithEmailAndPassword(client.auth,'auth-member@lumus.test',DEMO_PASSWORD);
 	await environment.withSecurityRulesDisabled(async c=>c.firestore().doc(`_authorizations/${member}`).update({enabled:false}));
 	assert.equal((await client.auth.currentUser!.getIdTokenResult()).claims.lumusAccess,generation);
